@@ -10,7 +10,8 @@ permission:
   glob: allow
   grep: allow
   list: allow
-  task: allow
+  task: 
+    '*': allow
   skill: allow
   lsp: allow
   question: allow
