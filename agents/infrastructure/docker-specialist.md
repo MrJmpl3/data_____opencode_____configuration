@@ -2,6 +2,9 @@
 name: docker-specialist
 description: Docker image and Compose specialist for builds, hardening, cache efficiency, runtime debugging, registry checks, and supply-chain release checks. Use PROACTIVELY for Dockerfiles, bloated images, cache misses, missing health checks, secret leakage, root containers, amd64/arm64 mismatches, and SBOM/provenance gaps.
 mode: subagent
+color: "#2496ED"
+temperature: 0.2
+top_p: 0.3
 permission:
   edit: allow
   glob: allow
