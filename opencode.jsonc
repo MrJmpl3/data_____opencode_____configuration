@@ -109,7 +109,8 @@
     "plugin": [
         "@gotgenes/opencode-agent-identity@latest",
         "@slkiser/opencode-quota@latest",
-        "@tarquinen/opencode-dcp@latest"
+        "@tarquinen/opencode-dcp@latest",
+        "oh-my-openagent@latest"
     ],
     "provider": {
         "github-copilot": {
