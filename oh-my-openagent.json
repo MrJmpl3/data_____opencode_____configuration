@@ -2,72 +2,87 @@
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "model": "opencode-go/deepseek-v4-pro",
-      "variant": "high",
-      "prompt_append": "Maintain continuity across sessions. Preserve key decisions, file changes, and unresolved issues. Re-establish context before proceeding.",
       "fallback_models": [
         "opencode-go/deepseek-v4-flash",
-        "openrouter/deepseek/deepseek-v4-pro"
-      ]
+        "openrouter/qwen/qwen-3.5-plus"
+      ],
+      "model": "opencode-go/qwen3.5-plus",
+      "prompt_append": "Maintain continuity across sessions. Preserve key decisions, file changes, and unresolved issues. Re-establish context before proceeding.",
+      "variant": "max"
     },
     "explore": {
+      "fallback_models": [
+        "openrouter/deepseek/deepseek-v4-flash"
+      ],
       "model": "opencode-go/deepseek-v4-flash",
-      "variant": "high",
+      "permission": {
+        "edit": "deny"
+      },
       "prompt_append": "Search exhaustively across the entire codebase. Return file paths with relevant context snippets. If the first search yields few results, try alternative search terms and patterns.",
-      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"]
+      "variant": "max"
     },
     "librarian": {
+      "fallback_models": [
+        "openrouter/deepseek/deepseek-v4-flash"
+      ],
       "model": "opencode-go/deepseek-v4-flash",
-      "variant": "high",
+      "permission": {
+        "edit": "deny"
+      },
       "prompt_append": "Prioritize official documentation and authoritative sources. Return complete code examples when relevant. Verify API signatures match the library version.",
-      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"]
+      "variant": "max"
     },
     "metis": {
-      "model": "opencode-go/kimi-k2.6",
-      "variant": "high",
+      "model": "opencode-go/qwen3.5-plus",
+      "variant": "max",
+      "permission": { "edit": "deny" },
       "prompt_append": "Critically evaluate plans for gaps, risks, and missing edge cases. Identify hidden assumptions and validate them. Suggest concrete, actionable improvements.",
       "fallback_models": [
-        "opencode-go/deepseek-v4-pro",
         "opencode-go/deepseek-v4-flash",
-        "openrouter/kimi/kimi-k2.6"
+        "openrouter/qwen/qwen-3.5-plus"
       ]
     },
     "momus": {
-      "fallback_models": [
-        "opencode-go/deepseek-v4-flash",
-        "openrouter/deepseek/deepseek-v4-pro"
-      ],
-      "model": "opencode-go/deepseek-v4-pro",
+      "model": "opencode-go/qwen3.5-plus",
+      "variant": "max",
+      "permission": { "edit": "deny" },
       "prompt_append": "Focus on code quality, edge cases, and test coverage. Be ruthless but constructive. Identify bugs, security issues, and design flaws before they reach production.",
-      "variant": "high"
-    },
-    "multimodal-looker": {
-      "model": "opencode-go/kimi-k2.6",
-      "variant": "high",
-      "prompt_append": "Describe visual content in meticulous detail. Identify UI elements, layouts, colors, text, and spatial relationships. Be precise about positions and dimensions.",
       "fallback_models": [
         "opencode-go/deepseek-v4-flash",
-        "openrouter/kimi/kimi-k2.6"
+        "openrouter/qwen/qwen-3.5-plus"
       ]
     },
-    "oracle": {
-      "model": "opencode-go/kimi-k2.6",
-      "variant": "high",
-      "prompt_append": "Analyze problems from multiple angles. Consider trade-offs, edge cases, and long-term maintainability. Provide concrete reasoning with evidence, not abstract advice.",
+    "multimodal-looker": {
       "fallback_models": [
-        "opencode-go/deepseek-v4-pro",
         "opencode-go/deepseek-v4-flash",
         "openrouter/kimi/kimi-k2.6"
+      ],
+      "model": "opencode-go/kimi-k2.6",
+      "permission": {
+        "edit": "deny"
+      },
+      "prompt_append": "Describe visual content in meticulous detail. Identify UI elements, layouts, colors, text, and spatial relationships. Be precise about positions and dimensions.",
+      "variant": "max"
+    },
+    "oracle": {
+      "model": "opencode-go/qwen3.5-plus",
+      "variant": "max",
+      "permission": { "edit": "deny" },
+      "prompt_append": "Analyze problems from multiple angles. Consider trade-offs, edge cases, and long-term maintainability. Provide concrete reasoning with evidence, not abstract advice.",
+      "fallback_models": [
+        "opencode-go/deepseek-v4-flash",
+        "openrouter/qwen/qwen-3.5-plus"
       ]
     },
     "prometheus": {
+      "model": "opencode-go/qwen3.5-plus",
+      "variant": "max",
+      "permission": { "edit": "deny" },
+      "prompt_append": "Always interview first to fully understand requirements. Validate scope and identify risks before planning. Break down complex tasks into atomic, verifiable steps.",
       "fallback_models": [
         "opencode-go/deepseek-v4-flash",
-        "openrouter/kimi/kimi-k2.6"
-      ],
-      "model": "opencode-go/kimi-k2.6",
-      "prompt_append": "Always interview first to fully understand requirements. Validate scope and identify risks before planning. Break down complex tasks into atomic, verifiable steps.",
-      "variant": "high"
+        "openrouter/qwen/qwen-3.5-plus"
+      ]
     },
     "sisyphus": {
       "fallback_models": [
@@ -83,114 +98,119 @@
       "variant": "max"
     },
     "sisyphus-junior": {
+      "fallback_models": [
+        "openrouter/deepseek/deepseek-v4-flash"
+      ],
       "model": "opencode-go/deepseek-v4-flash",
-      "variant": "max",
       "prompt_append": "Follow instructions precisely without making assumptions beyond what is specified. Deliver complete, production-ready code. Verify your changes before finalizing.",
-      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"]
+      "variant": "max"
     }
   },
   "background_task": {
     "defaultConcurrency": 5,
-    "staleTimeoutMs": 120000,
     "modelConcurrency": {
       "opencode-go/deepseek-v4-flash": 10,
-      "opencode-go/deepseek-v4-pro": 2,
-      "opencode-go/kimi-k2.6": 3,
+      "opencode-go/kimi-k2.6": 2,
       "opencode-go/minimax-m2.7": 8,
+      "opencode-go/qwen3.5-plus": 8,
       "openrouter/deepseek/deepseek-v4-flash": 5,
-      "openrouter/deepseek/deepseek-v4-pro": 2,
-      "openrouter/kimi/kimi-k2.6": 2
+      "openrouter/kimi/kimi-k2.6": 2,
+      "openrouter/qwen/qwen-3.5-plus": 5
     },
     "providerConcurrency": {
       "opencode-go": 8,
       "openrouter": 5
-    }
+    },
+    "staleTimeoutMs": 120000
   },
   "categories": {
     "artistry": {
-      "description": "Soluciones creativas no convencionales, enfoques alternativos",
-      "model": "opencode-go/kimi-k2.6",
-      "variant": "high",
-      "prompt_append": "Explore unconventional and creative approaches. Challenge conventional wisdom. Propose innovative solutions that balance creativity with practicality.",
+      "description": "Unconventional creative solutions and alternative approaches",
       "fallback_models": [
         "opencode-go/deepseek-v4-flash",
-        "openrouter/kimi/kimi-k2.6"
-      ]
+        "openrouter/qwen/qwen-3.5-plus"
+      ],
+      "model": "opencode-go/qwen3.5-plus",
+      "prompt_append": "Explore unconventional and creative approaches. Challenge conventional wisdom. Propose innovative solutions that balance creativity with practicality.",
+      "variant": "max"
     },
     "deep": {
-      "description": "Resolucion autonoma: investiga a fondo antes de actuar",
-      "model": "opencode-go/deepseek-v4-pro",
-      "variant": "high",
-      "prompt_append": "Research thoroughly before implementing. Explore multiple approaches and justify your technical choices. Test against edge cases before finalizing.",
+      "description": "Autonomous problem-solving: thorough research before action",
       "fallback_models": [
         "opencode-go/deepseek-v4-flash",
-        "openrouter/deepseek/deepseek-v4-pro"
-      ]
+        "openrouter/qwen/qwen-3.5-plus"
+      ],
+      "model": "opencode-go/qwen3.5-plus",
+      "prompt_append": "Research thoroughly before implementing. Explore multiple approaches and justify your technical choices. Test against edge cases before finalizing.",
+      "variant": "max"
     },
     "quick": {
-      "description": "Tareas triviales: typo, un archivo, cambio simple",
+      "description": "Trivial tasks: typos, single file edits, simple changes",
+      "fallback_models": [
+        "openrouter/deepseek/deepseek-v4-flash"
+      ],
       "model": "opencode-go/deepseek-v4-flash",
-      "variant": "high",
       "prompt_append": "Make minimal, safe changes. Verify the change compiles and works correctly. Do not refactor or modify unrelated code.",
-      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"]
+      "variant": "max"
     },
     "ultrabrain": {
-      "description": "Razonamiento logico profundo, algoritmos, arquitectura",
-      "model": "opencode-go/deepseek-v4-pro",
+      "description": "Deep logical reasoning, algorithms, and architecture",
+      "model": "opencode-go/qwen3.5-plus",
       "variant": "max",
       "prompt_append": "Apply rigorous logical reasoning. Formally evaluate multiple solutions and trade-offs. Be explicit about assumptions and constraints.",
       "fallback_models": [
         "opencode-go/deepseek-v4-flash",
-        "openrouter/deepseek/deepseek-v4-pro"
+        "openrouter/qwen/qwen-3.5-plus"
       ]
     },
     "unspecified-high": {
-      "description": "Tareas generales de alto esfuerzo o complejidad",
-      "model": "opencode-go/deepseek-v4-pro",
-      "variant": "high",
-      "prompt_append": "Handle complex tasks with thorough analysis. Break down the problem, evaluate options, and implement the best solution with attention to edge cases.",
+      "description": "General high-effort or complex tasks",
       "fallback_models": [
         "opencode-go/deepseek-v4-flash",
-        "openrouter/deepseek/deepseek-v4-pro"
-      ]
+        "openrouter/qwen/qwen-3.5-plus"
+      ],
+      "model": "opencode-go/qwen3.5-plus",
+      "prompt_append": "Handle complex tasks with thorough analysis. Break down the problem, evaluate options, and implement the best solution with attention to edge cases.",
+      "variant": "max"
     },
     "unspecified-low": {
-      "description": "Tareas generales de esfuerzo bajo a moderado",
+      "description": "General low-to-moderate effort tasks",
+      "fallback_models": [
+        "openrouter/deepseek/deepseek-v4-flash"
+      ],
       "model": "opencode-go/deepseek-v4-flash",
-      "variant": "high",
       "prompt_append": "Handle straightforward tasks efficiently. Deliver clean, working code without unnecessary complexity.",
-      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"]
+      "variant": "max"
     },
     "visual-engineering": {
-      "description": "Frontend, UI/UX, diseno, animacion, CSS/styling",
-      "model": "opencode-go/kimi-k2.6",
-      "variant": "high",
-      "prompt_append": "Create polished, responsive, accessible UI. Follow established design patterns. Ensure consistent spacing, typography, and color usage.",
+      "description": "Frontend, UI/UX, design, animation, CSS/styling",
       "fallback_models": [
         "opencode-go/deepseek-v4-flash",
         "openrouter/kimi/kimi-k2.6"
-      ]
+      ],
+      "model": "opencode-go/kimi-k2.6",
+      "prompt_append": "Create polished, responsive, accessible UI. Follow established design patterns. Ensure consistent spacing, typography, and color usage.",
+      "variant": "max"
     },
     "writing": {
-      "description": "Documentacion, prosa, escritura tecnica",
-      "model": "opencode-go/kimi-k2.6",
-      "variant": "high",
-      "prompt_append": "Write clear, concise, well-structured documentation. Use active voice. Include practical examples. Focus on the reader's understanding.",
+      "description": "Documentation, prose, and technical writing",
       "fallback_models": [
         "opencode-go/deepseek-v4-flash",
-        "openrouter/kimi/kimi-k2.6"
-      ]
+        "openrouter/qwen/qwen-3.5-plus"
+      ],
+      "model": "opencode-go/qwen3.5-plus",
+      "prompt_append": "Write clear, concise, well-structured documentation. Use active voice. Include practical examples. Focus on the reader's understanding.",
+      "variant": "max"
     }
+  },
+  "comment_checker": {
+    "custom_prompt": "Evaluate comments against this standard:\n# --- Section header (max ~60 chars) ---\n# Natural prose body. Explain WHY, not WHAT.\n# No ASCII art (====, ****, ----, ____).\n# [!] only for real behavioral risks.\n\nRules:\n1. Explain the 'why', not just the 'what'\n2. Use section headers max 60 chars\n3. No decorative ASCII art\n4. [!] for real risks only\n5. Max 3 consecutive comment lines before code\n6. Coherent top-to-bottom narrative\n\nComments to evaluate: {{comments}}"
   },
   "experimental": {
     "aggressive_truncation": true,
     "task_system": true
   },
   "hashline_edit": true,
-  "disabled_hooks": ["agent-usage-reminder"],
-  "comment_checker": {
-    "custom_prompt": "Evalua comentarios contra este estandar:\n# --- Section header (max ~60 chars) ---\n# Cuerpo en prosa natural. Explica WHY, no WHAT.\n# Sin ASCII art (====, ****, ----, ____).\n# [!] solo para riesgos reales de comportamiento.\n\nReglas:\n1. Explicar el 'por que', no solo el 'que'\n2. Seccionar con headers de max 60 chars\n3. Sin arte ASCII decorativo\n4. [!] solo para riesgos reales\n5. Max 3 lineas consecutivas antes de codigo\n6. Coherente de arriba a abajo\n\nComentarios a evaluar: {{comments}}"
-  },
   "model_capabilities": {
     "auto_refresh_on_start": true,
     "enabled": true
@@ -201,14 +221,14 @@
     "notify_on_fallback": true,
     "timeout_seconds": 30
   },
-  "sisyphus_agent": {
-    "planner_enabled": true,
-    "replace_plan": true
-  },
   "sisyphus": {
     "tasks": {
       "enabled": true,
       "storage_path": ".sisyphus/tasks"
     }
+  },
+  "sisyphus_agent": {
+    "planner_enabled": true,
+    "replace_plan": true
   }
 }
