@@ -2,17 +2,13 @@
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/oh-my-opencode.schema.json",
   "agents": {
     "atlas": {
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "prompt_append": "Maintain continuity across sessions. Preserve key decisions, file changes, and unresolved issues. Re-establish context before proceeding.",
       "variant": "max"
     },
     "explore": {
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "permission": {
         "edit": "deny"
@@ -21,9 +17,7 @@
       "variant": "max"
     },
     "librarian": {
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "permission": {
         "edit": "deny"
@@ -32,9 +26,7 @@
       "variant": "max"
     },
     "metis": {
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "permission": {
         "edit": "deny"
@@ -43,9 +35,7 @@
       "variant": "max"
     },
     "momus": {
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "permission": {
         "edit": "deny"
@@ -66,9 +56,7 @@
       "variant": "max"
     },
     "oracle": {
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "permission": {
         "edit": "deny"
@@ -77,9 +65,7 @@
       "variant": "max"
     },
     "prometheus": {
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "permission": {
         "edit": "deny"
@@ -88,9 +74,7 @@
       "variant": "max"
     },
     "sisyphus": {
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "prompt_append": "Prioritize code quality and thoroughness. Always verify output before finalizing. Delegate implementation to deep/unspecified-high agents. Parallelize exploration via explore/librarian.",
       "ultrawork": {
@@ -100,9 +84,7 @@
       "variant": "max"
     },
     "sisyphus-junior": {
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "prompt_append": "Follow instructions precisely without making assumptions beyond what is specified. Deliver complete, production-ready code. Verify your changes before finalizing.",
       "variant": "max"
@@ -126,73 +108,56 @@
   "categories": {
     "artistry": {
       "description": "Unconventional creative solutions and alternative approaches",
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "prompt_append": "Explore unconventional and creative approaches. Challenge conventional wisdom. Propose innovative solutions that balance creativity with practicality.",
       "variant": "max"
     },
     "deep": {
       "description": "Autonomous problem-solving: thorough research before action",
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "prompt_append": "Research thoroughly before implementing. Explore multiple approaches and justify your technical choices. Test against edge cases before finalizing.",
       "variant": "max"
     },
     "quick": {
       "description": "Trivial tasks: typos, single file edits, simple changes",
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "prompt_append": "Make minimal, safe changes. Verify the change compiles and works correctly. Do not refactor or modify unrelated code.",
       "variant": "max"
     },
     "ultrabrain": {
       "description": "Deep logical reasoning, algorithms, and architecture",
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "prompt_append": "Apply rigorous logical reasoning. Formally evaluate multiple solutions and trade-offs. Be explicit about assumptions and constraints.",
       "variant": "max"
     },
     "unspecified-high": {
       "description": "General high-effort or complex tasks",
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "prompt_append": "Handle complex tasks with thorough analysis. Break down the problem, evaluate options, and implement the best solution with attention to edge cases.",
       "variant": "max"
     },
     "unspecified-low": {
       "description": "General low-to-moderate effort tasks",
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "prompt_append": "Handle straightforward tasks efficiently. Deliver clean, working code without unnecessary complexity.",
       "variant": "max"
     },
     "visual-engineering": {
       "description": "Frontend, UI/UX, design, animation, CSS/styling",
-      "fallback_models": [
-        "opencode-go/deepseek-v4-flash",
-        "openrouter/kimi/kimi-k2.6"
-      ],
-      "model": "opencode-go/kimi-k2.6",
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
+      "model": "opencode-go/deepseek-v4-flash",
       "prompt_append": "Create polished, responsive, accessible UI. Follow established design patterns. Ensure consistent spacing, typography, and color usage.",
       "variant": "max"
     },
     "writing": {
       "description": "Documentation, prose, and technical writing",
-      "fallback_models": [
-        "openrouter/deepseek/deepseek-v4-flash"
-      ],
+      "fallback_models": ["openrouter/deepseek/deepseek-v4-flash"],
       "model": "opencode-go/deepseek-v4-flash",
       "prompt_append": "Write clear, concise, well-structured documentation. Use active voice. Include practical examples. Focus on the reader's understanding.",
       "variant": "max"
