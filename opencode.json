@@ -1,6 +1,33 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "autoupdate": true,
+  "lsp": {
+    "oxlint": {
+      "command": [
+        "pnpm",
+        "exec",
+        "oxlint",
+        "--ignore-pattern=node_modules",
+        "--lsp"
+      ],
+      "extensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".ts",
+        ".tsx",
+        ".mts",
+        ".cts"
+      ]
+    },
+    "typescript": {
+      "command": ["typescript-language-server", "--stdio"],
+      "env": {
+        "NODE_OPTIONS": "--max-old-space-size=8192"
+      }
+    }
+  },
   "mcp": {
     "context7": {
       "enabled": true,
