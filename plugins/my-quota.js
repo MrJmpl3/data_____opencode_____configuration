@@ -154,9 +154,11 @@ async function fetchCopilotQuota() {
   const totalPaths = [
     ["quota", "limit"], ["quota", "total"],
     ["monthly_quota", "limit"], ["monthly_quota", "total"],
-    ["monthly_premium_requests", "limit"],
-    ["premium_requests", "limit"],
-    ["limit"], ["total"], ["quota_limit"],
+    ["monthly_premium_requests", "limit"], ["monthly_premium_requests", "total"],
+    ["premium_requests", "limit"], ["premium_requests", "total"],
+    ["quota_snapshots", "premium_interactions", "entitlement"],
+    ["limit"], ["total"], ["quota_limit"], ["monthly_limit"],
+    ["included_premium_requests"],
     ["monthly_quotas", "chat"], ["monthly_quotas", "completions"],
   ];
   const usedPaths = [
@@ -164,23 +166,31 @@ async function fetchCopilotQuota() {
     ["monthly_premium_requests", "used"],
     ["premium_requests", "used"],
     ["used"], ["quota_used"], ["monthly_used"],
+    ["premium_requests_used"],
   ];
   const remainingPaths = [
     ["quota", "remaining"], ["monthly_quota", "remaining"],
     ["monthly_premium_requests", "remaining"],
     ["premium_requests", "remaining"],
-    ["remaining"], ["quota_remaining"],
+    ["quota_snapshots", "premium_interactions", "remaining"],
+    ["quota_snapshots", "premium_interactions", "quota_remaining"],
+    ["remaining"], ["quota_remaining"], ["monthly_remaining"],
+    ["premium_requests_remaining"],
     ["limited_user_quotas", "chat"], ["limited_user_quotas", "completions"],
   ];
   const resetPaths = [
     ["quota", "reset_at"], ["monthly_quota", "reset_at"],
     ["monthly_premium_requests", "reset_at"],
     ["premium_requests", "reset_at"],
-    ["reset_at"], ["quota_reset_date_utc"],
+    ["reset_at"], ["quota_reset_date_utc"], ["quota_reset_date"],
     ["limited_user_reset_date"],
   ];
   const unlimitedPaths = [
-    ["quota", "unlimited"], ["unlimited"],
+    ["quota", "unlimited"], ["monthly_quota", "unlimited"],
+    ["monthly_premium_requests", "unlimited"],
+    ["premium_requests", "unlimited"],
+    ["quota_snapshots", "premium_interactions", "unlimited"],
+    ["unlimited"],
   ];
 
   let total = g(totalPaths);
@@ -188,7 +198,7 @@ async function fetchCopilotQuota() {
   const remaining = g(remainingPaths);
   const unlimited = g(unlimitedPaths) === true;
   const resetAt = g(resetPaths);
-  const tier = g([["plan", "type"], ["plan", "name"], ["plan"], ["copilot_plan"]]);
+  const tier = g([["plan", "type"], ["plan", "name"], ["plan"], ["copilot_plan"], ["subscription_plan"], ["sku"]]);
 
   // Si falta total pero tenemos used y remaining, calcular
   if (total === undefined && used !== undefined && remaining !== undefined)
