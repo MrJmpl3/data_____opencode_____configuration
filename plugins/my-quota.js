@@ -90,7 +90,7 @@ async function fetchGoDashboard(workspaceId, authCookie) {
     monthly: extractWindow(html, "monthlyUsage"),
   };
   if (!data.rolling && !data.weekly && !data.monthly)
-    return { error: "No se encontraron datos de cuota en el dashboard" };
+    return { error: "No quota data found in dashboard" };
   return { data };
 }
 
@@ -220,7 +220,7 @@ async function fetchCopilotQuota() {
   }
 
   if (total === undefined || total <= 0 || used === undefined || used < 0) {
-    return { error: "No se pudieron extraer datos de cuota de Copilot" };
+    return { error: "Could not extract Copilot quota data" };
   }
 
   // Reset: si no viene, fin de mes proximo
@@ -296,12 +296,12 @@ async function fetchOpenRouterQuota() {
     return { usage: totalUsage, unit: "credits", total: null };
   }
 
-  return { error: "OpenRouter API no devolvio datos de credito esperados" };
+  return { error: "OpenRouter API did not return expected credit data" };
 }
 
 function formatOpenrouterSection(data) {
   const header = "── OpenRouter " + "─".repeat(25);
-  if (data === null) return `${header}\n  Credits      ✗ no configurado`;
+  if (data === null) return `${header}\n  Credits      ✗ not configured`;
   if (data.error) return `${header}\n  Credits      ✗ ${data.error}`;
   if (data.total !== null) {
     return `${header}\n  Credits      $${data.remaining.toFixed(2)}`;
@@ -316,7 +316,7 @@ const BAR_W = 14;
 function formatResetTime(iso) {
   if (!iso) return "";
   const diff = new Date(iso).getTime() - Date.now();
-  if (diff <= 0) return "reseteando";
+  if (diff <= 0) return "resetting";
   const d = Math.floor(diff / 86400000);
   const h = Math.floor((diff % 86400000) / 3600000);
   const m = Math.floor((diff % 3600000) / 60000);
@@ -349,7 +349,7 @@ function formatGoSection(data) {
 
 function formatCopilotSection(data) {
   const header = "── GitHub Copilot " + "─".repeat(21);
-  if (data === null) return `${header}\n  Monthly      ${" ".repeat(BAR_W + 1)}✗ no hay sesion`;
+  if (data === null) return `${header}\n  Monthly      ${" ".repeat(BAR_W + 1)}✗ no active session`;
   if (data.error) return `${header}\n  Monthly      ${" ".repeat(BAR_W + 1)}✗ ${data.error}`;
   if (data.unlimited) return `${header}\n  Monthly      ${" ".repeat(BAR_W + 1)}Unlimited`;
   const reset = data.resetTimeIso ? formatResetTime(data.resetTimeIso) : "";
@@ -368,8 +368,8 @@ export const MyQuota = async ({ client }) => {
     config: async (cfg) => {
       if (!cfg.command) cfg.command = {};
       cfg.command["quota"] = {
-        template: "Muestra cuota de OpenCode Go y GitHub Copilot",
-        description: "Muestra cuota actual con barras de progreso",
+        template: "Shows OpenCode Go, GitHub Copilot and OpenRouter quota",
+        description: "Shows current quota with progress bars",
       };
     },
 
@@ -385,7 +385,7 @@ export const MyQuota = async ({ client }) => {
         if (result.data) sections.push(formatGoSection(result.data));
         else sections.push(`── OpenCode Go ${"─".repeat(24)}\n  ✗ ${result.error}`);
       } else {
-        sections.push(`── OpenCode Go ${"─".repeat(24)}\n  ✗ no configurado`);
+        sections.push(`── OpenCode Go ${"─".repeat(24)}\n  ✗ not configured`);
       }
 
       // ── GitHub Copilot ──
@@ -409,7 +409,7 @@ export const MyQuota = async ({ client }) => {
 
       try {
         await client.tui.showToast({
-          body: { message: "/quota — consultado", variant: "info" },
+          body: { message: "/quota — checked", variant: "info" },
         });
       } catch {}
 
