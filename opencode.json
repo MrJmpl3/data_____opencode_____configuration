@@ -1,13 +1,5 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "agent": {
-    "explore": {
-      "disable": true
-    },
-    "general": {
-      "disable": true
-    }
-  },
   "autoupdate": true,
   "lsp": {
     "oxlint": {
@@ -30,7 +22,10 @@
       ]
     },
     "typescript": {
-      "command": ["typescript-language-server", "--stdio"],
+      "command": [
+        "typescript-language-server",
+        "--stdio"
+      ],
       "env": {
         "NODE_OPTIONS": "--max-old-space-size=8192"
       }
@@ -64,36 +59,47 @@
       "url": "https://nuxt.com/mcp"
     }
   },
-  "plugin": ["oh-my-opencode-slim"],
+  "plugin": [
+    "oh-my-openagent@latest",
+    "./plugins/context-cache/index.mjs",
+    "./plugins/quota/index.mjs",
+    "opencode-snip@latest",
+    "@ramtinj95/opencode-tokenscope@latest"
+  ],
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    "reserved": 16000
+  },
   "provider": {
     "github-copilot": {
       "options": {
-        "chunkTimeout": 6000000,
+        "chunkTimeout": 60000,
         "setCacheKey": true,
-        "timeout": 12000000
+        "timeout": 600000
       }
     },
     "opencode": {
       "options": {
-        "chunkTimeout": 6000000,
+        "chunkTimeout": 60000,
         "setCacheKey": true,
-        "timeout": 12000000
+        "timeout": 600000
       }
     },
     "opencode-go": {
       "options": {
-        "chunkTimeout": 6000000,
+        "chunkTimeout": 60000,
         "setCacheKey": true,
-        "timeout": 12000000
+        "timeout": 600000
       }
     },
     "openrouter": {
       "options": {
-        "chunkTimeout": 6000000,
+        "chunkTimeout": 60000,
         "setCacheKey": true,
-        "timeout": 12000000
+        "timeout": 600000
       }
     }
   },
-  "small_model": "github-copilot/gpt-5-mini"
+  "small_model": "openrouter/deepseek/deepseek-v4-flash"
 }

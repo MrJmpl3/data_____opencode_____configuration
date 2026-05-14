@@ -15,7 +15,7 @@ import {
   progressBar,
   fmtDuration,
   fmtDurationIso,
-} from "./lib/quota-providers.js";
+} from "../libs/quota.js";
 
 // ═══════════════════════════════════════════════════════════
 // Formatting (server plugin: /quota output)

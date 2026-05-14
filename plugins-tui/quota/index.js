@@ -4,7 +4,7 @@
  * Shows real-time quota from OpenCode Go, GitHub Copilot, and OpenRouter.
  * Refreshes automatically on LLM response and session changes.
  *
- * Data fetching lives in lib/quota-providers.js (shared with server plugin).
+ * Data fetching lives in libs/quota.js (shared with server plugin).
  */
 
 import { createElement, insert, setProp } from "@opentui/solid";
@@ -14,7 +14,7 @@ import {
   fetchCopilotQuota,
   fetchOpenRouterQuota,
   fmtDuration,
-} from "../../plugins/lib/quota-providers.js";
+} from "../../libs/quota.js";
 
 // ═══════════════════════════════════════════════════════════
 // TUI element helpers (pattern: oh-my-opencode-slim)

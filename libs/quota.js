@@ -2,7 +2,7 @@
  * quota-providers — Shared data fetching for my-quota plugins.
  *
  * Single source of truth for all quota providers.
- * Imported by both my-quota.js (server) and my-quota-tui (TUI).
+ * Imported by both my-quota.mjs (server) and my-quota-tui (TUI).
  */
 
 import { readFileSync, existsSync } from "fs";

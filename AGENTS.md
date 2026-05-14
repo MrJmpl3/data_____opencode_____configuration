@@ -6,13 +6,13 @@ OpenCode workspace at `~/.config/opencode`. High-signal facts for agents.
 
 | File | Purpose |
 |------|---------|
-| `opencode.json` | MCPs (context7, gh_grep, github, nuxt), LSP config, provider timeouts, plugin load |
-| `oh-my-opencode-slim.json` | Agent definitions across 4 presets: `opencode-free`, `opencode-go`, `github-copilot`, `openrouter` |
-| `tui.json` | Theme `opencode`, loads `oh-my-opencode-slim` + local `plugins-tui/my-quota-tui` |
+| `opencode.json` | MCPs (context7, gh_grep, github, nuxt), LSP config, provider timeouts, plugin load + context-cache plugin |
+| `oh-my-openagent.json` | Agent definitions across 4 presets: `opencode-free`, `opencode-go`, `github-copilot`, `openrouter` |
+| `tui.json` | Theme `opencode`, loads `oh-my-openagent` + local `plugins-tui/my-quota-tui` |
 
 - Default preset: `opencode-free` (all agents use `opencode/deepseek-v4-flash-free` variant `max`).
-- `opencode.json` `plugin` field loads `oh-my-opencode-slim` — agents are defined there.
-- `small_model`: `github-copilot/gpt-5-mini`.
+- `opencode.json` `plugin` field loads `oh-my-openagent` — agents are defined there.
+- `small_model`: `opencode/deepseek-v4-flash-free` (mismo provider principal).
 
 ## LSP (from `opencode.json`)
 
@@ -35,8 +35,8 @@ OpenCode workspace at `~/.config/opencode`. High-signal facts for agents.
 
 ## Plugins
 
-- **Server plugin** `plugins/my-quota.js` — registers `/quota` slash command showing quotas from OpenCode Go, GitHub Copilot, and OpenRouter.
-- **Shared lib** `plugins/lib/quota-providers.js` — data-fetching logic shared between server and TUI plugins.
+- **Server plugin** `plugins/quota/index.mjs` — registers `/quota` slash command showing quotas from OpenCode Go, GitHub Copilot, and OpenRouter.
+- **Shared lib** `libs/quota.js` — data-fetching logic shared between server and TUI plugins.
 - **TUI plugin** `plugins-tui/my-quota-tui/` — renders quota in TUI reactively (event-driven, no polling).
 
 ## Commands
