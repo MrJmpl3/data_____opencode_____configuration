@@ -52,10 +52,11 @@ const plugin: TuiPluginModule & { id: string } = {
         scheduleNextPoll()
       }, 120_000)
     }
-    const IMMEDIATE_REFRESH_EVENTS = ["session.updated", "session.status", "message.removed", "tui.session.select"]
+    const IMMEDIATE_REFRESH_EVENTS = ["tui.session.select"]
     const COMPLETION_REFRESH_EVENTS = [
       "message.updated",
-      "session.updated",
+      "message.removed",
+      "session.idle",
     ]
 
     async function refresh(source?: string) {
