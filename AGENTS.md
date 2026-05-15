@@ -36,7 +36,7 @@ OpenCode workspace at `~/.config/opencode`. High-signal facts for agents.
 ## Plugins
 
 - **Server plugin** `plugins/quota/index.mjs` — registers `/quota` slash command showing quotas from OpenCode Go, GitHub Copilot, and OpenRouter.
-- **Shared lib** `libs/quota.js` — data-fetching logic shared between server and TUI plugins.
+- **Shared lib** `plugins-tui/quota/providers.js` (moved from `libs/`) — data-fetching logic shared between server and TUI plugins.
 - **TUI plugin** `plugins-tui/my-quota-tui/` — renders quota in TUI reactively (event-driven, no polling).
 
 ## Commands

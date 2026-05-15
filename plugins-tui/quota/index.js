@@ -4,7 +4,7 @@
  * Shows real-time quota from OpenCode Go, GitHub Copilot, and OpenRouter.
  * Refreshes automatically on LLM response and session changes.
  *
- * Data fetching lives in libs/quota.js (shared with server plugin).
+ * Data fetching lives in providers.js (in the same folder).
  */
 
 import { createElement, insert, setProp } from "@opentui/solid";
@@ -14,7 +14,8 @@ import {
   fetchCopilotQuota,
   fetchOpenRouterQuota,
   fmtDuration,
-} from "../../libs/quota.js";
+} from "./providers.js";
+import { createRefreshScheduler } from "./refresh-scheduler.js";
 
 // ═══════════════════════════════════════════════════════════
 // TUI element helpers (pattern: oh-my-opencode-slim)
@@ -66,10 +67,12 @@ const plugin = {
   tui: async (api) => {
     let lines = [];
     let inFlightVersion = 0;
-    const pendingTimers = new Set();
-    const REFRESH_DELAYS_MS = [150, 600];
     let disposed = false;
     let fallbackTimer = null;
+
+    // Refresh immediately for UI transitions, and again later for LLM completion.
+    const IMMEDIATE_REFRESH_EVENTS = ["session.updated", "session.status", "message.removed", "tui.session.select"];
+    const COMPLETION_REFRESH_EVENTS = ["message.part.updated", "message.updated", "session.idle"];
 
     async function refresh() {
       if (disposed) return;
@@ -114,37 +117,16 @@ const plugin = {
 
       api.renderer.requestRender();
     }
-    // --- refresh strategy ---
-    // We refresh in two waves:
-    // 1) fast retries for UI/session transitions
-    // 2) a delayed retry for LLM completion, which can lag behind streaming events
-    function scheduleRefresh(extraDelays = []) {
-      for (const delay of [...REFRESH_DELAYS_MS, ...extraDelays]) {
-        const timer = setTimeout(() => {
-          if (disposed) return;
-          pendingTimers.delete(timer);
-          refresh();
-        }, delay);
-        pendingTimers.add(timer);
-      }
-    }
-    // --- event subscriptions ---
-    // `session.idle` is the strongest “the model stopped writing” signal we have.
-    // `message.*` stays as a fallback because different flows emit different events.
-    const unsubscribers = [
-      api.event.on("message.part.updated", () => scheduleRefresh([5000])),
-      api.event.on("message.updated", () => scheduleRefresh([5000])),
-      api.event.on("session.updated", () => scheduleRefresh()),
-      api.event.on("session.status", () => scheduleRefresh()),
-      api.event.on("session.idle", () => scheduleRefresh([5000])),
-      api.event.on("message.removed", () => scheduleRefresh()),
-      api.event.on("tui.session.select", () => scheduleRefresh()),
-    ];
+    const scheduler = createRefreshScheduler({
+      api,
+      onRefresh: refresh,
+      immediateEvents: IMMEDIATE_REFRESH_EVENTS,
+      completionEvents: COMPLETION_REFRESH_EVENTS,
+    });
+
     api.lifecycle.onDispose(() => {
       disposed = true;
-      for (const unsub of unsubscribers) unsub();
-      for (const timer of pendingTimers) clearTimeout(timer);
-      pendingTimers.clear();
+      scheduler.dispose();
       if (fallbackTimer) clearInterval(fallbackTimer);
     });
 

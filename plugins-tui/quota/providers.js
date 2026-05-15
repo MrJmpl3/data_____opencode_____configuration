@@ -1,12 +1,12 @@
 /**
- * quota-providers — Shared data fetching for my-quota plugins.
+ * quota-providers — Quota data fetching for the TUI sidebar plugin.
  *
- * Single source of truth for all quota providers.
- * Imported by both my-quota.mjs (server) and my-quota-tui (TUI).
+ * Consolidated here from libs/quota.js.
  */
 
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
+import os from "os";
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -31,13 +31,13 @@ export function fetchWithTimeout(url, opts, ms = FETCH_TIMEOUT_MS) {
 // ─── OS helpers ──────────────────────────────────────────
 
 function xdgDataHome() {
-  return process.env.XDG_DATA_HOME || join(require("os").homedir(), ".local", "share");
+  return process.env.XDG_DATA_HOME || join(os.homedir(), ".local", "share");
 }
 
 function authJsonPaths() {
   return [
     join(xdgDataHome(), "opencode", "auth.json"),
-    join(require("os").homedir(), ".config", "opencode", "auth.json"),
+    join(os.homedir(), ".config", "opencode", "auth.json"),
   ];
 }
 
@@ -284,7 +284,7 @@ export function readOpenRouterKey() {
 
   // Fallback: config file
   try {
-    const path = join(require("os").homedir(), ".config", "opencode", "openrouter-auth.json");
+    const path = join(os.homedir(), ".config", "opencode", "openrouter-auth.json");
     if (existsSync(path)) {
       const raw = JSON.parse(readFileSync(path, "utf-8"));
       for (const k of ["apiKey", "api_key", "token", "openrouterApiKey"]) {
