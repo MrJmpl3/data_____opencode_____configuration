@@ -8,12 +8,11 @@ OpenCode workspace at `~/.config/opencode`. High-signal facts for agents.
 |------|---------|
 | `opencode.json` | MCPs (context7, gh_grep, github, nuxt), LSP config, provider timeouts, plugin load + context-cache plugin |
 | `oh-my-openagent.json` | Agent definitions across 4 presets: `opencode-free`, `opencode-go`, `github-copilot`, `openrouter` |
-| `tui.json` | Theme `opencode`, loads `oh-my-openagent` + local `plugins-tui/my-quota-tui` |
+|| `tui.json` | Theme `opencode`, loads `oh-my-openagent` + local `./plugins/quota` |
 
-- Default preset: `opencode-free` (all agents use `opencode/deepseek-v4-flash-free` variant `max`).
-- `opencode.json` `plugin` field loads `oh-my-openagent` — agents are defined there.
-- `small_model`: `opencode/deepseek-v4-flash-free` (mismo provider principal).
-
+- `opencode.json` `plugin` field loads remote npm packages: `oh-my-openagent@latest`, `opencode-snip@latest`, `@ramtinj95/opencode-tokenscope@latest`
+- `small_model`: `opencode/deepseek-v4-flash-free` (same provider as default)
+- `plugins/quota/` — TUI sidebar plugin (TSX, event-driven + polling)
 ## LSP (from `opencode.json`)
 
 - **oxlint** via `pnpm exec oxlint` for `.js/.jsx/.mjs/.cjs/.ts/.tsx/.mts/.cts`.
@@ -35,9 +34,7 @@ OpenCode workspace at `~/.config/opencode`. High-signal facts for agents.
 
 ## Plugins
 
-- **Server plugin** `plugins/quota/index.mjs` — registers `/quota` slash command showing quotas from OpenCode Go, GitHub Copilot, and OpenRouter.
-- **Shared lib** `plugins-tui/quota/providers.js` (moved from `libs/`) — data-fetching logic shared between server and TUI plugins.
-- **TUI plugin** `plugins-tui/my-quota-tui/` — renders quota in TUI reactively (event-driven, no polling).
+- **TUI plugin** `plugins/quota/` — renders quota in TUI sidebar (TSX, signals, smart poll + events). Data fetching via `providers.ts` (colocated).
 
 ## Commands
 
@@ -45,14 +42,11 @@ OpenCode workspace at `~/.config/opencode`. High-signal facts for agents.
 - **`/comment-educational`** — `commands/comment-educational.md`. Adds educational comments via the `documentation-comments-educational` skill.
 
 ## Skills
-
-151 installed skills in `skills/`. Each has `SKILL.md` with frontmatter (name, description) and optional `rules/`, `references/`, `assets/` subdirectories.
+Installed skills in `skills/`. Each has `SKILL.md` with frontmatter (name, description) and optional `rules/`, `references/`, `assets/` subdirectories.
 
 ## Environment
 
-- Python 3.14.0 (`.python-version`)
 - Node deps: `@opencode-ai/plugin@1.14.48`, `@opentui/core@0.2.8`, `@opentui/solid@0.2.8`
-- `bun.lock` present (Bun lockfile alongside npm `package-lock.json`)
 
 ## Commit convention
 
