@@ -10,10 +10,11 @@ import {
 } from "./providers.js";
 import { createRefreshScheduler } from "./refresh-scheduler.js";
 
-function View(props: {
-  getLines: () => string[];
-  api: TuiPluginApi;
-}) {
+// --- Quota sidebar plugin: real-time API usage from 3 providers ---
+// Fetches OpenCode Go, GitHub Copilot, and OpenRouter.
+// Event-driven refresh with 120s polling fallback.
+
+function View(props: { getLines: () => string[]; api: TuiPluginApi }) {
   const theme = () => props.api.theme.current;
   return (
     <box gap={0}>
@@ -36,24 +37,47 @@ function View(props: {
   );
 }
 
+// --- Plugin entry: signals, events, lifecycle ---
 const plugin: TuiPluginModule & { id: string } = {
   id: "quota",
 
   tui: async (api) => {
+    // Reactive state that drives the sidebar view
+    // Guards for preventing work after unmount:
     const { slots, event: evt, lifecycle } = api;
     const [lines, setLines] = createSignal<string[]>([]);
     let inFlightVersion = 0;
     let disposed = false;
+    // Stale-response guard: each refresh call gets a unique version.
+    // When a newer call finishes first, older results are discarded.
     const IMMEDIATE_REFRESH_EVENTS = ["tui.session.select"];
     const COMPLETION_REFRESH_EVENTS = ["session.idle"];
+    // Session select triggers immediate refresh.
+    // Session idle (post-LLM-call) triggers a delayed refresh with staggered timers.
 
+    // --- refresh() fetches all 3 providers sequentially ---
+    // Sequential (not parallel) avoids rate limits and keeps error handling simple.
     async function refresh(source?: string) {
       if (disposed) return;
+      // Each call gets a unique version number.
+      // If a newer call finishes first, this one's results are stale and get discarded.
       const currentVersion = ++inFlightVersion;
-      let firstError: string | undefined;
 
-      const results = new Map<string, string[] | string>();
+      const results = new Map<string, string[] | string | null>();
+      // results map encodes per-provider state:
+      //   null      = loading (shows a spinner)
+      //   string[]  = success (shows data lines)
+      //   string    = error (shows error icon + message)
 
+      // Mark configured providers as loading
+      const goConfig = readGoConfig();
+      if (goConfig) results.set("go", null);
+      results.set("cp", null);
+      results.set("or", null);
+      // Only providers with config get marked. OpenCode Go is conditional;
+      // Copilot and OpenRouter are always attempted.
+
+      // --- buildLines() converts the results map to sidebar-ready text ---
       function buildLines() {
         const items: string[] = [];
         for (const [tag, key] of [
@@ -62,30 +86,43 @@ const plugin: TuiPluginModule & { id: string } = {
           ["OpenRouter", "or"],
         ] as const) {
           const r = results.get(key);
-          if (!r) {
+          if (r === undefined) continue;
+          // undefined means this provider was never set: not configured, skip it.
+          if (r === null) {
+          // null means the fetch is still running, show a spinner.
             items.push(`${tag} ⏳`);
           } else if (typeof r === "string") {
+            if (
+              r === "No config" ||
+              r === "No token configured" ||
+              r === "No API key configured"
+            )
+              continue;
+            // Config-not-found means the user hasn't set up that provider.
+            // Hide instead of showing an error in the sidebar.
             items.push(`${tag} ❌`);
             items.push(`  ${r}`);
           } else {
             items.push(tag);
             for (const line of r) items.push(`  ${line}`);
           }
+          // string[] means data loaded successfully, display it.
         }
         return items;
       }
 
       setLines(buildLines());
+      // Show loading state immediately, then update per-provider as results arrive.
 
       try {
         // ── OpenCode Go ──
-        const goConfig = readGoConfig();
         if (goConfig) {
           const result = await fetchGoDashboard(
             goConfig.workspaceId,
             goConfig.authCookie,
           );
           if (currentVersion !== inFlightVersion) return;
+          // Stale check: discard if a newer refresh already finished.
           if ("data" in result) {
             const d = result.data;
             const dataLines: string[] = [];
@@ -103,14 +140,11 @@ const plugin: TuiPluginModule & { id: string } = {
             results.set("go", dataLines.length ? dataLines : ["No windows"]);
           } else {
             results.set("go", result.error);
-            firstError ??= result.error;
           }
-          setLines(buildLines());
-        } else {
-          results.set("go", "No config");
           setLines(buildLines());
         }
 
+      // --- Provider: GitHub Copilot (reads OAuth token from auth.json) ---
         // ── GitHub Copilot ──
         const cp = await fetchCopilotQuota();
         if (currentVersion !== inFlightVersion) return;
@@ -121,13 +155,10 @@ const plugin: TuiPluginModule & { id: string } = {
           results.set("cp", [`Monthly  ${cp.text}${reset}`]);
         } else if (cp && "error" in cp) {
           results.set("cp", cp.error);
-          firstError ??= cp.error;
-        } else {
-          results.set("cp", "No token configured");
-          firstError ??= "No token configured";
         }
         setLines(buildLines());
 
+      // --- Provider: OpenRouter (reads API key from env/config) ---
         // ── OpenRouter ──
         const or = await fetchOpenRouterQuota();
         if (currentVersion !== inFlightVersion) return;
@@ -135,29 +166,17 @@ const plugin: TuiPluginModule & { id: string } = {
           results.set("or", [`Credits  ${or.text}`]);
         } else if (or && "error" in or) {
           results.set("or", or.error);
-          firstError ??= or.error;
-        } else {
-          results.set("or", "No API key configured");
-          firstError ??= "No API key configured";
         }
         setLines(buildLines());
-
-        // ── Toast ──
-        const toastMsg = firstError
-          ? `Quota: ${firstError}`
-          : `Quota updated${source ? ` (${source})` : ""}`;
-        try {
-          (api as any).ui.toast(toastMsg);
-        } catch {}
       } catch (e) {
         if (disposed || currentVersion !== inFlightVersion) return;
         const msg = `Error: ${e instanceof Error ? e.message : String(e)}`;
         setLines([msg]);
-        try {
-          (api as any).ui.toast(`Quota: ${msg}`);
-        } catch {}
       }
+      // Network errors or unexpected failures.
+      // Both guards checked again because await can resolve after dispose.
     }
+    // --- Event subscriptions: refresh on session select and idle ---
     const scheduler = createRefreshScheduler({
       subscribe: (eventName, handler) => evt.on(eventName as any, handler),
       onRefresh: refresh,
@@ -168,6 +187,7 @@ const plugin: TuiPluginModule & { id: string } = {
       disposed = true;
       scheduler.dispose();
     });
+    // Initial fetch on mount; subsequent refreshes are event-driven.
 
     await refresh();
 

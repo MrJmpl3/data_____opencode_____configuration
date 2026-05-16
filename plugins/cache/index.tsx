@@ -2,6 +2,10 @@
 import { createSignal, Show } from "solid-js";
 import type { TuiPluginModule, TuiPluginApi } from "@opencode-ai/plugin/tui";
 
+// Cache sidebar plugin for OpenCode TUI.
+// Shows hit ratio, tokens saved by reads, input/output totals,
+// and cache writes (when the provider reports them).
+// --- number formatting helpers ---
 const fmt = (n: number): string => {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 10_000) return Math.round(n / 1_000) + "K";
@@ -9,38 +13,29 @@ const fmt = (n: number): string => {
   return String(n);
 };
 
+// Coerce unknown to a finite number, defaulting to 0.
 const num = (v: unknown): number =>
   typeof v === "number" && Number.isFinite(v) ? v : 0;
 
+// Clamp ratio to [0,1] and show as integer percentage.
 const pct = (ratio: number): string =>
   Math.round(Math.max(0, Math.min(1, ratio)) * 100) + "%";
 
+// --- View: renders cache stats in the sidebar ---
 function View(props: {
   hasData: () => boolean;
   ratio: () => number;
   read: () => number;
   write: () => number;
+  input: () => number;
+  output: () => number;
   api: TuiPluginApi;
 }) {
   const theme = () => props.api.theme.current;
-  const ratio = () => props.ratio();
-  const hitEmoji = () => {
-    const r = ratio();
-    if (r >= 0.7) return "✅";
-    if (r >= 0.4) return "⚠️";
-    if (r >= 0.1) return "❌";
-    return "💀";
-  };
-  const hitColor = () => {
-    const r = ratio();
-    if (r >= 0.7) return theme().success;
-    if (r >= 0.4) return theme().warning;
-    return theme().error;
-  };
-
   return (
     <box gap={0}>
       <text fg={theme().text}>Cache</text>
+      {/* "No data" while no provider has reported cache info */}
       <Show
         when={props.hasData()}
         fallback={
@@ -49,38 +44,53 @@ function View(props: {
           </text>
         }
       >
-        <text wrapMode="none">
-          <span style={{ fg: theme().textMuted }}>Hit  </span>
-          <span style={{ fg: hitColor() }}>
-            {hitEmoji()}  {pct(ratio())}
-          </span>
+        {/* r / (r + input) = fraction of total input served from cache */}
+        <text fg={theme().textMuted} wrapMode="none">
+          Hit {pct(props.ratio())}
         </text>
         <text fg={theme().textMuted} wrapMode="none">
-          Read  {fmt(props.read())}
+          Save {fmt(props.read())}
         </text>
         <text fg={theme().textMuted} wrapMode="none">
-          Write  {fmt(props.write())}
+          In {fmt(props.input())}
         </text>
+        <text fg={theme().textMuted} wrapMode="none">
+          Out {fmt(props.output())}
+        </text>
+        {/* Most providers report reads only, not writes */}
+        {/* Hide Write row when there's nothing to show */}
+        <Show when={props.write() > 0}>
+          <text fg={theme().textMuted} wrapMode="none">
+            Write {fmt(props.write())}
+          </text>
+        </Show>
       </Show>
     </box>
   );
 }
 
+// --- plugin definition ---
 const plugin: TuiPluginModule & { id: string } = {
   id: "cache",
 
+// --- tui() lifecycle: signals, events, refresh ---
   tui: async (api) => {
     const { slots, event: evt, lifecycle } = api;
     const [hasData, setHasData] = createSignal(false);
     const [ratio, setRatio] = createSignal(0);
     const [read, setRead] = createSignal(0);
     const [write, setWrite] = createSignal(0);
+    const [output, setOutput] = createSignal(0);
+    const [inp, setInp] = createSignal(0);
     let disposed = false;
     let currentSessionId = "";
-
+    let retryTimer: any = null;
+    let inFlightVersion = 0;
+    // Refresh immediately on session switch; re-accumulate on session idle
     const IMMEDIATE_REFRESH_EVENTS = ["tui.session.select"];
     const COMPLETION_REFRESH_EVENTS = ["session.idle"];
 
+    // --- refresh(): accumulate tokens across all messages ---
     function refresh(sessionId?: string) {
       if (disposed) return;
 
@@ -93,20 +103,29 @@ const plugin: TuiPluginModule & { id: string } = {
         return;
       }
 
+      // Fetch every message in the current session
+      const currentVersion = ++inFlightVersion;
       const msgs = api.state.session.messages(sid);
+      // Discard stale responses from earlier concurrent calls
+      if (currentVersion !== inFlightVersion) return;
 
-      let input = 0;
+      let inpAcc = 0;
+      let outAcc = 0;
       let r = 0;
       let w = 0;
 
+      // Sum cache and token metrics across assistant messages
       for (const msg of msgs) {
         if (msg.role !== "assistant") continue;
-        input += num(msg.tokens?.input);
+        inpAcc += num(msg.tokens?.input);
+        outAcc += num(msg.tokens?.output);
         r += num(msg.tokens?.cache?.read);
         w += num(msg.tokens?.cache?.write);
       }
 
-      // Step-finish parts may have cache write data the message lacks
+      // Fallback: step-finish parts may carry cache.write that message.tokens lacks.
+      // Some providers report write tokens only on the final streaming part, not on
+      // the aggregated message object. This loop catches that edge case.
       if (w === 0 && r > 0) {
         for (const msg of msgs) {
           if (msg.role !== "assistant") continue;
@@ -117,38 +136,60 @@ const plugin: TuiPluginModule & { id: string } = {
           }
         }
       }
+      // No cache data at all: keep the plugin invisible
       if (r === 0 && w === 0) {
         setHasData(false);
         setRatio(0);
         setRead(0);
         setWrite(0);
+        setInp(0);
+        setOutput(0);
+        // Retry when TUI loads messages into memory
+        if (!retryTimer && msgs.length === 0) {
+          retryTimer = setTimeout(() => {
+            retryTimer = null;
+            if (!disposed) refresh(sid);
+          }, 1500);
+        }
         return;
       }
 
-      const ratioVal = r + input > 0 ? r / (r + input) : 0;
+      // Ratio = r / (r + input): what fraction of total input was served from cache
+      const ratioVal = r + inpAcc > 0 ? r / (r + inpAcc) : 0;
 
       setHasData(true);
       setRatio(ratioVal);
       setRead(r);
       setWrite(w);
+      setInp(inpAcc);
+      setOutput(outAcc);
     }
 
+    // --- subscribe to events that trigger refresh ---
     const unsubs: (() => void)[] = [];
-    for (const eventName of [...IMMEDIATE_REFRESH_EVENTS, ...COMPLETION_REFRESH_EVENTS]) {
+    for (const eventName of [
+      ...IMMEDIATE_REFRESH_EVENTS,
+      ...COMPLETION_REFRESH_EVENTS,
+    ]) {
       unsubs.push(evt.on(eventName as any, () => refresh()));
     }
 
     lifecycle.onDispose(() => {
       disposed = true;
+      clearTimeout(retryTimer);
       for (const fn of unsubs) fn();
     });
 
+    // --- register sidebar slot ---
+    // order: 140 places this plugin mid-list in the sidebar
     slots.register({
       order: 140,
       slots: {
-        sidebar_content(_ctx: any, input: any) {
-          const sid: string = input?.session_id ?? "";
+        sidebar_content(_ctx: any, slotInput: any) {
+          const sid: string = slotInput?.session_id ?? '';
           if (sid && sid !== currentSessionId) {
+            clearTimeout(retryTimer);
+            retryTimer = null;
             currentSessionId = sid;
             refresh(sid);
           }
@@ -158,6 +199,8 @@ const plugin: TuiPluginModule & { id: string } = {
               ratio={ratio}
               read={read}
               write={write}
+              input={inp}
+              output={output}
               api={api}
             />
           );

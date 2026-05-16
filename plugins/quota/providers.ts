@@ -34,6 +34,7 @@ interface OpenRouterResult {
 // ─── Constants ───────────────────────────────────────────
 
 export const FETCH_TIMEOUT_MS = 10_000;
+// 10s. Prevents the TUI sidebar from freezing on slow or dead endpoints.
 export const DASHBOARD_URL = (id: string) =>
   `https://opencode.ai/workspace/${encodeURIComponent(id)}/go`;
 export const GITHUB_API = "https://api.github.com";
@@ -42,6 +43,10 @@ export const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Gecko/20100101 Firefox/148.0";
 
 // ─── HTTP helper ─────────────────────────────────────────
+
+// --- Fetch timeout ---
+// AbortController wrapper that bails after 10s. Without this, a hanging
+// fetch would block the TUI render loop entirely.
 
 export function fetchWithTimeout(
   url: string,
@@ -72,6 +77,10 @@ function authJsonPaths(): string[] {
 // OpenCode Go
 // ═══════════════════════════════════════════════════════════
 
+// --- HTML scraping ---
+// OpenCode Go has no public API. We scrape the HTML dashboard and extract
+// usage windows from inlined $R[] JavaScript objects using regex.
+
 export function readGoConfig(): {
   workspaceId: string;
   authCookie: string;
@@ -84,6 +93,9 @@ export function readGoConfig(): {
 
 const RE_NUM = String.raw`(-?\d+(?:\.\d+)?)`;
 
+// --- Regex orderings ---
+// The $R[] objects don't guarantee field order. We generate two patterns
+// (usagePercent first, resetInSec first) and try both when parsing.
 function windowRegexes(key: string): { pctFirst: RegExp; resetFirst: RegExp } {
   const pctFirst = new RegExp(
     String.raw`${key}:\$R\[\d+\]=\{[^}]*usagePercent:${RE_NUM}[^}]*resetInSec:${RE_NUM}[^}]*\}`,
@@ -164,6 +176,12 @@ export async function fetchGoDashboard(
 // GitHub Copilot
 // ═══════════════════════════════════════════════════════════
 
+// --- Copilot token ---
+// Reads an OAuth token from auth.json. Multiple keys are checked because
+// the auth plugin has changed key names across versions: older configs
+// stored it under "copilot-chat", newer ones under "github-copilot" or
+// "github-copilot-chat".
+
 /**
  * Read Copilot OAuth token from OpenCode's auth.json.
  */
@@ -241,6 +259,12 @@ function findString(
   }
   return undefined;
 }
+
+// --- Path fallbacks ---
+// The Copilot API returns different response shapes depending on the API
+// version, user plan, and region. Each path array tries every known key
+// location and returns the first match. This keeps the fetcher working
+// across backend changes without requiring code updates.
 
 const COPILOT_TOTAL_PATHS = [
   ["quota", "limit"],
@@ -389,6 +413,11 @@ export async function fetchCopilotQuota(): Promise<
 // OpenRouter
 // ═══════════════════════════════════════════════════════════
 
+// --- API key sourcing ---
+// First checks OPENROUTER_API_KEY env var. Falls back to a local config
+// file because some setups store provider keys in JSON files under
+// ~/.config/opencode/ rather than using environment variables.
+
 /**
  * Read OpenRouter API key from env or config file.
  */
@@ -470,6 +499,10 @@ export async function fetchOpenRouterQuota(): Promise<
 // ═══════════════════════════════════════════════════════════
 // Format helpers
 // ═══════════════════════════════════════════════════════════
+
+// --- Progress bar ---
+// Renders a visual bar for the TUI. Not used by the current quota index
+// view, but available for callers who want richer display formatting.
 
 const BAR_WIDTH = 14;
 

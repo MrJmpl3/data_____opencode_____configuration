@@ -42,3 +42,4 @@ quota/
 - Do NOT remove the `disposed` guard — it prevents post-unmount crashes
 - Do NOT use `as any` or `@ts-ignore` — keep the TSX file type-safe
 - Do NOT refresh on every session update — use `session.idle` + poll only
+```
