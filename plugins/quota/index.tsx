@@ -89,7 +89,7 @@ const plugin: TuiPluginModule & { id: string } = {
           if (r === undefined) continue;
           // undefined means this provider was never set: not configured, skip it.
           if (r === null) {
-          // null means the fetch is still running, show a spinner.
+            // null means the fetch is still running, show a spinner.
             items.push(`${tag} ⏳`);
           } else if (typeof r === "string") {
             if (
@@ -144,7 +144,7 @@ const plugin: TuiPluginModule & { id: string } = {
           setLines(buildLines());
         }
 
-      // --- Provider: GitHub Copilot (reads OAuth token from auth.json) ---
+        // --- Provider: GitHub Copilot (reads OAuth token from auth.json) ---
         // ── GitHub Copilot ──
         const cp = await fetchCopilotQuota();
         if (currentVersion !== inFlightVersion) return;
@@ -158,7 +158,7 @@ const plugin: TuiPluginModule & { id: string } = {
         }
         setLines(buildLines());
 
-      // --- Provider: OpenRouter (reads API key from env/config) ---
+        // --- Provider: OpenRouter (reads API key from env/config) ---
         // ── OpenRouter ──
         const or = await fetchOpenRouterQuota();
         if (currentVersion !== inFlightVersion) return;

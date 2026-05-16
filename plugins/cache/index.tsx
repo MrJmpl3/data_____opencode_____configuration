@@ -73,7 +73,7 @@ function View(props: {
 const plugin: TuiPluginModule & { id: string } = {
   id: "cache",
 
-// --- tui() lifecycle: signals, events, refresh ---
+  // --- tui() lifecycle: signals, events, refresh ---
   tui: async (api) => {
     const { slots, event: evt, lifecycle } = api;
     const [hasData, setHasData] = createSignal(false);
@@ -186,7 +186,7 @@ const plugin: TuiPluginModule & { id: string } = {
       order: 140,
       slots: {
         sidebar_content(_ctx: any, slotInput: any) {
-          const sid: string = slotInput?.session_id ?? '';
+          const sid: string = slotInput?.session_id ?? "";
           if (sid && sid !== currentSessionId) {
             clearTimeout(retryTimer);
             retryTimer = null;

@@ -21,21 +21,21 @@ export function createRefreshScheduler({
   immediateEvents,
   completionEvents,
 }: RefreshSchedulerConfig): RefreshScheduler {
-// --- pendingTimers as Set prevents double-clear ---
-// Each timer removes itself on fire. dispose() iterates survivors.
-// Set handles the edge case where a timer fires during clearTimeout.
+  // --- pendingTimers as Set prevents double-clear ---
+  // Each timer removes itself on fire. dispose() iterates survivors.
+  // Set handles the edge case where a timer fires during clearTimeout.
 
   const pendingTimers = new Set<ReturnType<typeof setTimeout>>();
-// --- staggered base delays prevent thundering herd ---
-// 150ms: fast first refresh for immediate feedback.
-// 600ms: catches late state changes from concurrent events.
+  // --- staggered base delays prevent thundering herd ---
+  // 150ms: fast first refresh for immediate feedback.
+  // 600ms: catches late state changes from concurrent events.
 
   const REFRESH_DELAYS_MS = [150, 600];
   let disposed = false;
 
-// --- event-driven refresh reduces wasted requests ---
-// Old polling queried on a fixed interval regardless of activity.
-// Now refreshes only when relevant events fire, cutting unnecessary calls.
+  // --- event-driven refresh reduces wasted requests ---
+  // Old polling queried on a fixed interval regardless of activity.
+  // Now refreshes only when relevant events fire, cutting unnecessary calls.
 
   function scheduleRefresh(extraDelays: number[] = [], source?: string) {
     for (const delay of [...REFRESH_DELAYS_MS, ...extraDelays]) {
@@ -48,9 +48,9 @@ export function createRefreshScheduler({
     }
   }
 
-// --- bindEvents maps event names to refresh triggers ---
-// completionEvents get +250ms extra delay so the LLM finishes settling
-// before fetching updated quota. Prevents reading stale intermediate state.
+  // --- bindEvents maps event names to refresh triggers ---
+  // completionEvents get +250ms extra delay so the LLM finishes settling
+  // before fetching updated quota. Prevents reading stale intermediate state.
 
   function bindEvents(eventNames: string[], extraDelays: number[] = []) {
     return eventNames.map((eventName) =>
@@ -63,9 +63,9 @@ export function createRefreshScheduler({
     ...bindEvents(completionEvents, [250]),
   ];
 
-// --- disposed flag prevents onRefresh after unmount ---
-// unsubscribers tear down event bindings, pendingTimers.forEach clears
-// any timers that haven't fired yet. Triple-lock cleanup.
+  // --- disposed flag prevents onRefresh after unmount ---
+  // unsubscribers tear down event bindings, pendingTimers.forEach clears
+  // any timers that haven't fired yet. Triple-lock cleanup.
 
   function dispose() {
     disposed = true;
