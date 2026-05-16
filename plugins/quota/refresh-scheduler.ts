@@ -45,8 +45,7 @@ export function createRefreshScheduler({
   function dispose() {
     disposed = true;
     for (const unsub of unsubscribers) unsub();
-    for (const timer of pendingTimers) clearTimeout(timer);
-    pendingTimers.clear();
+    pendingTimers.forEach((timer) => clearTimeout(timer));
   }
 
   return {

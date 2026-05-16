@@ -106,6 +106,17 @@ const plugin: TuiPluginModule & { id: string } = {
         w += num(msg.tokens?.cache?.write);
       }
 
+      // Step-finish parts may have cache write data the message lacks
+      if (w === 0 && r > 0) {
+        for (const msg of msgs) {
+          if (msg.role !== "assistant") continue;
+          for (const part of api.state.part(msg.id)) {
+            if ((part as any).tokens?.cache?.write) {
+              w += num((part as any).tokens.cache.write);
+            }
+          }
+        }
+      }
       if (r === 0 && w === 0) {
         setHasData(false);
         setRatio(0);

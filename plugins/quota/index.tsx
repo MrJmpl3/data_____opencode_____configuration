@@ -12,14 +12,12 @@ import { createRefreshScheduler } from "./refresh-scheduler.js";
 
 function View(props: {
   getLines: () => string[];
-  getCountdown: () => string;
   api: TuiPluginApi;
 }) {
   const theme = () => props.api.theme.current;
-  const countdown = () => props.getCountdown();
   return (
     <box gap={0}>
-      <text fg={theme().text}>Quota{countdown() ? ` ${countdown()}` : ""}</text>
+      <text fg={theme().text}>Quota</text>
       <Show
         when={props.getLines().length > 0}
         fallback={
@@ -46,19 +44,6 @@ const plugin: TuiPluginModule & { id: string } = {
     const [lines, setLines] = createSignal<string[]>([]);
     let inFlightVersion = 0;
     let disposed = false;
-    const [countdownText, setCountdownText] = createSignal("");
-    let tickTimer: ReturnType<typeof setInterval> | null = null;
-    let pollTarget = 0;
-    let pollTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    function scheduleNextPoll() {
-      if (pollTimeout) clearTimeout(pollTimeout);
-      pollTarget = Date.now() + 120_000;
-      pollTimeout = setTimeout(() => {
-        refresh("poll");
-        scheduleNextPoll();
-      }, 120_000);
-    }
     const IMMEDIATE_REFRESH_EVENTS = ["tui.session.select"];
     const COMPLETION_REFRESH_EVENTS = ["session.idle"];
 
@@ -67,7 +52,6 @@ const plugin: TuiPluginModule & { id: string } = {
       const currentVersion = ++inFlightVersion;
       let firstError: string | undefined;
 
-      // Per-provider results: key → string[] (data lines) or string (error)
       const results = new Map<string, string[] | string>();
 
       function buildLines() {
@@ -79,19 +63,18 @@ const plugin: TuiPluginModule & { id: string } = {
         ] as const) {
           const r = results.get(key);
           if (!r) {
-            items.push(`⏳ ${tag}`);
+            items.push(`${tag} ⏳`);
           } else if (typeof r === "string") {
-            items.push(`❌ ${tag}`);
+            items.push(`${tag} ❌`);
             items.push(`  ${r}`);
           } else {
-            items.push(`✅ ${tag}`);
+            items.push(tag);
             for (const line of r) items.push(`  ${line}`);
           }
         }
         return items;
       }
 
-      // Show initial loading state
       setLines(buildLines());
 
       try {
@@ -105,7 +88,7 @@ const plugin: TuiPluginModule & { id: string } = {
           if (currentVersion !== inFlightVersion) return;
           if ("data" in result) {
             const d = result.data;
-            const lines: string[] = [];
+            const dataLines: string[] = [];
             for (const [name, key] of [
               ["5h Rolling", "rolling"],
               ["Weekly", "weekly"],
@@ -113,11 +96,11 @@ const plugin: TuiPluginModule & { id: string } = {
             ] as const) {
               const w = d[key];
               if (w)
-                lines.push(
+                dataLines.push(
                   `${name}  ${w.remaining.toFixed(0)}%  · ${fmtDuration(w.resetInSec)} left`,
                 );
             }
-            results.set("go", lines.length ? lines : ["No windows"]);
+            results.set("go", dataLines.length ? dataLines : ["No windows"]);
           } else {
             results.set("go", result.error);
             firstError ??= result.error;
@@ -176,10 +159,7 @@ const plugin: TuiPluginModule & { id: string } = {
       }
     }
     const scheduler = createRefreshScheduler({
-      subscribe: (eventName, handler) => {
-        scheduleNextPoll();
-        return evt.on(eventName as any, handler);
-      },
+      subscribe: (eventName, handler) => evt.on(eventName as any, handler),
       onRefresh: refresh,
       immediateEvents: IMMEDIATE_REFRESH_EVENTS,
       completionEvents: COMPLETION_REFRESH_EVENTS,
@@ -187,29 +167,15 @@ const plugin: TuiPluginModule & { id: string } = {
     lifecycle.onDispose(() => {
       disposed = true;
       scheduler.dispose();
-      if (pollTimeout) clearTimeout(pollTimeout);
-      if (tickTimer) clearInterval(tickTimer);
     });
 
     await refresh();
-    scheduleNextPoll();
-
-    tickTimer = setInterval(() => {
-      if (pollTarget > 0) {
-        const sec = Math.max(0, Math.floor((pollTarget - Date.now()) / 1000));
-        setCountdownText(`⏳ ${sec}s`);
-      } else {
-        setCountdownText("");
-      }
-    }, 1000);
 
     slots.register({
       order: 180,
       slots: {
         sidebar_content() {
-          return (
-            <View getLines={lines} getCountdown={countdownText} api={api} />
-          );
+          return <View getLines={lines} api={api} />;
         },
       },
     });
