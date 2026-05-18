@@ -31,6 +31,19 @@ interface OpenRouterResult {
   usage?: number;
 }
 
+interface OpenAIWindow {
+  usedPct: number;
+  resetSec: number;
+}
+
+interface OpenAIResult {
+  planType?: string;
+  hourly?: OpenAIWindow;
+  weekly?: OpenAIWindow;
+  codeReview?: OpenAIWindow;
+  credits?: string;
+}
+
 // ─── Constants ───────────────────────────────────────────
 
 export const FETCH_TIMEOUT_MS = 10_000;
@@ -71,6 +84,71 @@ function authJsonPaths(): string[] {
     join(xdgDataHome(), "opencode", "auth.json"),
     join(os.homedir(), ".config", "opencode", "auth.json"),
   ];
+}
+
+function readAuthJson(): Record<string, unknown> | null {
+  for (const path of authJsonPaths()) {
+    if (!existsSync(path)) continue;
+    try {
+      return JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+function readOauthAccessToken(keys: readonly string[]): string | null {
+  const auth = readAuthJson();
+  if (!auth) return null;
+  for (const key of keys) {
+    const entry = auth[key];
+    if (!entry || typeof entry !== "object") continue;
+    const oauthEntry = entry as Record<string, unknown>;
+    if (oauthEntry.type !== "oauth") continue;
+    const access = oauthEntry.access;
+    if (typeof access === "string" && access.trim()) return access.trim();
+  }
+  return null;
+}
+
+function readOauthAccountId(keys: readonly string[]): string | null {
+  const auth = readAuthJson();
+  if (!auth) return null;
+  for (const key of keys) {
+    const entry = auth[key];
+    if (!entry || typeof entry !== "object") continue;
+    const oauthEntry = entry as Record<string, unknown>;
+    if (oauthEntry.type !== "oauth") continue;
+    const accountId = oauthEntry.account_id ?? oauthEntry.accountId;
+    if (typeof accountId === "string" && accountId.trim()) return accountId.trim();
+  }
+  return null;
+}
+
+function parseJwtPayload(token: string): Record<string, unknown> | null {
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  try {
+    const payload = Buffer.from(parts[1], "base64url").toString("utf-8");
+    const parsed: unknown = JSON.parse(payload);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function readOpenAIAccountId(token: string): string | null {
+  const fromAuth = readOauthAccountId(["openai", "chatgpt", "codex"]);
+  if (fromAuth) return fromAuth;
+  const payload = parseJwtPayload(token);
+  if (!payload) return null;
+  const jwtAccountId = payload.chatgpt_account_id;
+  if (typeof jwtAccountId === "string" && jwtAccountId.trim()) {
+    return jwtAccountId.trim();
+  }
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -186,33 +264,12 @@ export async function fetchGoDashboard(
  * Read Copilot OAuth token from OpenCode's auth.json.
  */
 export function readCopilotToken(): string | null {
-  for (const path of authJsonPaths()) {
-    if (!existsSync(path)) continue;
-    try {
-      const auth: Record<string, unknown> = JSON.parse(
-        readFileSync(path, "utf-8"),
-      );
-      for (const key of [
-        "github-copilot",
-        "copilot",
-        "copilot-chat",
-        "github-copilot-chat",
-      ] as const) {
-        const entry = auth[key];
-        if (
-          entry &&
-          typeof entry === "object" &&
-          (entry as Record<string, unknown>).type === "oauth"
-        ) {
-          const access = (entry as Record<string, unknown>).access;
-          if (typeof access === "string") return access;
-        }
-      }
-    } catch {
-      /* try next path */
-    }
-  }
-  return null;
+  return readOauthAccessToken([
+    "github-copilot",
+    "copilot",
+    "copilot-chat",
+    "github-copilot-chat",
+  ]);
 }
 
 /**
@@ -494,6 +551,135 @@ export async function fetchOpenRouterQuota(): Promise<
   }
 
   return { error: "OpenRouter did not return expected credit data" };
+}
+
+// ═══════════════════════════════════════════════════════════
+// OpenAI
+// ═══════════════════════════════════════════════════════════
+
+const OPENAI_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
+
+export function readOpenAIToken(): string | null {
+  return readOauthAccessToken(["openai", "chatgpt", "codex", "opencode"]);
+}
+
+function readNumberField(
+  data: Record<string, unknown>,
+  key: string,
+): number | undefined {
+  const value = data[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readStringField(
+  data: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = data[key];
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function parseOpenAIWindow(value: unknown): OpenAIWindow | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  const usedPct = readNumberField(record, "used_percent");
+  if (usedPct === undefined) return undefined;
+
+  const resetAfterSeconds = readNumberField(record, "reset_after_seconds");
+  if (resetAfterSeconds !== undefined) {
+    return {
+      usedPct: Math.max(0, Math.min(100, usedPct)),
+      resetSec: Math.max(0, Math.floor(resetAfterSeconds)),
+    };
+  }
+
+  const resetAt = readStringField(record, "reset_at");
+  if (!resetAt) return undefined;
+  const resetSec = Math.max(
+    0,
+    Math.floor((new Date(resetAt).getTime() - Date.now()) / 1000),
+  );
+
+  return {
+    usedPct: Math.max(0, Math.min(100, usedPct)),
+    resetSec,
+  };
+}
+
+export async function fetchOpenAIQuota(): Promise<
+  OpenAIResult | null | { error: string }
+> {
+  const token = readOpenAIToken();
+  if (!token) return null;
+
+  const accountId = readOpenAIAccountId(token);
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    Authorization: `Bearer ${token}`,
+    "User-Agent": "OpenCode-Quota-Toast/1.0",
+  };
+  if (accountId) headers["ChatGPT-Account-Id"] = accountId;
+
+  const res = await fetchWithTimeout(OPENAI_USAGE_URL, { headers });
+  if (!res.ok) {
+    const text = await res.text().catch((error: unknown) => {
+      if (error instanceof Error) return error.message;
+      return String(error);
+    });
+    return { error: `OpenAI HTTP ${res.status}: ${text.slice(0, 120)}` };
+  }
+
+  const body: unknown = await res.json();
+  if (!body || typeof body !== "object") {
+    return { error: "OpenAI did not return a valid usage payload" };
+  }
+
+  const data = body as Record<string, unknown>;
+  const rateLimit =
+    data.rate_limit && typeof data.rate_limit === "object"
+      ? (data.rate_limit as Record<string, unknown>)
+      : undefined;
+  const codeReviewRateLimit =
+    data.code_review_rate_limit && typeof data.code_review_rate_limit === "object"
+      ? (data.code_review_rate_limit as Record<string, unknown>)
+      : undefined;
+  const credits =
+    data.credits && typeof data.credits === "object"
+      ? (data.credits as Record<string, unknown>)
+      : undefined;
+
+  const result: OpenAIResult = {
+    planType: readStringField(data, "plan_type"),
+    hourly: parseOpenAIWindow(rateLimit?.primary_window),
+    weekly: parseOpenAIWindow(rateLimit?.secondary_window),
+    codeReview: parseOpenAIWindow(codeReviewRateLimit?.primary_window),
+  };
+
+  if (credits) {
+    const unlimited = credits.unlimited === true;
+    const hasCredits = credits.has_credits === true || unlimited;
+    const balance =
+      typeof credits.balance === "number" && Number.isFinite(credits.balance)
+        ? credits.balance
+        : undefined;
+    if (unlimited) {
+      result.credits = "Unlimited";
+    } else if (hasCredits && balance !== undefined) {
+      result.credits = `$${balance.toFixed(2)}`;
+    }
+  }
+
+  if (
+    !result.hourly &&
+    !result.weekly &&
+    !result.codeReview &&
+    !result.credits &&
+    !result.planType
+  ) {
+    return { error: "OpenAI did not return expected quota data" };
+  }
+
+  return result;
 }
 
 // ═══════════════════════════════════════════════════════════

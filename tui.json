@@ -1,10 +1,31 @@
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    "./plugins/limits",
-    "./plugins/quota",
-    "./plugins/cache",
-    "opencode-quotes-plugin"
+    [
+      "./plugins/limits",
+      {
+        "compact": true
+      }
+    ],
+    [
+      "./plugins/quota",
+      {
+        "compact": true,
+        "visibleProviders": [
+          "openai",
+          "copilot",
+          "openrouter"
+        ]
+      }
+    ],
+    [
+      "./plugins/cache",
+      {
+        "compact": true
+      }
+    ],
+    "opencode-quotes-plugin",
+    "oh-my-opencode-slim"
   ],
   "theme": "opencode"
 }

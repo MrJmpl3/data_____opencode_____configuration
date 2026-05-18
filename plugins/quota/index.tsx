@@ -6,13 +6,130 @@ import {
   fetchGoDashboard,
   fetchCopilotQuota,
   fetchOpenRouterQuota,
+  fetchOpenAIQuota,
   fmtDuration,
 } from "./providers.js";
 import { createRefreshScheduler } from "./refresh-scheduler.js";
 
-// --- Quota sidebar plugin: real-time API usage from 3 providers ---
-// Fetches OpenCode Go, GitHub Copilot, and OpenRouter.
+// --- Quota sidebar plugin: real-time API usage across multiple providers ---
+// Fetches configured providers and renders them in the sidebar.
 // Event-driven refresh with 120s polling fallback.
+
+type QuotaProviderId = "go" | "copilot" | "openrouter" | "openai";
+
+type QuotaPluginOptions = {
+  compact?: boolean;
+  visibleProviders?: readonly string[];
+};
+
+type ProviderSpec = {
+  id: QuotaProviderId;
+  compactLabel: string;
+  label: string;
+};
+
+const PROVIDER_SPECS: readonly ProviderSpec[] = [
+  { id: "go", compactLabel: "Go", label: "OpenCode Go" },
+  { id: "copilot", compactLabel: "Copilot", label: "GitHub Copilot" },
+  { id: "openrouter", compactLabel: "OpenRouter", label: "OpenRouter" },
+  { id: "openai", compactLabel: "OpenAI", label: "OpenAI" },
+];
+
+const DEFAULT_VISIBLE_PROVIDERS: readonly QuotaProviderId[] = [
+  "go",
+  "copilot",
+  "openrouter",
+];
+
+function normalizeProviderId(value: string): QuotaProviderId | undefined {
+  const normalized = value.trim().toLowerCase();
+  switch (normalized) {
+    case "go":
+    case "opencode-go":
+      return "go";
+    case "copilot":
+    case "cp":
+    case "github-copilot":
+      return "copilot";
+    case "openrouter":
+    case "or":
+      return "openrouter";
+    case "openai":
+    case "oa":
+    case "chatgpt":
+      return "openai";
+    default:
+      return undefined;
+  }
+}
+
+function getVisibleProviders(
+  options: unknown,
+): readonly ProviderSpec[] {
+  const configured =
+    options && typeof options === "object"
+      ? (options as QuotaPluginOptions).visibleProviders
+      : undefined;
+  if (!Array.isArray(configured) || configured.length === 0) {
+    return PROVIDER_SPECS.filter((spec) =>
+      DEFAULT_VISIBLE_PROVIDERS.includes(spec.id),
+    );
+  }
+
+  const ids = new Set<QuotaProviderId>();
+  for (const raw of configured) {
+    if (typeof raw !== "string") continue;
+    const id = normalizeProviderId(raw);
+    if (id) ids.add(id);
+  }
+
+  if (ids.size === 0) {
+    return PROVIDER_SPECS.filter((spec) =>
+      DEFAULT_VISIBLE_PROVIDERS.includes(spec.id),
+    );
+  }
+
+  return PROVIDER_SPECS.filter((spec) => ids.has(spec.id));
+}
+
+function getCompactSetting(options: unknown): boolean {
+  if (!options || typeof options !== "object") return true;
+  const compact = (options as QuotaPluginOptions).compact;
+  return typeof compact === "boolean" ? compact : true;
+}
+
+function bestGoCompactLine(provider: ProviderSpec, windows: {
+  rolling: { remaining: number; resetInSec: number } | null;
+  weekly: { remaining: number; resetInSec: number } | null;
+  monthly: { remaining: number; resetInSec: number } | null;
+}): string[] {
+  const best = windows.rolling ?? windows.weekly ?? windows.monthly;
+  if (!best) return [provider.compactLabel, "No windows"];
+  return [provider.compactLabel, `${best.remaining.toFixed(0)}% · ${fmtDuration(best.resetInSec)}`];
+}
+
+function bestOpenAICompactLine(
+  provider: ProviderSpec,
+  data: {
+    planType?: string;
+    hourly?: { usedPct: number; resetSec: number };
+    weekly?: { usedPct: number; resetSec: number };
+    codeReview?: { usedPct: number; resetSec: number };
+    credits?: string;
+  },
+): string[] {
+  const parts: string[] = [];
+  if (data.planType) parts.push(data.planType);
+  const bestWindow = data.hourly ?? data.weekly ?? data.codeReview;
+  if (bestWindow) {
+    parts.push(`${Math.max(0, 100 - bestWindow.usedPct).toFixed(0)}%`);
+    const reset = fmtDuration(bestWindow.resetSec);
+    if (reset) parts.push(reset);
+  } else if (data.credits) {
+    parts.push(`credits ${data.credits}`);
+  }
+  return [provider.compactLabel, parts.join(" · ") || "No windows"];
+}
 
 function View(props: { getLines: () => string[]; api: TuiPluginApi }) {
   const theme = () => props.api.theme.current;
@@ -41,7 +158,7 @@ function View(props: { getLines: () => string[]; api: TuiPluginApi }) {
 const plugin: TuiPluginModule & { id: string } = {
   id: "quota",
 
-  tui: async (api) => {
+  tui: async (api, options) => {
     // Reactive state that drives the sidebar view
     // Guards for preventing work after unmount:
     const { slots, event: evt, lifecycle } = api;
@@ -53,10 +170,12 @@ const plugin: TuiPluginModule & { id: string } = {
     // When a newer call finishes first, older results are discarded.
     const IMMEDIATE_REFRESH_EVENTS = ["tui.session.select"];
     const COMPLETION_REFRESH_EVENTS = ["session.idle"];
+    const compact = getCompactSetting(options);
+    const visibleProviders = getVisibleProviders(options);
     // Session select triggers immediate refresh.
     // Session idle (post-LLM-call) triggers a delayed refresh with staggered timers.
 
-    // --- refresh() fetches all 3 providers sequentially ---
+    // --- refresh() fetches configured providers sequentially ---
     // Sequential (not parallel) avoids rate limits and keeps error handling simple.
     async function refresh(source?: string) {
       if (disposed) return;
@@ -64,7 +183,7 @@ const plugin: TuiPluginModule & { id: string } = {
       // If a newer call finishes first, this one's results are stale and get discarded.
       const currentVersion = ++inFlightVersion;
 
-      const results = new Map<string, string[] | string | null>();
+      const results = new Map<QuotaProviderId, string[] | string | null>();
       // results map encodes per-provider state:
       //   null      = loading (shows a spinner)
       //   string[]  = success (shows data lines)
@@ -72,32 +191,38 @@ const plugin: TuiPluginModule & { id: string } = {
 
       // Mark configured providers as loading
       const goConfig = readGoConfig();
-      if (goConfig) results.set("go", null);
-      results.set("cp", null);
-      results.set("or", null);
+      for (const provider of visibleProviders) {
+        if (provider.id === "go" && !goConfig) continue;
+        results.set(provider.id, null);
+      }
       // Only providers with config get marked. OpenCode Go is conditional;
       // Copilot and OpenRouter are always attempted.
 
       // --- buildLines() converts the results map to sidebar-ready text ---
       function buildLines() {
         const items: string[] = [];
-        for (const [tag, key] of [
-          ["OpenCode Go", "go"],
-          ["GitHub Copilot", "cp"],
-          ["OpenRouter", "or"],
-        ] as const) {
-          const r = results.get(key);
+        for (const provider of visibleProviders) {
+          const r = results.get(provider.id);
           if (r === undefined) continue;
           // undefined means this provider was never set: not configured, skip it.
           if (r === null) {
             // null means the fetch is still running, show a spinner.
-            items.push(`${tag} ⏳`);
+            items.push(compact ? `${provider.compactLabel} ⏳` : `${provider.label} ⏳`);
           } else if (typeof r === "string") {
-            items.push(`${tag} ❌`);
-            items.push(`  ${r}`);
+            if (compact) {
+              items.push(`${provider.compactLabel} ❌ ${r}`);
+            } else {
+              items.push(`${provider.label} ❌`);
+              items.push(`  ${r}`);
+            }
           } else {
-            items.push(tag);
-            for (const line of r) items.push(`  ${line}`);
+            if (compact) {
+              items.push(r[0] ?? provider.compactLabel);
+              if (r[1]) items.push(`  ${r[1]}`);
+            } else {
+              items.push(provider.label);
+              for (const line of r) items.push(`  ${line}`);
+            }
           }
           // string[] means data loaded successfully, display it.
         }
@@ -109,7 +234,7 @@ const plugin: TuiPluginModule & { id: string } = {
 
       try {
         // ── OpenCode Go ──
-        if (goConfig) {
+        if (goConfig && results.has("go")) {
           const result = await fetchGoDashboard(
             goConfig.workspaceId,
             goConfig.authCookie,
@@ -118,17 +243,21 @@ const plugin: TuiPluginModule & { id: string } = {
           // Stale check: discard if a newer refresh already finished.
           if ("data" in result) {
             const d = result.data;
-            const dataLines: string[] = [];
-            for (const [name, key] of [
-              ["5h Rolling", "rolling"],
-              ["Weekly", "weekly"],
-              ["Monthly", "monthly"],
-            ] as const) {
-              const w = d[key];
-              if (w)
-                dataLines.push(
-                  `${name}  ${w.remaining.toFixed(0)}%  · ${fmtDuration(w.resetInSec)} left`,
-                );
+            const dataLines: string[] = compact
+              ? bestGoCompactLine(PROVIDER_SPECS[0], d)
+              : [];
+            if (!compact) {
+              for (const [name, key] of [
+                ["5h Rolling", "rolling"],
+                ["Weekly", "weekly"],
+                ["Monthly", "monthly"],
+              ] as const) {
+                const w = d[key];
+                if (w)
+                  dataLines.push(
+                    `${name}  ${w.remaining.toFixed(0)}%  · ${fmtDuration(w.resetInSec)} left`,
+                  );
+              }
             }
             results.set("go", dataLines.length ? dataLines : ["No windows"]);
           } else {
@@ -139,31 +268,78 @@ const plugin: TuiPluginModule & { id: string } = {
 
         // --- Provider: GitHub Copilot (reads OAuth token from auth.json) ---
         // ── GitHub Copilot ──
-        const cp = await fetchCopilotQuota();
-        if (currentVersion !== inFlightVersion) return;
-        if (cp === null) {
-          results.delete("cp");
-        } else if (!("error" in cp)) {
-          const reset = cp.resetSec
-            ? ` · ${fmtDuration(cp.resetSec)} left`
-            : "";
-          results.set("cp", [`Monthly  ${cp.text}${reset}`]);
-        } else {
-          results.set("cp", cp.error);
+        if (results.has("copilot")) {
+          const cp = await fetchCopilotQuota();
+          if (currentVersion !== inFlightVersion) return;
+          if (cp === null) {
+            results.delete("copilot");
+          } else if (!("error" in cp)) {
+            const reset = cp.resetSec
+              ? ` · ${fmtDuration(cp.resetSec)} left`
+              : "";
+            results.set(
+              "copilot",
+              compact ? ["Copilot", `Monthly ${cp.text}${reset}`] : [`Monthly  ${cp.text}${reset}`],
+            );
+          } else {
+            results.set("copilot", cp.error);
+          }
+          setLines(buildLines());
         }
-        setLines(buildLines());
 
         // ── OpenRouter ──
-        const or = await fetchOpenRouterQuota();
-        if (currentVersion !== inFlightVersion) return;
-        if (or === null) {
-          results.delete("or");
-        } else if (!("error" in or)) {
-          results.set("or", [`Credits  ${or.text}`]);
-        } else {
-          results.set("or", or.error);
+        if (results.has("openrouter")) {
+          const or = await fetchOpenRouterQuota();
+          if (currentVersion !== inFlightVersion) return;
+          if (or === null) {
+            results.delete("openrouter");
+          } else if (!("error" in or)) {
+            results.set(
+              "openrouter",
+              compact ? ["OpenRouter", `Credits ${or.text}`] : [`Credits  ${or.text}`],
+            );
+          } else {
+            results.set("openrouter", or.error);
+          }
+          setLines(buildLines());
         }
-        setLines(buildLines());
+
+        // ── OpenAI ──
+        if (results.has("openai")) {
+          const oa = await fetchOpenAIQuota();
+          if (currentVersion !== inFlightVersion) return;
+          if (oa === null) {
+            results.delete("openai");
+          } else if (!("error" in oa)) {
+            const dataLines: string[] = compact
+              ? bestOpenAICompactLine(PROVIDER_SPECS[3], oa)
+              : [];
+            if (!compact) {
+              if (oa.planType) dataLines.push(`Plan  ${oa.planType}`);
+
+              const addWindow = (
+                label: string,
+                window: { usedPct: number; resetSec: number } | undefined,
+              ) => {
+                if (!window) return;
+                const remaining = Math.max(0, 100 - window.usedPct);
+                dataLines.push(
+                  `${label}  ${remaining.toFixed(0)}% · ${fmtDuration(window.resetSec)} left`,
+                );
+              };
+
+              addWindow("5h", oa.hourly);
+              addWindow("Weekly", oa.weekly);
+              addWindow("Code Review", oa.codeReview);
+              if (oa.credits) dataLines.push(`Credits  ${oa.credits}`);
+            }
+
+            results.set("openai", dataLines.length ? dataLines : ["No windows"]);
+          } else {
+            results.set("openai", oa.error);
+          }
+          setLines(buildLines());
+        }
       } catch (e) {
         if (disposed || currentVersion !== inFlightVersion) return;
         const msg = `Error: ${e instanceof Error ? e.message : String(e)}`;

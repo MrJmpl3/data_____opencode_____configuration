@@ -2,6 +2,10 @@
 import { createSignal, Show } from "solid-js";
 import type { TuiPluginModule, TuiPluginApi } from "@opencode-ai/plugin/tui";
 
+type CachePluginOptions = {
+  compact?: boolean;
+};
+
 // Cache sidebar plugin for OpenCode TUI.
 // Shows hit ratio, tokens saved by reads, input/output totals,
 // and cache writes (when the provider reports them).
@@ -29,9 +33,16 @@ function View(props: {
   write: () => number;
   input: () => number;
   output: () => number;
+  compact: boolean;
   api: TuiPluginApi;
 }) {
   const theme = () => props.api.theme.current;
+  const compactPrimaryLine = () => `hit ${pct(props.ratio())} · save ${fmt(props.read())}`;
+  const compactSecondaryLine = () => {
+    const parts = [`in ${fmt(props.input())}`, `out ${fmt(props.output())}`];
+    if (props.write() > 0) parts.push(`write ${fmt(props.write())}`);
+    return parts.join(" · ");
+  };
   return (
     <box gap={0}>
       <text fg={theme().text}>Cache</text>
@@ -44,24 +55,38 @@ function View(props: {
           </text>
         }
       >
-        {/* r / (r + input) = fraction of total input served from cache */}
-        <text fg={theme().textMuted} wrapMode="none">
-          Hit {pct(props.ratio())}
-        </text>
-        <text fg={theme().textMuted} wrapMode="none">
-          Save {fmt(props.read())}
-        </text>
-        <text fg={theme().textMuted} wrapMode="none">
-          In {fmt(props.input())}
-        </text>
-        <text fg={theme().textMuted} wrapMode="none">
-          Out {fmt(props.output())}
-        </text>
-        {/* Most providers report reads only, not writes */}
-        {/* Hide Write row when there's nothing to show */}
-        <Show when={props.write() > 0}>
+        <Show
+          when={props.compact}
+          fallback={
+            <>
+              {/* r / (r + input) = fraction of total input served from cache */}
+              <text fg={theme().textMuted} wrapMode="none">
+                Hit {pct(props.ratio())}
+              </text>
+              <text fg={theme().textMuted} wrapMode="none">
+                Save {fmt(props.read())}
+              </text>
+              <text fg={theme().textMuted} wrapMode="none">
+                In {fmt(props.input())}
+              </text>
+              <text fg={theme().textMuted} wrapMode="none">
+                Out {fmt(props.output())}
+              </text>
+              {/* Most providers report reads only, not writes */}
+              {/* Hide Write row when there's nothing to show */}
+              <Show when={props.write() > 0}>
+                <text fg={theme().textMuted} wrapMode="none">
+                  Write {fmt(props.write())}
+                </text>
+              </Show>
+            </>
+          }
+        >
           <text fg={theme().textMuted} wrapMode="none">
-            Write {fmt(props.write())}
+            {compactPrimaryLine()}
+          </text>
+          <text fg={theme().textMuted} wrapMode="none">
+            {compactSecondaryLine()}
           </text>
         </Show>
       </Show>
@@ -74,8 +99,9 @@ const plugin: TuiPluginModule & { id: string } = {
   id: "cache",
 
   // --- tui() lifecycle: signals, events, refresh ---
-  tui: async (api) => {
+  tui: async (api, options) => {
     const { slots, event: evt, lifecycle } = api;
+    const compact = (options as CachePluginOptions | undefined)?.compact ?? true;
     const [hasData, setHasData] = createSignal(false);
     const [ratio, setRatio] = createSignal(0);
     const [read, setRead] = createSignal(0);
@@ -207,6 +233,7 @@ const plugin: TuiPluginModule & { id: string } = {
               write={write}
               input={inp}
               output={output}
+              compact={compact}
               api={api}
             />
           );

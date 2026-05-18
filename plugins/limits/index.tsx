@@ -2,6 +2,10 @@
 import { createSignal, Show } from "solid-js";
 import type { TuiPluginModule, TuiPluginApi } from "@opencode-ai/plugin/tui";
 
+type LimitsPluginOptions = {
+  compact?: boolean;
+};
+
 // --- number formatting ---
 const fmt = (n: number): string => {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
@@ -50,10 +54,17 @@ function View(props: {
   contextLimit: () => number;
   outputLimit: () => number;
   hasData: () => boolean;
+  compact: boolean;
   api: TuiPluginApi;
 }) {
   const theme = () => props.api.theme.current;
   const cl = () => props.contextLimit();
+  const compactDetailsLine = () => {
+    const parts: string[] = [];
+    if (cl() > 0) parts.push(`ctx ${fmt(cl())}`);
+    if (props.outputLimit() > 0) parts.push(`out ${fmt(props.outputLimit())}`);
+    return parts.join(" · ");
+  };
   return (
     <box gap={0}>
       <text fg={theme().text}>Limits</text>
@@ -65,18 +76,34 @@ function View(props: {
           </text>
         }
       >
-        <text fg={theme().textMuted} wrapMode="none">
-          {props.modelLabel()}
-        </text>
-        <Show when={cl() > 0}>
+        <Show
+          when={props.compact}
+          fallback={
+            <>
+              <text fg={theme().textMuted} wrapMode="none">
+                {props.modelLabel()}
+              </text>
+              <Show when={cl() > 0}>
+                <text fg={theme().textMuted} wrapMode="none">
+                  Context Limit {fmt(cl())}
+                </text>
+              </Show>
+              <Show when={props.outputLimit() > 0}>
+                <text fg={theme().textMuted} wrapMode="none">
+                  Output Limit {fmt(props.outputLimit())}
+                </text>
+              </Show>
+            </>
+          }
+        >
           <text fg={theme().textMuted} wrapMode="none">
-            Context Limit {fmt(cl())}
+            {props.modelLabel()}
           </text>
-        </Show>
-        <Show when={props.outputLimit() > 0}>
-          <text fg={theme().textMuted} wrapMode="none">
-            Output Limit {fmt(props.outputLimit())}
-          </text>
+          <Show when={compactDetailsLine().length > 0}>
+            <text fg={theme().textMuted} wrapMode="none">
+              {compactDetailsLine()}
+            </text>
+          </Show>
         </Show>
       </Show>
     </box>
@@ -88,8 +115,9 @@ const plugin: TuiPluginModule & { id: string } = {
   id: "limits",
 
   // --- tui() lifecycle ---
-  tui: async (api) => {
+  tui: async (api, options) => {
     const { slots, event: evt, lifecycle } = api;
+    const compact = (options as LimitsPluginOptions | undefined)?.compact ?? true;
     const [modelLabel, setModelLabel] = createSignal("");
     const [contextLimit, setContextLimit] = createSignal(0);
     const [outputLimit, setOutputLimit] = createSignal(0);
@@ -233,6 +261,7 @@ const plugin: TuiPluginModule & { id: string } = {
               contextLimit={contextLimit}
               outputLimit={outputLimit}
               hasData={hasData}
+              compact={compact}
               api={api}
             />
           );
