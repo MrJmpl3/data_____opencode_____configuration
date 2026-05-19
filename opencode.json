@@ -30,10 +30,7 @@
       ]
     },
     "typescript": {
-      "command": [
-        "typescript-language-server",
-        "--stdio"
-      ],
+      "command": ["typescript-language-server", "--stdio"],
       "env": {
         "NODE_OPTIONS": "--max-old-space-size=8192"
       }
@@ -67,9 +64,7 @@
       "url": "https://nuxt.com/mcp"
     }
   },
-  "plugin": [
-    "oh-my-opencode-slim"
-  ],
+  "plugin": ["oh-my-openagent@latest"],
   "provider": {
     "github-copilot": {
       "options": {

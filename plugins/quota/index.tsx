@@ -31,7 +31,7 @@ type ProviderSpec = {
 const PROVIDER_SPECS: readonly ProviderSpec[] = [
   { id: "go", compactLabel: "Go", label: "OpenCode Go" },
   { id: "copilot", compactLabel: "Copilot", label: "GitHub Copilot" },
-  { id: "openrouter", compactLabel: "OpenRouter", label: "OpenRouter" },
+  { id: "openrouter", compactLabel: "Router", label: "OpenRouter" },
   { id: "openai", compactLabel: "OpenAI", label: "OpenAI" },
 ];
 
@@ -40,6 +40,8 @@ const DEFAULT_VISIBLE_PROVIDERS: readonly QuotaProviderId[] = [
   "copilot",
   "openrouter",
 ];
+
+const detailLine = (text: string): string => `  ${text}`;
 
 function normalizeProviderId(value: string): QuotaProviderId | undefined {
   const normalized = value.trim().toLowerCase();
@@ -63,9 +65,7 @@ function normalizeProviderId(value: string): QuotaProviderId | undefined {
   }
 }
 
-function getVisibleProviders(
-  options: unknown,
-): readonly ProviderSpec[] {
+function getVisibleProviders(options: unknown): readonly ProviderSpec[] {
   const configured =
     options && typeof options === "object"
       ? (options as QuotaPluginOptions).visibleProviders
@@ -98,14 +98,25 @@ function getCompactSetting(options: unknown): boolean {
   return typeof compact === "boolean" ? compact : true;
 }
 
-function bestGoCompactLine(provider: ProviderSpec, windows: {
-  rolling: { remaining: number; resetInSec: number } | null;
-  weekly: { remaining: number; resetInSec: number } | null;
-  monthly: { remaining: number; resetInSec: number } | null;
-}): string[] {
-  const best = windows.rolling ?? windows.weekly ?? windows.monthly;
-  if (!best) return [provider.compactLabel, "No windows"];
-  return [`GO ${best.remaining.toFixed(0)}%`];
+function bestGoCompactLine(
+  provider: ProviderSpec,
+  windows: {
+    rolling: { remaining: number; resetInSec: number } | null;
+    weekly: { remaining: number; resetInSec: number } | null;
+    monthly: { remaining: number; resetInSec: number } | null;
+  },
+): string[] {
+  const best = windows.rolling
+    ? { label: "5h", window: windows.rolling }
+    : windows.weekly
+      ? { label: "Week", window: windows.weekly }
+      : windows.monthly
+        ? { label: "Month", window: windows.monthly }
+        : null;
+  if (!best) return [`${provider.compactLabel}: no windows`];
+  return [
+    `${provider.compactLabel}: ${best.label} ${best.window.remaining.toFixed(0)}%`,
+  ];
 }
 
 function bestOpenAICompactLine(
@@ -118,27 +129,43 @@ function bestOpenAICompactLine(
     credits?: string;
   },
 ): string[] {
-  const parts: string[] = [];
   if (data.hourly) {
-    parts.push(`5h ${Math.max(0, 100 - data.hourly.usedPct).toFixed(0)}%`);
+    const lines = [
+      `${provider.compactLabel}: 5h ${Math.max(0, 100 - data.hourly.usedPct).toFixed(0)}%`,
+    ];
+    if (data.weekly) {
+      lines.push(`Week ${Math.max(0, 100 - data.weekly.usedPct).toFixed(0)}%`);
+    }
+    return lines;
   }
   if (data.weekly) {
-    parts.push(`wk ${Math.max(0, 100 - data.weekly.usedPct).toFixed(0)}%`);
+    return [
+      `${provider.compactLabel}: Week ${Math.max(0, 100 - data.weekly.usedPct).toFixed(0)}%`,
+    ];
   }
-  if (parts.length === 0 && data.codeReview) {
-    parts.push(`rev ${Math.max(0, 100 - data.codeReview.usedPct).toFixed(0)}%`);
-  } else if (parts.length === 0 && data.credits) {
-    parts.push(`credits ${data.credits}`);
+  if (data.codeReview) {
+    return [
+      `${provider.compactLabel}: Review ${Math.max(0, 100 - data.codeReview.usedPct).toFixed(0)}%`,
+    ];
   }
-  return [`OA ${parts.join(" · ") || "No windows"}`];
+  if (data.credits) {
+    return [`${provider.compactLabel}: Credits ${data.credits}`];
+  }
+  return [`${provider.compactLabel}: no windows`];
 }
 
-function bestCopilotCompactLine(data: { text: string }): string[] {
-  return [`CP ${data.text}`];
+function bestCopilotCompactLine(
+  provider: ProviderSpec,
+  data: { text: string },
+): string[] {
+  return [`${provider.compactLabel}: ${data.text}`];
 }
 
-function bestOpenRouterCompactLine(data: { text: string }): string[] {
-  return [`OR ${data.text}`];
+function bestOpenRouterCompactLine(
+  provider: ProviderSpec,
+  data: { text: string },
+): string[] {
+  return [`${provider.compactLabel}: ${data.text}`];
 }
 
 function View(props: { getLines: () => string[]; api: TuiPluginApi }) {
@@ -217,20 +244,25 @@ const plugin: TuiPluginModule & { id: string } = {
           // undefined means this provider was never set: not configured, skip it.
           if (r === null) {
             // null means the fetch is still running, show a spinner.
-            items.push(compact ? `${provider.compactLabel} ⏳` : `${provider.label} ⏳`);
+            if (compact) {
+              items.push(`${provider.compactLabel}: refreshing`);
+            } else {
+              items.push(provider.label);
+              items.push(detailLine("Refreshing…"));
+            }
           } else if (typeof r === "string") {
             if (compact) {
-              items.push(`${provider.compactLabel} ❌ ${r}`);
+              items.push(`${provider.compactLabel}: ${r}`);
             } else {
-              items.push(`${provider.label} ❌`);
-              items.push(`  ${r}`);
+              items.push(provider.label);
+              items.push(detailLine(`Unavailable · ${r}`));
             }
           } else {
             if (compact) {
               items.push(...r);
             } else {
               items.push(provider.label);
-              for (const line of r) items.push(`  ${line}`);
+              for (const line of r) items.push(detailLine(line));
             }
           }
           // string[] means data loaded successfully, display it.
@@ -257,14 +289,14 @@ const plugin: TuiPluginModule & { id: string } = {
               : [];
             if (!compact) {
               for (const [name, key] of [
-                ["5h Rolling", "rolling"],
+                ["5h window", "rolling"],
                 ["Weekly", "weekly"],
                 ["Monthly", "monthly"],
               ] as const) {
                 const w = d[key];
                 if (w)
                   dataLines.push(
-                    `${name}  ${w.remaining.toFixed(0)}%  · ${fmtDuration(w.resetInSec)} left`,
+                    `${name} · ${w.remaining.toFixed(0)}% · ${fmtDuration(w.resetInSec)} left`,
                   );
               }
             }
@@ -288,7 +320,9 @@ const plugin: TuiPluginModule & { id: string } = {
               : "";
             results.set(
               "copilot",
-              compact ? bestCopilotCompactLine({ text: cp.text }) : [`Monthly  ${cp.text}${reset}`],
+              compact
+                ? bestCopilotCompactLine(PROVIDER_SPECS[1], { text: cp.text })
+                : [`Monthly · ${cp.text}${reset}`],
             );
           } else {
             results.set("copilot", cp.error);
@@ -305,7 +339,11 @@ const plugin: TuiPluginModule & { id: string } = {
           } else if (!("error" in or)) {
             results.set(
               "openrouter",
-              compact ? bestOpenRouterCompactLine({ text: or.text }) : [`Credits  ${or.text}`],
+              compact
+                ? bestOpenRouterCompactLine(PROVIDER_SPECS[2], {
+                    text: or.text,
+                  })
+                : [`Credits · ${or.text}`],
             );
           } else {
             results.set("openrouter", or.error);
@@ -324,8 +362,6 @@ const plugin: TuiPluginModule & { id: string } = {
               ? bestOpenAICompactLine(PROVIDER_SPECS[3], oa)
               : [];
             if (!compact) {
-              if (oa.planType) dataLines.push(`Plan  ${oa.planType}`);
-
               const addWindow = (
                 label: string,
                 window: { usedPct: number; resetSec: number } | undefined,
@@ -333,17 +369,20 @@ const plugin: TuiPluginModule & { id: string } = {
                 if (!window) return;
                 const remaining = Math.max(0, 100 - window.usedPct);
                 dataLines.push(
-                  `${label}  ${remaining.toFixed(0)}% · ${fmtDuration(window.resetSec)} left`,
+                  `${label} · ${remaining.toFixed(0)}% · ${fmtDuration(window.resetSec)} left`,
                 );
               };
 
               addWindow("5h", oa.hourly);
               addWindow("Weekly", oa.weekly);
               addWindow("Code Review", oa.codeReview);
-              if (oa.credits) dataLines.push(`Credits  ${oa.credits}`);
+              if (oa.credits) dataLines.push(`Credits · ${oa.credits}`);
             }
 
-            results.set("openai", dataLines.length ? dataLines : ["No windows"]);
+            results.set(
+              "openai",
+              dataLines.length ? dataLines : ["No windows"],
+            );
           } else {
             results.set("openai", oa.error);
           }

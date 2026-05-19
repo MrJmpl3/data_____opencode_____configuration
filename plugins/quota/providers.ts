@@ -121,7 +121,8 @@ function readOauthAccountId(keys: readonly string[]): string | null {
     const oauthEntry = entry as Record<string, unknown>;
     if (oauthEntry.type !== "oauth") continue;
     const accountId = oauthEntry.account_id ?? oauthEntry.accountId;
-    if (typeof accountId === "string" && accountId.trim()) return accountId.trim();
+    if (typeof accountId === "string" && accountId.trim())
+      return accountId.trim();
   }
   return null;
 }
@@ -568,7 +569,9 @@ function readNumberField(
   key: string,
 ): number | undefined {
   const value = data[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 function readStringField(
@@ -640,7 +643,8 @@ export async function fetchOpenAIQuota(): Promise<
       ? (data.rate_limit as Record<string, unknown>)
       : undefined;
   const codeReviewRateLimit =
-    data.code_review_rate_limit && typeof data.code_review_rate_limit === "object"
+    data.code_review_rate_limit &&
+    typeof data.code_review_rate_limit === "object"
       ? (data.code_review_rate_limit as Record<string, unknown>)
       : undefined;
   const credits =

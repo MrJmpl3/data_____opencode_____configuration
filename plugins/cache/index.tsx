@@ -17,6 +17,8 @@ const fmt = (n: number): string => {
   return String(n);
 };
 
+const detailLine = (text: string): string => `  ${text}`;
+
 // Coerce unknown to a finite number, defaulting to 0.
 const num = (v: unknown): number =>
   typeof v === "number" && Number.isFinite(v) ? v : 0;
@@ -37,8 +39,16 @@ function View(props: {
   api: TuiPluginApi;
 }) {
   const theme = () => props.api.theme.current;
-  const compactPrimaryLine = () => `hit ${pct(props.ratio())} · save ${fmt(props.read())}`;
-  const compactSecondaryLine = () => `in ${fmt(props.input())} · out ${fmt(props.output())}`;
+  const compactPrimaryLine = () =>
+    `Hit ${pct(props.ratio())} · Save ${fmt(props.read())}`;
+  const trafficLines = () => {
+    const lines = [
+      `Input ${fmt(props.input())}`,
+      `Output ${fmt(props.output())}`,
+    ];
+    if (props.write() > 0) lines.push(`Write ${fmt(props.write())}`);
+    return lines;
+  };
   return (
     <box gap={0}>
       <text fg={theme().text}>Cache</text>
@@ -55,35 +65,31 @@ function View(props: {
           when={props.compact}
           fallback={
             <>
-              {/* r / (r + input) = fraction of total input served from cache */}
               <text fg={theme().textMuted} wrapMode="none">
-                Hit {pct(props.ratio())}
+                Usage
               </text>
               <text fg={theme().textMuted} wrapMode="none">
-                Save {fmt(props.read())}
+                {detailLine(compactPrimaryLine())}
               </text>
               <text fg={theme().textMuted} wrapMode="none">
-                In {fmt(props.input())}
+                Traffic
               </text>
-              <text fg={theme().textMuted} wrapMode="none">
-                Out {fmt(props.output())}
-              </text>
-              {/* Most providers report reads only, not writes */}
-              {/* Hide Write row when there's nothing to show */}
-              <Show when={props.write() > 0}>
+              {trafficLines().map((line) => (
                 <text fg={theme().textMuted} wrapMode="none">
-                  Write {fmt(props.write())}
+                  {detailLine(line)}
                 </text>
-              </Show>
+              ))}
             </>
           }
         >
           <text fg={theme().textMuted} wrapMode="none">
             {compactPrimaryLine()}
           </text>
-          <text fg={theme().textMuted} wrapMode="none">
-            {compactSecondaryLine()}
-          </text>
+          {trafficLines().map((line) => (
+            <text fg={theme().textMuted} wrapMode="none">
+              {line}
+            </text>
+          ))}
         </Show>
       </Show>
     </box>
@@ -97,7 +103,8 @@ const plugin: TuiPluginModule & { id: string } = {
   // --- tui() lifecycle: signals, events, refresh ---
   tui: async (api, options) => {
     const { slots, event: evt, lifecycle } = api;
-    const compact = (options as CachePluginOptions | undefined)?.compact ?? true;
+    const compact =
+      (options as CachePluginOptions | undefined)?.compact ?? true;
     const [hasData, setHasData] = createSignal(false);
     const [ratio, setRatio] = createSignal(0);
     const [read, setRead] = createSignal(0);
@@ -193,11 +200,13 @@ const plugin: TuiPluginModule & { id: string } = {
       ...IMMEDIATE_REFRESH_EVENTS,
       ...COMPLETION_REFRESH_EVENTS,
     ]) {
-      unsubs.push(evt.on(eventName as any, (event: any) => {
-        const props = event.properties || event;
-        const sid = props.sessionID || currentSessionId;
-        if (sid) refresh(sid);
-      }));
+      unsubs.push(
+        evt.on(eventName as any, (event: any) => {
+          const props = event.properties || event;
+          const sid = props.sessionID || currentSessionId;
+          if (sid) refresh(sid);
+        }),
+      );
     }
 
     lifecycle.onDispose(() => {

@@ -14,6 +14,8 @@ const fmt = (n: number): string => {
   return String(n);
 };
 
+const detailLine = (text: string): string => `  ${text}`;
+
 // --- extract model info from the last message that carries it ---
 function getModelFromMessages(
   msgs: readonly any[],
@@ -58,12 +60,15 @@ function View(props: {
   api: TuiPluginApi;
 }) {
   const theme = () => props.api.theme.current;
-  const cl = () => props.contextLimit();
-  const compactDetailsLine = () => {
-    const parts: string[] = [];
-    if (cl() > 0) parts.push(`ctx ${fmt(cl())}`);
-    if (props.outputLimit() > 0) parts.push(`out ${fmt(props.outputLimit())}`);
-    return parts.join(" · ");
+  const limitLines = () => {
+    const lines: string[] = [];
+    if (props.contextLimit() > 0) {
+      lines.push(`Context ${fmt(props.contextLimit())}`);
+    }
+    if (props.outputLimit() > 0) {
+      lines.push(`Output ${fmt(props.outputLimit())}`);
+    }
+    return lines;
   };
   return (
     <box gap={0}>
@@ -81,17 +86,20 @@ function View(props: {
           fallback={
             <>
               <text fg={theme().textMuted} wrapMode="none">
-                {props.modelLabel()}
+                Model
               </text>
-              <Show when={cl() > 0}>
+              <text fg={theme().textMuted} wrapMode="none">
+                {detailLine(props.modelLabel())}
+              </text>
+              <Show when={limitLines().length > 0}>
                 <text fg={theme().textMuted} wrapMode="none">
-                  Context Limit {fmt(cl())}
+                  Limits
                 </text>
-              </Show>
-              <Show when={props.outputLimit() > 0}>
-                <text fg={theme().textMuted} wrapMode="none">
-                  Output Limit {fmt(props.outputLimit())}
-                </text>
+                {limitLines().map((line) => (
+                  <text fg={theme().textMuted} wrapMode="none">
+                    {detailLine(line)}
+                  </text>
+                ))}
               </Show>
             </>
           }
@@ -99,11 +107,11 @@ function View(props: {
           <text fg={theme().textMuted} wrapMode="none">
             {props.modelLabel()}
           </text>
-          <Show when={compactDetailsLine().length > 0}>
+          {limitLines().map((line) => (
             <text fg={theme().textMuted} wrapMode="none">
-              {compactDetailsLine()}
+              {line}
             </text>
-          </Show>
+          ))}
         </Show>
       </Show>
     </box>
@@ -117,7 +125,8 @@ const plugin: TuiPluginModule & { id: string } = {
   // --- tui() lifecycle ---
   tui: async (api, options) => {
     const { slots, event: evt, lifecycle } = api;
-    const compact = (options as LimitsPluginOptions | undefined)?.compact ?? true;
+    const compact =
+      (options as LimitsPluginOptions | undefined)?.compact ?? true;
     const [modelLabel, setModelLabel] = createSignal("");
     const [contextLimit, setContextLimit] = createSignal(0);
     const [outputLimit, setOutputLimit] = createSignal(0);
@@ -223,7 +232,8 @@ const plugin: TuiPluginModule & { id: string } = {
           applyModel(m.providerID, m.id);
           if (sid) refresh(sid).catch(() => {});
         }
-    });
+      },
+    );
 
     const unsubs: (() => void)[] = [unsubModelSwitch];
     function onRefresh(event: any) {

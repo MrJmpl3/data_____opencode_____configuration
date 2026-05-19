@@ -4,28 +4,23 @@
     [
       "./plugins/limits",
       {
-        "compact": true
+        "compact": false
       }
     ],
     [
       "./plugins/quota",
       {
-        "compact": true,
-        "visibleProviders": [
-          "openai",
-          "copilot",
-          "openrouter"
-        ]
+        "compact": false,
+        "visibleProviders": ["openai", "copilot", "openrouter"]
       }
     ],
     [
       "./plugins/cache",
       {
-        "compact": true
+        "compact": false
       }
     ],
-    "opencode-quotes-plugin",
-    "oh-my-opencode-slim"
+    "opencode-quotes-plugin"
   ],
   "theme": "opencode"
 }
