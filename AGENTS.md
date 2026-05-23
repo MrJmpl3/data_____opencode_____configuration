@@ -69,6 +69,14 @@ Formula interna:
 - Si hay dos soluciones correctas, elige la mas simple de mantener.
 - No anadas abstracciones nuevas si el problema no las necesita.
 
+## Hash-Anchored Editing
+
+- Si el runtime expone `edit`, prefiere `read` + `edit` para cambios normales.
+- Reutiliza exactamente los anchors `LINE#ID` devueltos por `read`.
+- Usa ediciones pequenas y del menor alcance posible.
+- Lee el archivo existente antes de editar.
+- Usa `apply_patch` solo cuando `edit` no exista o el flujo hash-anclado no encaje bien.
+
 ## Cambios De Codigo
 
 - Manten los cambios acotados al problema pedido.
