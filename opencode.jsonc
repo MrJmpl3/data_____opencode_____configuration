@@ -143,15 +143,5 @@
       "disable": true,
     },
   },
-  "plugin": [
-    "oh-my-opencode-slim",
-    [
-      "opencode-auto-resume",
-      {
-        "chunkTimeoutMs": 45000,
-        "gracePeriodMs": 3000,
-        "maxRetries": 3,
-      },
-    ],
-  ],
+  "plugin": ["oh-my-opencode-slim"],
 }

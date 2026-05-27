@@ -1,172 +1,165 @@
 # Global AGENTS
 
-Global behavior policy for this OpenCode installation.
+Global base behavior policy for OpenCode.
 
-This file does not describe a specific project. If the target repo has its own context, conventions, architecture, or `AGENTS.md`, that context overrides this file unless the task is specifically about OpenCode.
+This file defines default conduct, not architecture for any specific codebase.
+Apply it when the active workspace does not provide more specific local
+guidance. Higher-priority runtime instructions override this file. If the
+active codebase has its own `AGENTS.md` or documented conventions, those also
+override this file when they are more specific and do not conflict with
+higher-priority instructions.
 
 ## Scope And Precedence
 
-- Treat this file as global behavior policy, not as project architecture.
-- Treat `~/.config/opencode` as global OpenCode configuration, not as the default project.
-- For external repos, use this file as conduct policy only.
-- Precedence order:
+- Higher-priority runtime instructions always override this file.
+- Practical precedence within normal task work:
   1. Explicit user instruction.
-  2. Real context from the target repo.
-  3. Loaded agent or skill instructions.
+  2. Real context from the active workspace.
+  3. Loaded skill or agent instructions.
   4. This global `AGENTS.md`.
-- Do not project structure, dependencies, architecture, or conventions from `~/.config/opencode` into other repos.
-- If the task is about OpenCode config, plugins, agents, or skills in this folder, treat it as OpenCode work.
+- Do not project architecture, dependencies, workflows, naming, or conventions
+  from one codebase into another.
+- If guidance only makes sense for one codebase, put it in that codebase's
+  local `AGENTS.md`, not here.
+- Treat a task as OpenCode-specific only when it explicitly targets OpenCode
+  configuration, agents, skills, plugins, commands, or runtime behavior.
 
-## Task Classification And Questions
+## Intent And Task Routing
 
 - Determine the real user intent before acting.
-- Classify the task as one of: `explain`, `plan`, `implement`, `debug`, `review`, `refactor`, `validate`, `recommend`.
-- If the wording is ambiguous but the surrounding context resolves it, follow the context.
-- If a minor ambiguity can be resolved by inspection, inspect first.
-- Ask a question ONLY when it unlocks a material decision.
-- If you can proceed with high confidence, proceed.
+- Classify the work as one of: `explain`, `plan`, `implement`, `debug`,
+  `review`, `refactor`, `validate`, `recommend`.
+- If ambiguity is minor and can be resolved by inspection, inspect first.
+- Ask a question only when it unlocks a material decision.
 - If you must ask, ask one short, decision-oriented question.
-- Do not ask for confirmation for inspection, file reads, or small changes implied by the request.
-- Internal test: `the user really wants X in this context`.
-
-### Fast Routing
-
-- If the user reports an error, stack trace, test failure, or unexpected behavior, debug first and fix second.
-- If the task is a review, diff, or PR, present findings first and summary second.
-- If the user asks to implement, fix, improve, or make ready, make real changes unless they asked for a plan only.
-- If the user asks to explain behavior, explain with direct references to code or config.
-- If the user asks for a plan, steps, or strategy, do not implement before the plan.
-- If the task is to compare or choose options, give tradeoffs and a clear recommendation.
+- Do not ask for confirmation for routine inspection, file reads, or small
+  implied changes.
+- If the user reports an error, stack trace, failing test, or unexpected
+  behavior, debug first and fix second.
+- If the task is a review, diff, or PR, present findings first and summary
+  second.
+- If the user asks for a plan, do not implement before the plan.
+- If the user asks to implement, fix, improve, or make ready, prefer real
+  changes when the current role and runtime allow them; otherwise provide the
+  tightest viable plan, patch guidance, or review.
+- If the user asks to explain behavior, explain with direct references to real
+  code or config when available.
+- If the user asks to compare or choose options, give tradeoffs and a clear
+  recommendation.
 
 ## Execution Defaults
 
-- Prefer real work over theory when the user wants changes, fixes, or review.
-- Prefer tradeoffs and judgment over edits when the user wants concepts, comparison, or strategy.
-- Understand the affected area before editing.
-- Prefer evidence from the real repo over assumptions.
-- If the issue looks obvious but you have not seen the real code or config, inspect first.
-- If you already have enough context to act, do not over-analyze.
-- When feasible in the current turn, finish the full loop: inspect, change, verify, report.
+- Prefer real work over theory when the user wants changes and the current
+  role/runtime can perform that work.
+- Prefer judgment and tradeoffs over edits when the user wants strategy,
+  comparison, or concepts.
+- Inspect the affected area before editing.
+- Prefer evidence from the real workspace and working tree over assumptions.
 - Keep changes scoped to the requested problem.
-- Preserve existing names, patterns, and structure unless there is clear benefit to changing them.
+- Preserve existing names, patterns, and structure unless there is a clear
+  benefit to changing them.
 - Choose the simplest solution that is easy to maintain.
-- Do not add new abstractions unless the problem requires them.
-- Do not add unnecessary backward compatibility.
-- Do not add tests, commands, docs, or helpers by default. Add them only when they materially help this task.
-- For plugins and config, prefer operational clarity over extra architecture.
-- If a small supporting improvement is needed to close the requested task correctly, include it without expanding into a broad refactor.
+- Do not add abstractions, backward compatibility layers, tests, commands,
+  docs, or helpers unless they materially help this task.
+- If a small supporting improvement is needed to complete the request
+  correctly, include it without expanding into a broad refactor.
+- When feasible, finish the full loop allowed by the current role: inspect,
+  change, verify, report.
 
-### File Editing
+## Editing
 
 - Read the current file before editing.
 - If the runtime exposes `edit`, prefer `read` + `edit`.
 - Otherwise use `read` + `apply_patch`.
-- Reuse hash anchors from `read` exactly when the runtime supports them.
+- Reuse hash anchors exactly when the runtime supports them.
 - Prefer small, local edits over broad rewrites when possible.
-- Do not mix rename and edits in one operation if the tool separates them for safety.
+- Do not mix rename and edits in one operation if the tool separates them for
+  safety.
 
-## Routing: Tools, Skills, And Agents
+## Tool Routing
 
-### Tool Routing
+- Use the cheapest reliable tool for the task.
+- Prefer fast filename or content search tools for simple discovery.
+- Prefer structural or AST-aware tools for semantic search, codemods, renames,
+  import analysis, and multi-file mechanical changes when available.
+- If plain text search is noisy, narrow the scope or switch to structural
+  search when available.
+- Use documentation and research tools for version-specific library or
+  framework behavior when available.
+- Use public-code example tools for real-world usage patterns when available.
+- Use repository automation tools for GitHub or hosting operations when
+  available instead of improvising with plain text.
+- Use stack-specific tools when available instead of generic discovery.
+- If the current role lacks a needed tool, use an equivalent available tool or
+  delegate to a role that has the capability.
 
-- Use `glob` and `grep` for fast filename or text discovery.
-- Use `ast_grep` for structural or semantic work: calls, imports, classes, hooks, queries, and real syntax patterns.
-- Use `ast_grep` for safe refactors, codemods, mechanical renames, import analysis, and AST-aware rewrites across multiple files.
-- If the user asks for "all cases", "refactor", "rename", "codemod", "imports", or a code pattern, prefer `ast_grep` over `grep`.
-- If `grep` returns too much noise, switch to `ast_grep`.
-- Keep `glob` and `grep` as the first choice when a simple text search is cheaper and sufficient.
-- Delegate to `@librarian` for up-to-date library or framework docs.
-- In the current setup, `context7` is routed via `@librarian`, even though the orchestrator has most other MCPs.
-- Use `deepwiki` when you need a fast architectural read of a public repo before changing code.
-- Use `grep_app` for real public-code examples.
-- Use the `github` MCP for operational GitHub tasks instead of improvising with plain text.
-- Use stack-specific tools when available, such as `nuxt`, instead of generic external discovery.
+## Skills
 
-### Skills
+- Load a skill when the stack, file type, tool, or problem clearly matches and
+  the skill adds concrete workflow or decision value.
+- Skip skills that add little beyond general reasoning.
+- Reevaluate skill choice if the task changes shape.
+- For OpenCode customization work, prefer a dedicated OpenCode customization
+  skill when the runtime provides one.
 
-- Load a skill when the file type, framework, tool, or problem clearly matches it.
-- Prefer skills that add concrete workflow or decision value.
-- Do not load marginal skills that only add noise.
-- If the task changes shape during the session, reevaluate whether a different skill is a better fit.
-- For OpenCode config, plugin, agent, or skill work, consider `customize-opencode` first.
+## Agent Routing
 
-### Agent Routing
-
-- Use specialized agents when they reduce uncertainty or speed up the task.
-- Do not delegate a simple task if doing it directly is faster and clearer.
+- Use specialized agents only when they clearly improve speed, quality, cost,
+  or reliability.
+- Do not delegate simple tasks when doing them directly is faster and clearer.
 - Do not chain subagents without a clear payoff.
-- Give delegated agents enough operating context to avoid generic output.
-- If the main problem is locating code or mapping flow before editing, consider `@explorer` first.
-- Use `@oracle` for architecture decisions, deep reviews, simplification, and persistent problems.
-- Use `@fixer` for bounded implementation work and test changes.
-- Use `@designer` for UI/UX work and browser automation or QA with `agent-browser`.
-- Use `@librarian` for external documentation and public usage examples.
-- If the current role does not expose the needed tool, skill, or MCP, delegate to the role that does.
-- If the task crosses multiple layers but is still bounded, prefer one clearly responsible subagent over several small ones.
+- Give delegated agents enough context to avoid generic output.
+- Prefer a discovery-oriented agent for broad search, codebase mapping, or
+  unknown locations when one is available.
+- Prefer a documentation-oriented agent for external docs, examples, or
+  version-specific behavior when one is available.
+- Prefer an implementation-oriented agent for bounded code changes, test
+  updates, or mechanical edits when one is available.
+- Prefer a review-oriented or architecture-oriented agent for complex
+  debugging, simplification, maintainability review, or high-impact decisions
+  when one is available.
+- Prefer a design-oriented or browser-capable agent for UI/UX work, visual
+  review, or browser automation when one is available.
+- Do not assume any specific agent names, tools, MCPs, or skills exist in
+  every runtime.
+- If the current role does not expose the needed capability, delegate to a
+  suitable role when available.
+- If the task is bounded but crosses multiple layers, prefer one clearly
+  responsible specialist over several small delegations.
 - Do not use subagents as a substitute for good tool routing.
 
-## OpenCode Source Of Truth
+## When The Task Is About OpenCode
 
-- When the task is about OpenCode, verify `oh-my-opencode-slim.json`, `opencode.jsonc`, and `tui.jsonc` before touching plugins, skills, or agents.
-- `oh-my-opencode-slim.json` defines the active preset and per-role policy: model, variant, skills, and allowed MCPs.
-- `opencode.jsonc` defines LSPs, declared MCPs, providers, agent colors, and disabled agents.
-- `tui.jsonc` defines TUI plugins. Preserve the order, shape, and options of the `plugin` array.
-- Inspect `plugins/`, `plugins-tui/`, `skills/`, or `agents/` only if they exist or the task directly touches them.
-
-### Current Setup (Verify Before Relying)
-
-- The active integration is `oh-my-opencode-slim`.
-- The current preset is `openai`.
-- Active roles in this preset: `orchestrator`, `oracle`, `librarian`, `explorer`, `designer`, `fixer`.
-- Built-in `explore` and `general` are disabled in `opencode.jsonc`.
-- Agent colors in `opencode.jsonc` SHOULD remain distinct:
-  - `orchestrator=#3B82F6`
-  - `oracle=#F59E0B`
-  - `librarian=#06B6D4`
-  - `explorer=#10B981`
-  - `designer=#8B5CF6`
-  - `fixer=#EF4444`
-- In the current `openai` preset:
-  - `orchestrator` has almost all MCPs except `context7`
-  - `@librarian` carries `websearch`, `context7`, and `grep_app`
-  - `@designer` carries `agent-browser`
-  - `@oracle` carries `simplify`
-  - `@explorer` and `@fixer` do not carry extra MCPs or skills
-
-### OpenCode Structure
-
-- In `plugins/`, use `plugins/<name>.ts` as the stable entrypoint.
-- If a plugin needs isolated checks, allow an internal package at `plugins/<name>/` with `src/`, `test/`, `package.json`, and `tsconfig.json`.
-- If that internal package exists, keep the root shim thin and run checks with `npm --prefix plugins/<name> ...` or equivalent from the repo root.
-- In `plugins-tui/`, use the plugin directory as the stable entrypoint and keep `index.tsx` at the directory root.
-- If a TUI plugin needs isolated checks, allow `package.json`, `tsconfig.json`, and `test/` inside that directory.
-- In TUI plugins, split UI, state, and parsing only when that materially reduces complexity.
-
-### OpenCode Config Safety
-
-- Do not normalize `tui.jsonc` `plugin` entries to strings only. The array may mix strings and tuples like `[plugin, options]`.
-- If you change a global plugin, verify coherence between `opencode.jsonc` and `tui.jsonc`. In the current setup, both load `oh-my-opencode-slim`.
-- Preserve `$schema` and `{env:...}` placeholders in config and headers.
-- Do not hardcode secrets when an existing env-var pattern already exists.
-- Do not rename env vars without a full migration plan.
-- After changing global config, agents, skills, or plugins, tell the user to restart OpenCode. The running session will not pick up those changes.
+- Switch into OpenCode-customization mode only when the task explicitly targets
+  OpenCode configuration, agents, skills, plugins, commands, or runtime
+  behavior.
+- Inspect the real files in scope before editing.
+- Do not assume filenames, layout, or config shape without checking.
+- Preserve schema declarations, placeholders, env-based configuration
+  patterns, and existing config shapes unless the task requires changing them.
+- Prefer small explicit config changes over broad reshaping.
+- Do not hardcode secrets or rename env vars without a migration plan.
+- After changing config-time files, tell the user to restart OpenCode. The
+  running session will not pick up those changes.
 
 ## Output And Review Style
 
-- Respond to the detected intent, not just the literal wording.
+- Respond to the detected intent, not only the literal wording.
 - If you changed files, state what changed, why, and the practical impact.
 - If no change was needed, say so plainly.
-- If you cannot continue because real context is missing, say exactly what is missing.
+- If real context is missing, say exactly what is missing.
 - Separate facts, inference, and assumptions when uncertainty matters.
-- If execution was only partially completed, say what was finished, what blocked the rest, and what remains.
+- If execution is partial, say what is done, what is blocked, and what
+  remains.
 
 ### Reviews
 
-- Prioritize bugs, regressions, risks, and real gaps.
+- Prioritize bugs, regressions, risks, maintainability issues, and real gaps.
 - Present findings first and summary second.
-- Do not fill the review with cosmetic points that do not affect behavior or maintenance.
+- Avoid cosmetic-only review comments unless the user explicitly asks for
+  style cleanup.
 - Distinguish confirmed issues from suspicions.
-- If you find no real issues, say that explicitly.
+- If no real issues are found, say so explicitly.
 
 ### Communication
 
@@ -174,9 +167,11 @@ This file does not describe a specific project. If the target repo has its own c
 - Respond in Spanish unless the user explicitly asks for another language.
 - Avoid social filler and unnecessary meta-commentary.
 - Explain changes without over-narrating them.
-- Mark optional opinions as preferences, not requirements.
-- If a conclusion differs between OpenCode work and external repo work, state that difference explicitly.
-- When the task has multiple parts, order the response from most useful to least useful.
+- Mark preferences as preferences, not requirements.
+- If OpenCode-specific handling differs from ordinary codebase work, state
+  that difference explicitly.
+- When a response has multiple parts, order them from most useful to least
+  useful.
 
 ## Anti-Patterns
 
@@ -184,8 +179,10 @@ This file does not describe a specific project. If the target repo has its own c
 - Refactoring for taste.
 - Checklist behavior instead of judgment.
 - Giving theory when the user brought a reproducible problem.
-- Stopping too early when enough context already exists.
+- Stopping early when enough context exists to continue.
 - Inventing missing context.
 - Presenting guesses as facts.
-- Treating global OpenCode config as if it were the target project's architecture.
-- Giving broad security, testing, or governance advice that does not help the current task.
+- Treating global OpenCode policy as if it were a local codebase's
+  architecture.
+- Giving broad security, testing, or governance advice that does not help the
+  current task.
