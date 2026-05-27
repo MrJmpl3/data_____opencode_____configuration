@@ -35,11 +35,7 @@ const PROVIDER_SPECS: readonly ProviderSpec[] = [
   { id: "openai", label: "OpenAI" },
 ];
 
-const DEFAULT_VISIBLE_PROVIDERS: readonly QuotaProviderId[] = [
-  "go",
-  "copilot",
-  "openrouter",
-];
+const DEFAULT_VISIBLE_PROVIDERS: readonly QuotaProviderId[] = ["go", "copilot", "openrouter"];
 
 const detailLine = (text: string): string => `  ${text}`;
 
@@ -71,9 +67,7 @@ const getVisibleProviders = (options: unknown): readonly ProviderSpec[] => {
       ? (options as QuotaPluginOptions).visibleProviders
       : undefined;
   if (!Array.isArray(configured) || configured.length === 0) {
-    return PROVIDER_SPECS.filter((spec) =>
-      DEFAULT_VISIBLE_PROVIDERS.includes(spec.id),
-    );
+    return PROVIDER_SPECS.filter((spec) => DEFAULT_VISIBLE_PROVIDERS.includes(spec.id));
   }
 
   const ids = new Set<QuotaProviderId>();
@@ -84,9 +78,7 @@ const getVisibleProviders = (options: unknown): readonly ProviderSpec[] => {
   }
 
   if (ids.size === 0) {
-    return PROVIDER_SPECS.filter((spec) =>
-      DEFAULT_VISIBLE_PROVIDERS.includes(spec.id),
-    );
+    return PROVIDER_SPECS.filter((spec) => DEFAULT_VISIBLE_PROVIDERS.includes(spec.id));
   }
 
   return PROVIDER_SPECS.filter((spec) => ids.has(spec.id));
@@ -94,9 +86,7 @@ const getVisibleProviders = (options: unknown): readonly ProviderSpec[] => {
 
 const getDisplayModeSetting = (options: unknown): QuotaDisplayMode => {
   if (!options || typeof options !== "object") return "remaining";
-  return (options as QuotaPluginOptions).displayMode === "used"
-    ? "used"
-    : "remaining";
+  return (options as QuotaPluginOptions).displayMode === "used" ? "used" : "remaining";
 };
 
 const formatPercentQuota = (
@@ -108,10 +98,7 @@ const formatPercentQuota = (
   return `${remaining.toFixed(0)}%`;
 };
 
-const formatUsedPercentQuota = (
-  usedPct: number,
-  displayMode: QuotaDisplayMode,
-): string => {
+const formatUsedPercentQuota = (usedPct: number, displayMode: QuotaDisplayMode): string => {
   const used = Math.max(0, Math.min(100, usedPct));
   return formatPercentQuota(used, Math.max(0, 100 - used), displayMode);
 };
@@ -145,8 +132,7 @@ const formatCountQuota = (
 
   const value =
     displayMode === "used"
-      ? (used ??
-        (typeof remaining === "number" ? total - remaining : undefined))
+      ? (used ?? (typeof remaining === "number" ? total - remaining : undefined))
       : (remaining ?? (typeof used === "number" ? total - used : undefined));
 
   if (typeof value !== "number" || !Number.isFinite(value)) return data.text;
@@ -162,8 +148,7 @@ const formatCreditQuota = (
 
   const value =
     displayMode === "used"
-      ? (usage ??
-        (typeof remaining === "number" ? total - remaining : undefined))
+      ? (usage ?? (typeof remaining === "number" ? total - remaining : undefined))
       : (remaining ?? (typeof usage === "number" ? total - usage : undefined));
 
   if (typeof value !== "number" || !Number.isFinite(value)) return data.text;
@@ -267,10 +252,7 @@ const plugin: TuiPluginModule & { id: string } = {
       try {
         // ── OpenCode Go ──
         if (goConfig && results.has("go")) {
-          const result = await fetchGoDashboard(
-            goConfig.workspaceId,
-            goConfig.authCookie,
-          );
+          const result = await fetchGoDashboard(goConfig.workspaceId, goConfig.authCookie);
           if (currentVersion !== inFlightVersion) return;
           // Stale check: discard if a newer refresh already finished.
           if ("data" in result) {
@@ -302,12 +284,8 @@ const plugin: TuiPluginModule & { id: string } = {
           if (cp === null) {
             results.delete("copilot");
           } else if (!("error" in cp)) {
-            const reset = cp.resetSec
-              ? ` · ${fmtDuration(cp.resetSec)} left`
-              : "";
-            results.set("copilot", [
-              `Monthly · ${formatCountQuota(cp, displayMode)}${reset}`,
-            ]);
+            const reset = cp.resetSec ? ` · ${fmtDuration(cp.resetSec)} left` : "";
+            results.set("copilot", [`Monthly · ${formatCountQuota(cp, displayMode)}${reset}`]);
           } else {
             results.set("copilot", cp.error);
           }
@@ -321,9 +299,7 @@ const plugin: TuiPluginModule & { id: string } = {
           if (or === null) {
             results.delete("openrouter");
           } else if (!("error" in or)) {
-            results.set("openrouter", [
-              `Credits · ${formatCreditQuota(or, displayMode)}`,
-            ]);
+            results.set("openrouter", [`Credits · ${formatCreditQuota(or, displayMode)}`]);
           } else {
             results.set("openrouter", or.error);
           }
@@ -347,8 +323,7 @@ const plugin: TuiPluginModule & { id: string } = {
               dataLines.push(
                 `${label} · ${formatUsedPercentQuota(window.usedPct, displayMode)} · ${fmtDuration(window.resetSec)} left`,
               );
-              if (responsibleUsage)
-                dataLines.push(`Usage pace · ${responsibleUsage}`);
+              if (responsibleUsage) dataLines.push(`Usage pace · ${responsibleUsage}`);
             };
 
             addWindow("5h", oa.hourly);
@@ -360,10 +335,7 @@ const plugin: TuiPluginModule & { id: string } = {
             addWindow("Code Review", oa.codeReview);
             if (oa.credits) dataLines.push(`Credits · ${oa.credits}`);
 
-            results.set(
-              "openai",
-              dataLines.length ? dataLines : ["No windows"],
-            );
+            results.set("openai", dataLines.length ? dataLines : ["No windows"]);
           } else {
             results.set("openai", oa.error);
           }

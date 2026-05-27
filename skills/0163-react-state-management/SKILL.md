@@ -323,9 +323,7 @@ export function useUpdateUser() {
       });
 
       // Snapshot previous value
-      const previousUser = queryClient.getQueryData(
-        userKeys.detail(newUser.id),
-      );
+      const previousUser = queryClient.getQueryData(userKeys.detail(newUser.id));
 
       // Optimistically update
       queryClient.setQueryData(userKeys.detail(newUser.id), newUser);
@@ -334,10 +332,7 @@ export function useUpdateUser() {
     },
     onError: (err, newUser, context) => {
       // Rollback on error
-      queryClient.setQueryData(
-        userKeys.detail(newUser.id),
-        context?.previousUser,
-      );
+      queryClient.setQueryData(userKeys.detail(newUser.id), context?.previousUser);
     },
     onSettled: (data, error, variables) => {
       // Refetch after mutation

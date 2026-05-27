@@ -235,15 +235,7 @@ function useBreakpoint() {
     isMobile: !isSmall,
     isTablet: isSmall && !isLarge,
     isDesktop: isLarge,
-    current: isXLarge
-      ? "xl"
-      : isLarge
-        ? "lg"
-        : isMedium
-          ? "md"
-          : isSmall
-            ? "sm"
-            : "base",
+    current: isXLarge ? "xl" : isLarge ? "lg" : isMedium ? "md" : isSmall ? "sm" : "base",
   };
 }
 ```
@@ -556,10 +548,7 @@ async function testBreakpoints(page, breakpoints) {
 
     // Check for horizontal overflow
     const hasOverflow = await page.evaluate(() => {
-      return (
-        document.documentElement.scrollWidth >
-        document.documentElement.clientWidth
-      );
+      return document.documentElement.scrollWidth > document.documentElement.clientWidth;
     });
 
     // Check for elements going off-screen

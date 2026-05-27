@@ -1,0 +1,7 @@
+.git
+node_modules
+dist
+coverage
+
+plugins/**/node_modules
+plugins-tui/**/node_modules

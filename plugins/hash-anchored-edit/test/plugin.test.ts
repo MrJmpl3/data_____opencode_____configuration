@@ -9,21 +9,14 @@ import HashAnchoredEditPlugin from "../src/index.ts";
 
 type PluginTools = {
   edit: {
-    execute: (
-      args: Record<string, unknown>,
-      context: ToolContext,
-    ) => Promise<ToolResult>;
+    execute: (args: Record<string, unknown>, context: ToolContext) => Promise<ToolResult>;
   };
   read: {
-    execute: (
-      args: Record<string, unknown>,
-      context: ToolContext,
-    ) => Promise<ToolResult>;
+    execute: (args: Record<string, unknown>, context: ToolContext) => Promise<ToolResult>;
   };
 };
 
-const outputText = (result: ToolResult) =>
-  typeof result === "string" ? result : result.output;
+const outputText = (result: ToolResult) => (typeof result === "string" ? result : result.output);
 
 const extractAnchors = (result: ToolResult) =>
   outputText(result)
@@ -98,43 +91,31 @@ describe("HashAnchoredEditPlugin", () => {
       context,
     );
 
-    expect(await readFile(path.join(directory, "note.txt"), "utf8")).toBe(
-      "hello\n",
-    );
+    expect(await readFile(path.join(directory, "note.txt"), "utf8")).toBe("hello\n");
   });
 
   it("rejects reads for missing paths", async () => {
     const { context, tools } = await loadTools(directory);
 
-    await expect(
-      tools.read.execute({ filePath: "missing.txt" }, context),
-    ).rejects.toThrow("No file: missing.txt");
+    await expect(tools.read.execute({ filePath: "missing.txt" }, context)).rejects.toThrow(
+      "No file: missing.txt",
+    );
   });
 
   it("rejects binary files", async () => {
     const { context, tools } = await loadTools(directory);
-    await writeFile(
-      path.join(directory, "blob.bin"),
-      Buffer.from([0, 1, 2, 3]),
-    );
+    await writeFile(path.join(directory, "blob.bin"), Buffer.from([0, 1, 2, 3]));
 
-    await expect(
-      tools.read.execute({ filePath: "blob.bin" }, context),
-    ).rejects.toThrow("Binary file");
+    await expect(tools.read.execute({ filePath: "blob.bin" }, context)).rejects.toThrow(
+      "Binary file",
+    );
   });
 
   it("rejects multiline replace ranges", async () => {
     const { context, tools } = await loadTools(directory);
-    await writeFile(
-      path.join(directory, "doc.txt"),
-      "one\ntwo\nthree\n",
-      "utf8",
-    );
+    await writeFile(path.join(directory, "doc.txt"), "one\ntwo\nthree\n", "utf8");
 
-    const readResult = await tools.read.execute(
-      { filePath: "doc.txt" },
-      context,
-    );
+    const readResult = await tools.read.execute({ filePath: "doc.txt" }, context);
     const [firstLine, secondLine] = extractAnchors(readResult);
 
     await expect(
@@ -159,10 +140,7 @@ describe("HashAnchoredEditPlugin", () => {
     const { context, tools } = await loadTools(directory);
     await writeFile(path.join(directory, "overlap.txt"), "line\n", "utf8");
 
-    const readResult = await tools.read.execute(
-      { filePath: "overlap.txt" },
-      context,
-    );
+    const readResult = await tools.read.execute({ filePath: "overlap.txt" }, context);
     const [anchor] = extractAnchors(readResult);
 
     await expect(
@@ -209,12 +187,8 @@ describe("HashAnchoredEditPlugin", () => {
       context,
     );
 
-    expect(await readFile(path.join(directory, "after.txt"), "utf8")).toBe(
-      "content\n",
-    );
-    await expect(
-      readFile(path.join(directory, "before.txt"), "utf8"),
-    ).rejects.toThrow();
+    expect(await readFile(path.join(directory, "after.txt"), "utf8")).toBe("content\n");
+    await expect(readFile(path.join(directory, "before.txt"), "utf8")).rejects.toThrow();
     expect(outputText(result)).toContain("Moved before.txt -> after.txt");
   });
 
@@ -222,10 +196,7 @@ describe("HashAnchoredEditPlugin", () => {
     const { context, tools } = await loadTools(directory);
     await writeFile(path.join(directory, "stale.txt"), "alpha\n", "utf8");
 
-    const readResult = await tools.read.execute(
-      { filePath: "stale.txt" },
-      context,
-    );
+    const readResult = await tools.read.execute({ filePath: "stale.txt" }, context);
     const [anchor] = extractAnchors(readResult);
 
     await writeFile(path.join(directory, "stale.txt"), "beta\n", "utf8");
@@ -245,10 +216,7 @@ describe("HashAnchoredEditPlugin", () => {
     const { context, tools } = await loadTools(directory);
     await writeFile(path.join(directory, "update.txt"), "before\n", "utf8");
 
-    const readResult = await tools.read.execute(
-      { filePath: "update.txt" },
-      context,
-    );
+    const readResult = await tools.read.execute({ filePath: "update.txt" }, context);
     const [anchor] = extractAnchors(readResult);
 
     const result = await tools.edit.execute(
@@ -259,9 +227,7 @@ describe("HashAnchoredEditPlugin", () => {
       context,
     );
 
-    expect(await readFile(path.join(directory, "update.txt"), "utf8")).toBe(
-      "after\n",
-    );
+    expect(await readFile(path.join(directory, "update.txt"), "utf8")).toBe("after\n");
     expect(outputText(result)).toContain("Updated update.txt");
     expect(outputText(result)).toContain("@@ -1,1 +1,1 @@");
   });
@@ -270,10 +236,7 @@ describe("HashAnchoredEditPlugin", () => {
     const { context, tools } = await loadTools(directory);
     await writeFile(path.join(directory, "surround.txt"), "middle\n", "utf8");
 
-    const readResult = await tools.read.execute(
-      { filePath: "surround.txt" },
-      context,
-    );
+    const readResult = await tools.read.execute({ filePath: "surround.txt" }, context);
     const [anchor] = extractAnchors(readResult);
 
     await tools.edit.execute(

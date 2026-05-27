@@ -54,10 +54,7 @@ export const createRefreshScheduler = ({
     );
   };
 
-  const unsubscribers = [
-    ...bindEvents(immediateEvents),
-    ...bindEvents(completionEvents, [250]),
-  ];
+  const unsubscribers = [...bindEvents(immediateEvents), ...bindEvents(completionEvents, [250])];
 
   // --- disposed flag prevents onRefresh after unmount ---
   // unsubscribers tear down event bindings, pendingTimers.forEach clears

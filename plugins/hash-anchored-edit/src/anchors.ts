@@ -1,16 +1,9 @@
 import { createHash } from "node:crypto";
 
-import {
-  ANCHOR_PATTERN,
-  HASH_ALPHABET,
-  HASH_LENGTH,
-  type ParsedAnchor,
-} from "./types.ts";
+import { ANCHOR_PATTERN, HASH_ALPHABET, HASH_LENGTH, type ParsedAnchor } from "./types.ts";
 
 export const hashLine = (lineNumber: number, content: string) => {
-  const digest = createHash("sha256")
-    .update(`${lineNumber}:${content}`)
-    .digest();
+  const digest = createHash("sha256").update(`${lineNumber}:${content}`).digest();
   let output = "";
 
   for (let index = 0; index < HASH_LENGTH; index += 1) {

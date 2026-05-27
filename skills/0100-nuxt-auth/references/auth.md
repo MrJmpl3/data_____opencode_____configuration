@@ -38,11 +38,7 @@ export default defineNuxtConfig({
 ```typescript
 // app/plugins/init.ts
 export default defineNuxtPlugin(async (nuxtApp) => {
-  const {
-    init: fetchUser,
-    user: sanctumUser,
-    isAuthenticated,
-  } = useSanctumAuth();
+  const { init: fetchUser, user: sanctumUser, isAuthenticated } = useSanctumAuth();
   const { setUser, clearUser } = useUser();
   const { startSessionWatcher, stopSessionWatcher } = useSessionWatcher();
 
@@ -120,9 +116,7 @@ const onSubmit = async () => {
           <UInput v-model="credentials.password" type="password" />
         </UFormField>
 
-        <UButton type="submit" class="w-full" :loading="loading">
-          Login
-        </UButton>
+        <UButton type="submit" class="w-full" :loading="loading"> Login </UButton>
       </div>
     </form>
   </XCard>
@@ -234,18 +228,10 @@ definePageMeta({
 ```vue
 <template>
   <!-- Show button only if user can create -->
-  <UButton v-if="can('posts.create')" @click="createPost">
-    Create Post
-  </UButton>
+  <UButton v-if="can('posts.create')" @click="createPost"> Create Post </UButton>
 
   <!-- Show disabled button if cannot delete -->
-  <UButton
-    v-if="cannot('posts.delete')"
-    disabled
-    title="No permission to delete"
-  >
-    Delete
-  </UButton>
+  <UButton v-if="cannot('posts.delete')" disabled title="No permission to delete"> Delete </UButton>
 </template>
 
 <script setup>
@@ -292,13 +278,7 @@ export const UpdateAuthor = "authors.update";
 export const DeleteAuthor = "authors.delete";
 
 // Permission groups
-export const PostPermissions = [
-  ListPosts,
-  ShowPost,
-  CreatePost,
-  UpdatePost,
-  DeletePost,
-];
+export const PostPermissions = [ListPosts, ShowPost, CreatePost, UpdatePost, DeletePost];
 
 export const AuthorPermissions = [
   ListAuthors,

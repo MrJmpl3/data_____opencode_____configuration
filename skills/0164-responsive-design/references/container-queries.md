@@ -432,12 +432,8 @@ function Card({ title, image, description }) {
           className="w-full @md:w-48 @lg:w-64 aspect-video @md:aspect-square object-cover rounded-lg"
         />
         <div className="p-4 @md:p-0">
-          <h2 className="text-lg @md:text-xl @lg:text-2xl font-semibold">
-            {title}
-          </h2>
-          <p className="mt-2 text-muted-foreground @lg:text-lg">
-            {description}
-          </p>
+          <h2 className="text-lg @md:text-xl @lg:text-2xl font-semibold">{title}</h2>
+          <p className="mt-2 text-muted-foreground @lg:text-lg">{description}</p>
         </div>
       </article>
     </div>

@@ -1,24 +1,12 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 mock.restore();
 
-const {
-  computeFileHash,
-  computeFolderHash,
-  loadState,
-  PatternMatcher,
-  selectFiles,
-} = await import("./codemap.mjs");
+const { computeFileHash, computeFolderHash, loadState, PatternMatcher, selectFiles } =
+  await import("./codemap.mjs");
 
 const tempDirs: string[] = [];
 
@@ -36,12 +24,7 @@ afterEach(() => {
 
 describe("PatternMatcher", () => {
   test("matches expected paths", () => {
-    const matcher = new PatternMatcher([
-      "node_modules/",
-      "dist/",
-      "*.log",
-      "src/**/*.ts",
-    ]);
+    const matcher = new PatternMatcher(["node_modules/", "dist/", "*.log", "src/**/*.ts"]);
 
     expect(matcher.matches("node_modules/foo.js")).toBe(true);
     expect(matcher.matches("vendor/node_modules/bar.js")).toBe(true);
@@ -100,9 +83,7 @@ describe("selectFiles", () => {
       ["**/*.test.ts", "node_modules/"],
       [],
       [],
-    ).map((filePath) =>
-      path.relative(root, filePath).split(path.sep).join("/"),
-    );
+    ).map((filePath) => path.relative(root, filePath).split(path.sep).join("/"));
 
     expect(selected).toEqual(["package.json", "src/index.ts"]);
   });
@@ -115,15 +96,12 @@ describe("loadState", () => {
     mkdirSync(slimDir);
 
     const legacyState = { metadata: { version: "1.0.0" } };
-    writeFileSync(
-      path.join(slimDir, "cartography.json"),
-      JSON.stringify(legacyState),
-    );
+    writeFileSync(path.join(slimDir, "cartography.json"), JSON.stringify(legacyState));
 
     expect(loadState(root)).toEqual(legacyState);
     expect(existsSync(path.join(slimDir, "cartography.json"))).toBe(false);
-    expect(
-      JSON.parse(readFileSync(path.join(slimDir, "codemap.json"), "utf8")),
-    ).toEqual(legacyState);
+    expect(JSON.parse(readFileSync(path.join(slimDir, "codemap.json"), "utf8"))).toEqual(
+      legacyState,
+    );
   });
 });

@@ -49,16 +49,9 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
   if (!isOpen) return null;
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      aria-hidden={!isOpen}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center" aria-hidden={!isOpen}>
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
 
       {/* Dialog */}
       <div
@@ -72,11 +65,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
         <h2 id="modal-title" className="text-lg font-semibold">
           {title}
         </h2>
-        <button
-          onClick={onClose}
-          aria-label="Close dialog"
-          className="absolute right-4 top-4 p-1"
-        >
+        <button onClick={onClose} aria-label="Close dialog" className="absolute right-4 top-4 p-1">
           <XIcon aria-hidden="true" />
         </button>
         <div className="mt-4">{children}</div>
@@ -124,10 +113,7 @@ export function Dropdown({ trigger, children, label }: DropdownProps) {
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -220,26 +206,18 @@ export function MenuItem({ children, onClick, disabled }: MenuItemProps) {
 
 function focusNextItem(menu: HTMLElement | null, direction: 1 | -1) {
   if (!menu) return;
-  const items = menu.querySelectorAll<HTMLElement>(
-    '[role="menuitem"]:not([disabled])',
-  );
-  const currentIndex = Array.from(items).indexOf(
-    document.activeElement as HTMLElement,
-  );
+  const items = menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])');
+  const currentIndex = Array.from(items).indexOf(document.activeElement as HTMLElement);
   const nextIndex = (currentIndex + direction + items.length) % items.length;
   items[nextIndex]?.focus();
 }
 
 function focusFirstItem(menu: HTMLElement | null) {
-  menu
-    ?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')
-    ?.focus();
+  menu?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
 }
 
 function focusLastItem(menu: HTMLElement | null) {
-  const items = menu?.querySelectorAll<HTMLElement>(
-    '[role="menuitem"]:not([disabled])',
-  );
+  const items = menu?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])');
   items?.[items.length - 1]?.focus();
 }
 ```
@@ -247,13 +225,7 @@ function focusLastItem(menu: HTMLElement | null) {
 ### Combobox / Autocomplete
 
 ```tsx
-import {
-  useState,
-  useRef,
-  useId,
-  type ChangeEvent,
-  type KeyboardEvent,
-} from "react";
+import { useState, useRef, useId, type ChangeEvent, type KeyboardEvent } from "react";
 
 interface Option {
   value: string;
@@ -268,13 +240,7 @@ interface ComboboxProps {
   placeholder?: string;
 }
 
-export function Combobox({
-  options,
-  value,
-  onChange,
-  label,
-  placeholder,
-}: ComboboxProps) {
+export function Combobox({ options, value, onChange, label, placeholder }: ComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -308,9 +274,7 @@ export function Combobox({
         if (!isOpen) {
           setIsOpen(true);
         } else {
-          setActiveIndex((prev) =>
-            prev < filteredOptions.length - 1 ? prev + 1 : prev,
-          );
+          setActiveIndex((prev) => (prev < filteredOptions.length - 1 ? prev + 1 : prev));
         }
         break;
       case "ArrowUp":
@@ -342,9 +306,7 @@ export function Combobox({
         aria-expanded={isOpen}
         aria-autocomplete="list"
         aria-controls={listboxId}
-        aria-activedescendant={
-          activeIndex >= 0 ? `option-${activeIndex}` : undefined
-        }
+        aria-activedescendant={activeIndex >= 0 ? `option-${activeIndex}` : undefined}
         value={inputValue}
         placeholder={placeholder}
         onChange={handleInputChange}
@@ -405,12 +367,7 @@ interface FormFieldProps {
   }) => ReactNode;
 }
 
-export function FormField({
-  label,
-  error,
-  required,
-  children,
-}: FormFieldProps) {
+export function FormField({ label, error, required, children }: FormFieldProps) {
   const id = useId();
   const errorId = `${id}-error`;
 
@@ -464,10 +421,7 @@ function ContactForm() {
         )}
       </FormField>
 
-      <button
-        type="submit"
-        className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
-      >
+      <button type="submit" className="mt-4 px-4 py-2 bg-blue-600 text-white rounded">
         Submit
       </button>
     </form>
@@ -508,10 +462,7 @@ interface LiveAnnouncerProps {
   politeness?: "polite" | "assertive";
 }
 
-export function LiveAnnouncer({
-  message,
-  politeness = "polite",
-}: LiveAnnouncerProps) {
+export function LiveAnnouncer({ message, politeness = "polite" }: LiveAnnouncerProps) {
   const [announcement, setAnnouncement] = useState("");
 
   useEffect(() => {
@@ -522,28 +473,15 @@ export function LiveAnnouncer({
   }, [message]);
 
   return (
-    <div
-      role="status"
-      aria-live={politeness}
-      aria-atomic="true"
-      className="sr-only"
-    >
+    <div role="status" aria-live={politeness} aria-atomic="true" className="sr-only">
       {announcement}
     </div>
   );
 }
 
 // Usage in a search component
-function SearchResults({
-  results,
-  loading,
-}: {
-  results: Item[];
-  loading: boolean;
-}) {
-  const message = loading
-    ? "Loading results..."
-    : `${results.length} results found`;
+function SearchResults({ results, loading }: { results: Item[]; loading: boolean }) {
+  const message = loading ? "Loading results..." : `${results.length} results found`;
 
   return (
     <>
@@ -584,8 +522,7 @@ function useFocusTrap(containerRef: RefObject<HTMLElement>, isActive: boolean) {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;
 
-      const focusableElements =
-        container.querySelectorAll<HTMLElement>(focusableSelector);
+      const focusableElements = container.querySelectorAll<HTMLElement>(focusableSelector);
       const first = focusableElements[0];
       const last = focusableElements[focusableElements.length - 1];
 
@@ -631,11 +568,7 @@ function getContrastRatio(fg: string, bg: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-function meetsWCAG(
-  fg: string,
-  bg: string,
-  level: "AA" | "AAA" = "AA",
-): boolean {
+function meetsWCAG(fg: string, bg: string, level: "AA" | "AAA" = "AA"): boolean {
   const ratio = getContrastRatio(fg, bg);
   return level === "AAA" ? ratio >= 7 : ratio >= 4.5;
 }

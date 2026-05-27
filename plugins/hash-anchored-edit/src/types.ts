@@ -1,8 +1,6 @@
 export const HASH_LENGTH = 5;
 export const HASH_ALPHABET = "ZPMQVRWSNKTXJBYH";
-export const ANCHOR_PATTERN = new RegExp(
-  `^(\\d+)#([${HASH_ALPHABET}]{${HASH_LENGTH}})$`,
-);
+export const ANCHOR_PATTERN = new RegExp(`^(\\d+)#([${HASH_ALPHABET}]{${HASH_LENGTH}})$`);
 
 export type ParsedFile = {
   hasTrailingNewline: boolean;

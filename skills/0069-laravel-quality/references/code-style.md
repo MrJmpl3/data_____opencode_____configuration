@@ -232,10 +232,7 @@ Use Composer scripts for common tasks:
       "./vendor/bin/pest --coverage"
     ],
 
-    "db:fresh": [
-      "Composer\\Config::disableProcessTimeout",
-      "@php artisan migrate:fresh --seed"
-    ],
+    "db:fresh": ["Composer\\Config::disableProcessTimeout", "@php artisan migrate:fresh --seed"],
 
     "dev": [
       "Composer\\Config::disableProcessTimeout",
@@ -278,10 +275,7 @@ composer dev
 **Chain multiple commands:**
 
 ```json
-[
-  "php artisan migrate:fresh --env=testing --quiet",
-  "./vendor/bin/pest --compact"
-]
+["php artisan migrate:fresh --env=testing --quiet", "./vendor/bin/pest --compact"]
 ```
 
 **Concurrent services:**

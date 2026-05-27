@@ -32,9 +32,7 @@ export type PositiveNumber = Brand<number, "PositiveNumber">;
 /**
  * Type-safe error handling without exceptions.
  */
-export type Result<T, E = Error> =
-  | { success: true; data: T }
-  | { success: false; error: E };
+export type Result<T, E = Error> = { success: true; data: T } | { success: false; error: E };
 
 export const ok = <T>(data: T): Result<T, never> => ({
   success: true,
@@ -77,23 +75,17 @@ export type DeepReadonly<T> = T extends (...args: any[]) => any
 /**
  * Make all properties deeply optional.
  */
-export type DeepPartial<T> = T extends object
-  ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : T;
+export type DeepPartial<T> = T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
 
 /**
  * Make all properties deeply required.
  */
-export type DeepRequired<T> = T extends object
-  ? { [K in keyof T]-?: DeepRequired<T[K]> }
-  : T;
+export type DeepRequired<T> = T extends object ? { [K in keyof T]-?: DeepRequired<T[K]> } : T;
 
 /**
  * Make all properties deeply mutable (remove readonly).
  */
-export type DeepMutable<T> = T extends object
-  ? { -readonly [K in keyof T]: DeepMutable<T[K]> }
-  : T;
+export type DeepMutable<T> = T extends object ? { -readonly [K in keyof T]: DeepMutable<T[K]> } : T;
 
 // =============================================================================
 // OBJECT UTILITIES
@@ -124,14 +116,12 @@ export type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 /**
  * Make specific keys required.
  */
-export type RequiredBy<T, K extends keyof T> = Omit<T, K> &
-  Required<Pick<T, K>>;
+export type RequiredBy<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
 
 /**
  * Make specific keys readonly.
  */
-export type ReadonlyBy<T, K extends keyof T> = Omit<T, K> &
-  Readonly<Pick<T, K>>;
+export type ReadonlyBy<T, K extends keyof T> = Omit<T, K> & Readonly<Pick<T, K>>;
 
 /**
  * Merge two types (second overrides first).
@@ -182,9 +172,7 @@ export type Arguments<T> = T extends (...args: infer A) => any ? A : never;
 /**
  * Get first argument of function.
  */
-export type FirstArgument<T> = T extends (first: infer F, ...args: any[]) => any
-  ? F
-  : never;
+export type FirstArgument<T> = T extends (first: infer F, ...args: any[]) => any ? F : never;
 
 /**
  * Async version of function.
@@ -207,10 +195,9 @@ export type Promisify<T> = T extends (...args: infer A) => infer R
 /**
  * Split string by delimiter.
  */
-export type Split<
-  S extends string,
-  D extends string,
-> = S extends `${infer T}${D}${infer U}` ? [T, ...Split<U, D>] : [S];
+export type Split<S extends string, D extends string> = S extends `${infer T}${D}${infer U}`
+  ? [T, ...Split<U, D>]
+  : [S];
 
 /**
  * Join tuple to string.
@@ -240,16 +227,14 @@ export type PathOf<T, K extends keyof T = keyof T> = K extends string
  * Last element of union.
  */
 export type UnionLast<T> =
-  UnionToIntersection<T extends any ? () => T : never> extends () => infer R
-    ? R
-    : never;
+  UnionToIntersection<T extends any ? () => T : never> extends () => infer R ? R : never;
 
 /**
  * Union to intersection.
  */
-export type UnionToIntersection<U> = (
-  U extends any ? (k: U) => void : never
-) extends (k: infer I) => void
+export type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
+  k: infer I,
+) => void
   ? I
   : never;
 
@@ -268,9 +253,7 @@ export type UnionToTuple<T, L = UnionLast<T>> = [T] extends [never]
  * Assert type at compile time.
  */
 export type AssertEqual<T, U> =
-  (<V>() => V extends T ? 1 : 2) extends <V>() => V extends U ? 1 : 2
-    ? true
-    : false;
+  (<V>() => V extends T ? 1 : 2) extends <V>() => V extends U ? 1 : 2 ? true : false;
 
 /**
  * Ensure type is not never.
@@ -285,8 +268,7 @@ export type IsAny<T> = 0 extends 1 & T ? true : false;
 /**
  * Ensure type is unknown.
  */
-export type IsUnknown<T> =
-  IsAny<T> extends true ? false : unknown extends T ? true : false;
+export type IsUnknown<T> = IsAny<T> extends true ? false : unknown extends T ? true : false;
 
 // =============================================================================
 // JSON UTILITIES

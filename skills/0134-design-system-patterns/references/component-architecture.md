@@ -18,9 +18,7 @@ interface AccordionContextValue {
   type: "single" | "multiple";
 }
 
-const AccordionContext = React.createContext<AccordionContextValue | null>(
-  null,
-);
+const AccordionContext = React.createContext<AccordionContextValue | null>(null);
 
 function useAccordionContext() {
   const context = React.useContext(AccordionContext);
@@ -37,14 +35,8 @@ interface AccordionProps {
   defaultOpen?: string[];
 }
 
-function Accordion({
-  children,
-  type = "single",
-  defaultOpen = [],
-}: AccordionProps) {
-  const [openItems, setOpenItems] = React.useState<Set<string>>(
-    new Set(defaultOpen),
-  );
+function Accordion({ children, type = "single", defaultOpen = [] }: AccordionProps) {
+  const [openItems, setOpenItems] = React.useState<Set<string>>(new Set(defaultOpen));
 
   const toggle = React.useCallback(
     (id: string) => {
@@ -98,9 +90,7 @@ function AccordionTrigger({ children }: { children: React.ReactNode }) {
       aria-expanded={isOpen}
     >
       {children}
-      <ChevronDown
-        className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
-      />
+      <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
     </button>
   );
 }
@@ -129,15 +119,11 @@ function Example() {
     <AccordionCompound type="single" defaultOpen={["item-1"]}>
       <AccordionCompound.Item id="item-1">
         <AccordionCompound.Trigger>Is it accessible?</AccordionCompound.Trigger>
-        <AccordionCompound.Content>
-          Yes. It follows WAI-ARIA patterns.
-        </AccordionCompound.Content>
+        <AccordionCompound.Content>Yes. It follows WAI-ARIA patterns.</AccordionCompound.Content>
       </AccordionCompound.Item>
       <AccordionCompound.Item id="item-2">
         <AccordionCompound.Trigger>Is it styled?</AccordionCompound.Trigger>
-        <AccordionCompound.Content>
-          Yes. It uses Tailwind CSS.
-        </AccordionCompound.Content>
+        <AccordionCompound.Content>Yes. It uses Tailwind CSS.</AccordionCompound.Content>
       </AccordionCompound.Item>
     </AccordionCompound>
   );
@@ -158,14 +144,12 @@ type AsProp<C extends React.ElementType> = {
 
 type PropsToOmit<C extends React.ElementType, P> = keyof (AsProp<C> & P);
 
-type PolymorphicComponentProp<
-  C extends React.ElementType,
-  Props = {},
-> = React.PropsWithChildren<Props & AsProp<C>> &
+type PolymorphicComponentProp<C extends React.ElementType, Props = {}> = React.PropsWithChildren<
+  Props & AsProp<C>
+> &
   Omit<React.ComponentPropsWithoutRef<C>, PropsToOmit<C, Props>>;
 
-type PolymorphicRef<C extends React.ElementType> =
-  React.ComponentPropsWithRef<C>["ref"];
+type PolymorphicRef<C extends React.ElementType> = React.ComponentPropsWithRef<C>["ref"];
 
 type PolymorphicComponentPropWithRef<
   C extends React.ElementType,
@@ -178,19 +162,14 @@ interface ButtonOwnProps {
   size?: "sm" | "md" | "lg";
 }
 
-type ButtonProps<C extends React.ElementType = "button"> =
-  PolymorphicComponentPropWithRef<C, ButtonOwnProps>;
+type ButtonProps<C extends React.ElementType = "button"> = PolymorphicComponentPropWithRef<
+  C,
+  ButtonOwnProps
+>;
 
 const Button = React.forwardRef(
   <C extends React.ElementType = "button">(
-    {
-      as,
-      variant = "default",
-      size = "md",
-      className,
-      children,
-      ...props
-    }: ButtonProps<C>,
+    { as, variant = "default", size = "md", className, children, ...props }: ButtonProps<C>,
     ref?: PolymorphicRef<C>,
   ) => {
     const Component = as || "button";
@@ -311,8 +290,7 @@ function useToggle({
   pressed: controlledPressed,
   onPressedChange,
 }: UseToggleProps = {}) {
-  const [uncontrolledPressed, setUncontrolledPressed] =
-    React.useState(defaultPressed);
+  const [uncontrolledPressed, setUncontrolledPressed] = React.useState(defaultPressed);
 
   const isControlled = controlledPressed !== undefined;
   const pressed = isControlled ? controlledPressed : uncontrolledPressed;
@@ -342,13 +320,8 @@ interface UseListboxProps<T> {
   onSelect?: (item: T, index: number) => void;
 }
 
-function useListbox<T>({
-  items,
-  defaultSelectedIndex = -1,
-  onSelect,
-}: UseListboxProps<T>) {
-  const [selectedIndex, setSelectedIndex] =
-    React.useState(defaultSelectedIndex);
+function useListbox<T>({ items, defaultSelectedIndex = -1, onSelect }: UseListboxProps<T>) {
+  const [selectedIndex, setSelectedIndex] = React.useState(defaultSelectedIndex);
   const [highlightedIndex, setHighlightedIndex] = React.useState(-1);
 
   const select = React.useCallback(
@@ -364,9 +337,7 @@ function useListbox<T>({
       switch (event.key) {
         case "ArrowDown":
           event.preventDefault();
-          setHighlightedIndex((prev) =>
-            prev < items.length - 1 ? prev + 1 : prev,
-          );
+          setHighlightedIndex((prev) => (prev < items.length - 1 ? prev + 1 : prev));
           break;
         case "ArrowUp":
           event.preventDefault();
@@ -544,12 +515,7 @@ interface DataListProps<T> {
   keyExtractor: (item: T) => string;
 }
 
-function DataList<T>({
-  items,
-  renderItem,
-  renderEmpty,
-  keyExtractor,
-}: DataListProps<T>) {
+function DataList<T>({ items, renderItem, renderEmpty, keyExtractor }: DataListProps<T>) {
   if (items.length === 0 && renderEmpty) {
     return <>{renderEmpty()}</>;
   }

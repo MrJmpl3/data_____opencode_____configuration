@@ -364,10 +364,7 @@ function SwipeableCard({ item, onDelete }) {
     >
       <Swipeable
         renderRightActions={() => (
-          <TouchableOpacity
-            onPress={() => onDelete(item)}
-            accessibilityLabel="Delete"
-          >
+          <TouchableOpacity onPress={() => onDelete(item)} accessibilityLabel="Delete">
             <Text>Delete</Text>
           </TouchableOpacity>
         )}
@@ -400,10 +397,7 @@ function AnimatedComponent() {
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
 
-    const subscription = AccessibilityInfo.addEventListener(
-      "reduceMotionChanged",
-      setReduceMotion,
-    );
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduceMotion);
 
     return () => subscription.remove();
   }, []);

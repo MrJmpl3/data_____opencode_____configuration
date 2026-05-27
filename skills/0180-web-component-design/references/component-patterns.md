@@ -346,16 +346,10 @@ interface CardProps {
 function Card({ children, header, footer, media }: CardProps) {
   return (
     <article className="rounded-lg border bg-white shadow-sm">
-      {media && (
-        <div className="aspect-video overflow-hidden rounded-t-lg">{media}</div>
-      )}
+      {media && <div className="aspect-video overflow-hidden rounded-t-lg">{media}</div>}
       {header && <header className="border-b px-4 py-3">{header}</header>}
       <div className="px-4 py-4">{children}</div>
-      {footer && (
-        <footer className="border-t px-4 py-3 bg-gray-50 rounded-b-lg">
-          {footer}
-        </footer>
-      )}
+      {footer && <footer className="border-t px-4 py-3 bg-gray-50 rounded-b-lg">{footer}</footer>}
     </article>
   );
 }
@@ -388,31 +382,29 @@ interface FancyInputProps {
   placeholder?: string;
 }
 
-const FancyInput = forwardRef<InputHandle, FancyInputProps>(
-  ({ label, placeholder }, ref) => {
-    const inputRef = useRef<HTMLInputElement>(null);
+const FancyInput = forwardRef<InputHandle, FancyInputProps>(({ label, placeholder }, ref) => {
+  const inputRef = useRef<HTMLInputElement>(null);
 
-    useImperativeHandle(ref, () => ({
-      focus: () => inputRef.current?.focus(),
-      clear: () => {
-        if (inputRef.current) inputRef.current.value = "";
-      },
-      getValue: () => inputRef.current?.value ?? "",
-    }));
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current?.focus(),
+    clear: () => {
+      if (inputRef.current) inputRef.current.value = "";
+    },
+    getValue: () => inputRef.current?.value ?? "",
+  }));
 
-    return (
-      <div>
-        <label className="block text-sm font-medium mb-1">{label}</label>
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder={placeholder}
-          className="w-full px-3 py-2 border rounded-md"
-        />
-      </div>
-    );
-  },
-);
+  return (
+    <div>
+      <label className="block text-sm font-medium mb-1">{label}</label>
+      <input
+        ref={inputRef}
+        type="text"
+        placeholder={placeholder}
+        className="w-full px-3 py-2 border rounded-md"
+      />
+    </div>
+  );
+});
 
 FancyInput.displayName = "FancyInput";
 

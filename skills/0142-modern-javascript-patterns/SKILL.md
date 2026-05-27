@@ -409,9 +409,7 @@ async function fetchWithRetry(url, retries = 3) {
 
 // Timeout wrapper
 async function withTimeout(promise, ms) {
-  const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Timeout")), ms),
-  );
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms));
   return Promise.race([promise, timeout]);
 }
 ```

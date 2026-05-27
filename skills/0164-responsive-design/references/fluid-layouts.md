@@ -37,12 +37,7 @@ The preferred value in `clamp()` typically combines a base size with a viewport-
 
 ```javascript
 // Generate a fluid type scale
-function fluidType({
-  minFontSize,
-  maxFontSize,
-  minViewport = 320,
-  maxViewport = 1200,
-}) {
+function fluidType({ minFontSize, maxFontSize, minViewport = 320, maxViewport = 1200 }) {
   const minFontRem = minFontSize / 16;
   const maxFontRem = maxFontSize / 16;
   const minViewportRem = minViewport / 16;

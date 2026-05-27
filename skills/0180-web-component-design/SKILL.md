@@ -38,9 +38,7 @@ Build reusable, maintainable UI components using modern frameworks with clean co
 
 ```tsx
 <DataFetcher url="/api/users">
-  {({ data, loading, error }) =>
-    loading ? <Spinner /> : <UserList users={data} />
-  }
+  {({ data, loading, error }) => (loading ? <Spinner /> : <UserList users={data} />)}
 </DataFetcher>
 ```
 
@@ -118,9 +116,7 @@ const buttonVariants = cva(
 );
 
 interface ButtonProps
-  extends
-    ComponentPropsWithoutRef<"button">,
-    VariantProps<typeof buttonVariants> {
+  extends ComponentPropsWithoutRef<"button">, VariantProps<typeof buttonVariants> {
   isLoading?: boolean;
 }
 

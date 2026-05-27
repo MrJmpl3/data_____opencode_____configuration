@@ -57,10 +57,8 @@ const View = (props: {
   const theme = () => props.api.theme.current;
   const limitLines = () => {
     const parts: string[] = [];
-    if (props.contextLimit() > 0)
-      parts.push(`Context ${fmt(props.contextLimit())}`);
-    if (props.outputLimit() > 0)
-      parts.push(`Output ${fmt(props.outputLimit())}`);
+    if (props.contextLimit() > 0) parts.push(`Context ${fmt(props.contextLimit())}`);
+    if (props.outputLimit() > 0) parts.push(`Output ${fmt(props.outputLimit())}`);
     return parts.length > 0 ? [parts.join(" · ")] : [];
   };
   return (
@@ -198,19 +196,16 @@ const plugin: TuiPluginModule & { id: string } = {
       }
     };
 
-    const unsubModelSwitch = evt.on(
-      "session.next.model.switched" as any,
-      (event: any) => {
-        const props = event.properties || event;
-        const m = props.model;
-        const sid = props.sessionID || currentSessionId;
-        if (m?.id && m?.providerID) {
-          currentSessionId = sid;
-          applyModel(m.providerID, m.id);
-          if (sid) refresh(sid).catch(() => {});
-        }
-      },
-    );
+    const unsubModelSwitch = evt.on("session.next.model.switched" as any, (event: any) => {
+      const props = event.properties || event;
+      const m = props.model;
+      const sid = props.sessionID || currentSessionId;
+      if (m?.id && m?.providerID) {
+        currentSessionId = sid;
+        applyModel(m.providerID, m.id);
+        if (sid) refresh(sid).catch(() => {});
+      }
+    });
 
     const unsubs: (() => void)[] = [unsubModelSwitch];
     const onRefresh = (event: any) => {

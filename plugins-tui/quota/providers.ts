@@ -71,9 +71,7 @@ export const fetchWithTimeout = (
 ): Promise<Response> => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
-  return fetch(url, { ...opts, signal: controller.signal }).finally(() =>
-    clearTimeout(timer),
-  );
+  return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(timer));
 };
 
 // ─── OS helpers ──────────────────────────────────────────
@@ -124,8 +122,7 @@ const readOauthAccountId = (keys: readonly string[]): string | null => {
     const oauthEntry = entry as Record<string, unknown>;
     if (oauthEntry.type !== "oauth") continue;
     const accountId = oauthEntry.account_id ?? oauthEntry.accountId;
-    if (typeof accountId === "string" && accountId.trim())
-      return accountId.trim();
+    if (typeof accountId === "string" && accountId.trim()) return accountId.trim();
   }
   return null;
 };
@@ -178,9 +175,7 @@ const RE_NUM = String.raw`(-?\d+(?:\.\d+)?)`;
 // --- Regex orderings ---
 // The $R[] objects don't guarantee field order. We generate two patterns
 // (usagePercent first, resetInSec first) and try both when parsing.
-const windowRegexes = (
-  key: string,
-): { pctFirst: RegExp; resetFirst: RegExp } => {
+const windowRegexes = (key: string): { pctFirst: RegExp; resetFirst: RegExp } => {
   const pctFirst = new RegExp(
     String.raw`${key}:\$R\[\d+\]=\{[^}]*usagePercent:${RE_NUM}[^}]*resetInSec:${RE_NUM}[^}]*\}`,
   );
@@ -197,17 +192,12 @@ const windowRegexes = (
 const parseGoWindow = (html: string, key: string): GoWindow | null => {
   const { pctFirst, resetFirst } = windowRegexes(key);
 
-  const tryMatch = (
-    re: RegExp,
-    pctIdx: number,
-    resetIdx: number,
-  ): GoWindow | null => {
+  const tryMatch = (re: RegExp, pctIdx: number, resetIdx: number): GoWindow | null => {
     const m = html.match(re);
     if (!m) return null;
     const usagePercent = Number(m[pctIdx]);
     const resetInSec = Number(m[resetIdx]);
-    if (!Number.isFinite(usagePercent) || !Number.isFinite(resetInSec))
-      return null;
+    if (!Number.isFinite(usagePercent) || !Number.isFinite(resetInSec)) return null;
     const used = Math.max(0, usagePercent);
     return {
       used,
@@ -270,12 +260,7 @@ export const fetchGoDashboard = async (
  * Read Copilot OAuth token from OpenCode's auth.json.
  */
 export const readCopilotToken = (): string | null => {
-  return readOauthAccessToken([
-    "github-copilot",
-    "copilot",
-    "copilot-chat",
-    "github-copilot-chat",
-  ]);
+  return readOauthAccessToken(["github-copilot", "copilot", "copilot-chat", "github-copilot-chat"]);
 };
 
 /**
@@ -290,10 +275,7 @@ const getNested = (obj: unknown, path: readonly string[]): unknown => {
   return v;
 };
 
-const findNumber = (
-  data: unknown,
-  paths: readonly (readonly string[])[],
-): number | undefined => {
+const findNumber = (data: unknown, paths: readonly (readonly string[])[]): number | undefined => {
   for (const p of paths) {
     const v = getNested(data, p);
     if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -301,10 +283,7 @@ const findNumber = (
   return undefined;
 };
 
-const findBoolean = (
-  data: unknown,
-  paths: readonly (readonly string[])[],
-): boolean | undefined => {
+const findBoolean = (data: unknown, paths: readonly (readonly string[])[]): boolean | undefined => {
   for (const p of paths) {
     const v = getNested(data, p);
     if (typeof v === "boolean") return v;
@@ -312,10 +291,7 @@ const findBoolean = (
   return undefined;
 };
 
-const findString = (
-  data: unknown,
-  paths: readonly (readonly string[])[],
-): string | undefined => {
+const findString = (data: unknown, paths: readonly (readonly string[])[]): string | undefined => {
   for (const p of paths) {
     const v = getNested(data, p);
     if (typeof v === "string") return v;
@@ -414,9 +390,7 @@ const COPILOT_TIER_LIMITS: Record<string, number> = {
 /**
  * Fetch Copilot personal quota from /copilot_internal/user.
  */
-export const fetchCopilotQuota = async (): Promise<
-  CopilotResult | null | { error: string }
-> => {
+export const fetchCopilotQuota = async (): Promise<CopilotResult | null | { error: string }> => {
   const token = readCopilotToken();
   if (!token) return null;
 
@@ -458,10 +432,7 @@ export const fetchCopilotQuota = async (): Promise<
     : new Date(
         Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1),
       ).toISOString();
-  const resetSec = Math.max(
-    0,
-    Math.floor((new Date(resetTimeIso).getTime() - Date.now()) / 1000),
-  );
+  const resetSec = Math.max(0, Math.floor((new Date(resetTimeIso).getTime() - Date.now()) / 1000));
 
   const remainingCount = Math.max(0, total - used);
   return {
@@ -493,22 +464,10 @@ export const readOpenRouterKey = (): string | null => {
 
   // Fallback: config file
   try {
-    const path = join(
-      os.homedir(),
-      ".config",
-      "opencode",
-      "openrouter-auth.json",
-    );
+    const path = join(os.homedir(), ".config", "opencode", "openrouter-auth.json");
     if (existsSync(path)) {
-      const raw: Record<string, unknown> = JSON.parse(
-        readFileSync(path, "utf-8"),
-      );
-      for (const k of [
-        "apiKey",
-        "api_key",
-        "token",
-        "openrouterApiKey",
-      ] as const) {
+      const raw: Record<string, unknown> = JSON.parse(readFileSync(path, "utf-8"));
+      for (const k of ["apiKey", "api_key", "token", "openrouterApiKey"] as const) {
         if (raw[k] && typeof raw[k] === "string") return raw[k].trim();
       }
     }
@@ -578,20 +537,12 @@ export const readOpenAIToken = (): string | null => {
   return readOauthAccessToken(["openai", "chatgpt", "codex", "opencode"]);
 };
 
-const readNumberField = (
-  data: Record<string, unknown>,
-  key: string,
-): number | undefined => {
+const readNumberField = (data: Record<string, unknown>, key: string): number | undefined => {
   const value = data[key];
-  return typeof value === "number" && Number.isFinite(value)
-    ? value
-    : undefined;
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 };
 
-const readStringField = (
-  data: Record<string, unknown>,
-  key: string,
-): string | undefined => {
+const readStringField = (data: Record<string, unknown>, key: string): string | undefined => {
   const value = data[key];
   return typeof value === "string" && value.trim() ? value : undefined;
 };
@@ -612,10 +563,7 @@ const parseOpenAIWindow = (value: unknown): OpenAIWindow | undefined => {
 
   const resetAt = readStringField(record, "reset_at");
   if (!resetAt) return undefined;
-  const resetSec = Math.max(
-    0,
-    Math.floor((new Date(resetAt).getTime() - Date.now()) / 1000),
-  );
+  const resetSec = Math.max(0, Math.floor((new Date(resetAt).getTime() - Date.now()) / 1000));
 
   return {
     usedPct: Math.max(0, Math.min(100, usedPct)),
@@ -623,9 +571,7 @@ const parseOpenAIWindow = (value: unknown): OpenAIWindow | undefined => {
   };
 };
 
-export const fetchOpenAIQuota = async (): Promise<
-  OpenAIResult | null | { error: string }
-> => {
+export const fetchOpenAIQuota = async (): Promise<OpenAIResult | null | { error: string }> => {
   const token = readOpenAIToken();
   if (!token) return null;
 
@@ -657,8 +603,7 @@ export const fetchOpenAIQuota = async (): Promise<
       ? (data.rate_limit as Record<string, unknown>)
       : undefined;
   const codeReviewRateLimit =
-    data.code_review_rate_limit &&
-    typeof data.code_review_rate_limit === "object"
+    data.code_review_rate_limit && typeof data.code_review_rate_limit === "object"
       ? (data.code_review_rate_limit as Record<string, unknown>)
       : undefined;
   const credits =
@@ -738,9 +683,6 @@ export const fmtDuration = (sec?: number): string => {
  */
 export const fmtDurationIso = (iso: string): string => {
   if (!iso) return "";
-  const diff = Math.max(
-    0,
-    Math.floor((new Date(iso).getTime() - Date.now()) / 1000),
-  );
+  const diff = Math.max(0, Math.floor((new Date(iso).getTime() - Date.now()) / 1000));
   return fmtDuration(diff);
 };

@@ -168,17 +168,7 @@ services:
       - lamp-network
     command: --default-authentication-plugin=mysql_native_password
     healthcheck:
-      test:
-        [
-          "CMD",
-          "mysqladmin",
-          "ping",
-          "-h",
-          "localhost",
-          "-u",
-          "root",
-          "-proot_secret",
-        ]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_secret"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1146,8 +1136,7 @@ services:
     networks:
       - elk
     healthcheck:
-      test:
-        ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5

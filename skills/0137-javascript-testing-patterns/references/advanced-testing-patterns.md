@@ -37,10 +37,7 @@ describe("User API Integration Tests", () => {
         password: "password123",
       };
 
-      const response = await request(app)
-        .post("/api/users")
-        .send(userData)
-        .expect(201);
+      const response = await request(app).post("/api/users").send(userData).expect(201);
 
       expect(response.body).toMatchObject({
         name: userData.name,
@@ -57,10 +54,7 @@ describe("User API Integration Tests", () => {
         password: "password123",
       };
 
-      const response = await request(app)
-        .post("/api/users")
-        .send(userData)
-        .expect(400);
+      const response = await request(app).post("/api/users").send(userData).expect(400);
 
       expect(response.body).toHaveProperty("error");
     });
@@ -74,10 +68,7 @@ describe("User API Integration Tests", () => {
 
       await request(app).post("/api/users").send(userData);
 
-      const response = await request(app)
-        .post("/api/users")
-        .send(userData)
-        .expect(409);
+      const response = await request(app).post("/api/users").send(userData).expect(409);
 
       expect(response.body.error).toContain("already exists");
     });
@@ -93,9 +84,7 @@ describe("User API Integration Tests", () => {
 
       const userId = createResponse.body.id;
 
-      const response = await request(app)
-        .get(`/api/users/${userId}`)
-        .expect(200);
+      const response = await request(app).get(`/api/users/${userId}`).expect(200);
 
       expect(response.body).toMatchObject({
         id: userId,
@@ -397,10 +386,7 @@ export function createUsersFixture(count: number): User[] {
 }
 
 // Usage in tests
-import {
-  createUserFixture,
-  createUsersFixture,
-} from "../fixtures/user.fixture";
+import { createUserFixture, createUsersFixture } from "../fixtures/user.fixture";
 
 describe("UserService", () => {
   it("should process user", () => {

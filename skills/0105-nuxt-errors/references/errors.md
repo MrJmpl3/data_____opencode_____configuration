@@ -162,19 +162,13 @@ Standardized action error handling:
 export function useHandleActionError() {
   const flash = useFlash();
 
-  const handleActionError = (
-    error: unknown,
-    context: { entity: string; operation: string },
-  ) => {
+  const handleActionError = (error: unknown, context: { entity: string; operation: string }) => {
     const message = `Failed to ${context.operation} ${context.entity}.`;
 
     if (error instanceof ValidationError) {
       flash.error(message, error.message);
     } else if (error instanceof ConflictError) {
-      flash.error(
-        message,
-        "A conflict occurred. Please refresh and try again.",
-      );
+      flash.error(message, "A conflict occurred. Please refresh and try again.");
     } else if (error instanceof TooManyRequestsError) {
       flash.error(message, "Too many requests. Please wait and try again.");
     } else {
@@ -224,11 +218,7 @@ const formRef = useTemplateRef("formRef");
 
 <template>
   <XForm ref="formRef" @error="onError">
-    <UFormField
-      label="Email"
-      name="email"
-      :error="formRef?.form?.errors.first('email')"
-    >
+    <UFormField label="Email" name="email" :error="formRef?.form?.errors.first('email')">
       <UInput v-model="formData.email" />
     </UFormField>
   </XForm>

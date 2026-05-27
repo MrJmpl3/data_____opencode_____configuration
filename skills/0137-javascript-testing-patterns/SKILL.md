@@ -33,11 +33,7 @@ const config: Config = {
   testEnvironment: "node",
   roots: ["<rootDir>/src"],
   testMatch: ["**/__tests__/**/*.ts", "**/?(*.)+(spec|test).ts"],
-  collectCoverageFrom: [
-    "src/**/*.ts",
-    "!src/**/*.d.ts",
-    "!src/**/*.interface.ts",
-  ],
+  collectCoverageFrom: ["src/**/*.ts", "!src/**/*.d.ts", "!src/**/*.interface.ts"],
   coverageThreshold: {
     global: {
       branches: 80,
@@ -201,9 +197,7 @@ describe("UserService", () => {
     });
 
     it("should throw error if user not found", () => {
-      expect(() => service.update("999", { name: "Jane" })).toThrow(
-        "User not found",
-      );
+      expect(() => service.update("999", { name: "Jane" })).toThrow("User not found");
     });
   });
 });
@@ -344,11 +338,7 @@ describe("EmailService", () => {
   });
 
   it("should send email successfully", async () => {
-    await service.sendEmail(
-      "test@example.com",
-      "Test Subject",
-      "<p>Test Body</p>",
-    );
+    await service.sendEmail("test@example.com", "Test Subject", "<p>Test Body</p>");
 
     expect(service["transporter"].sendMail).toHaveBeenCalledWith(
       expect.objectContaining({

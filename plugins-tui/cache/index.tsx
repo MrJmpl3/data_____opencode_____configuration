@@ -16,12 +16,10 @@ const fmt = (n: number): string => {
 const detailLine = (text: string): string => `  ${text}`;
 
 // Coerce unknown to a finite number, defaulting to 0.
-const num = (v: unknown): number =>
-  typeof v === "number" && Number.isFinite(v) ? v : 0;
+const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 // Clamp ratio to [0,1] and show as integer percentage.
-const pct = (ratio: number): string =>
-  Math.round(Math.max(0, Math.min(1, ratio)) * 100) + "%";
+const pct = (ratio: number): string => Math.round(Math.max(0, Math.min(1, ratio)) * 100) + "%";
 
 // --- View: renders cache stats in the sidebar ---
 const View = (props: {
@@ -34,12 +32,9 @@ const View = (props: {
   api: TuiPluginApi;
 }) => {
   const theme = () => props.api.theme.current;
-  const usageLine = () =>
-    `Hit ${pct(props.ratio())} · Save ${fmt(props.read())}`;
+  const usageLine = () => `Hit ${pct(props.ratio())} · Save ${fmt(props.read())}`;
   const trafficLines = () => {
-    const lines = [
-      `Input ${fmt(props.input())} · Output ${fmt(props.output())}`,
-    ];
+    const lines = [`Input ${fmt(props.input())} · Output ${fmt(props.output())}`];
     if (props.write() > 0) lines.push(`Write ${fmt(props.write())}`);
     return lines;
   };
@@ -174,10 +169,7 @@ const plugin: TuiPluginModule & { id: string } = {
 
     // --- subscribe to events that trigger refresh ---
     const unsubs: (() => void)[] = [];
-    for (const eventName of [
-      ...IMMEDIATE_REFRESH_EVENTS,
-      ...COMPLETION_REFRESH_EVENTS,
-    ]) {
+    for (const eventName of [...IMMEDIATE_REFRESH_EVENTS, ...COMPLETION_REFRESH_EVENTS]) {
       unsubs.push(
         evt.on(eventName as any, (event: any) => {
           const props = event.properties || event;

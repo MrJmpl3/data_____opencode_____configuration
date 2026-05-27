@@ -352,11 +352,7 @@ Hypothesis: Time-based issue? Check timezone handling.
 
 ```typescript
 // Function call tracing
-function trace(
-  target: any,
-  propertyKey: string,
-  descriptor: PropertyDescriptor,
-) {
+function trace(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
   const originalMethod = descriptor.value;
 
   descriptor.value = function (...args: any[]) {

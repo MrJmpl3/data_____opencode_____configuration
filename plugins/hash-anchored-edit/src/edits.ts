@@ -1,10 +1,6 @@
 import { parseAnchor } from "./anchors.ts";
 import { parseText, validateAnchor } from "./text.ts";
-import {
-  type NormalizedEdit,
-  type ParsedFile,
-  type RawEditArgs,
-} from "./types.ts";
+import { type NormalizedEdit, type ParsedFile, type RawEditArgs } from "./types.ts";
 
 const parseLinePayload = (lines: string | string[]) => {
   if (Array.isArray(lines)) return [...lines];
@@ -60,8 +56,7 @@ const validateEdit = (file: ParsedFile, edit: NormalizedEdit) => {
   validateAnchor(file, anchor);
 };
 
-const getEditLine = (edit: NormalizedEdit) =>
-  edit.pos?.line ?? edit.end?.line ?? 0;
+const getEditLine = (edit: NormalizedEdit) => edit.pos?.line ?? edit.end?.line ?? 0;
 
 const getReplaceRange = (edit: NormalizedEdit) => {
   const start = edit.pos?.line ?? 0;
@@ -70,15 +65,10 @@ const getReplaceRange = (edit: NormalizedEdit) => {
   return { end, start };
 };
 
-const isLineInsideRange = (
-  line: number,
-  range: { end: number; start: number },
-) => line >= range.start && line <= range.end;
+const isLineInsideRange = (line: number, range: { end: number; start: number }) =>
+  line >= range.start && line <= range.end;
 
-export const validateEditBatch = (
-  file: ParsedFile,
-  edits: NormalizedEdit[],
-) => {
+export const validateEditBatch = (file: ParsedFile, edits: NormalizedEdit[]) => {
   if (edits.length === 0) {
     throw new Error("Need at least one edit.");
   }
@@ -108,9 +98,7 @@ export const validateEditBatch = (
     if (edit.op === "replace") continue;
 
     const line = getEditLine(edit);
-    const containingRange = replacements.find((range) =>
-      isLineInsideRange(line, range),
-    );
+    const containingRange = replacements.find((range) => isLineInsideRange(line, range));
 
     if (!containingRange) continue;
 
@@ -217,12 +205,8 @@ export const validateCreateEdits = (edits: NormalizedEdit[]) => {
 };
 
 export const buildCreatedFile = (edits: NormalizedEdit[]): ParsedFile => {
-  const prepends = edits
-    .filter((edit) => edit.op === "prepend")
-    .flatMap((edit) => edit.lines);
-  const appends = edits
-    .filter((edit) => edit.op === "append")
-    .flatMap((edit) => edit.lines);
+  const prepends = edits.filter((edit) => edit.op === "prepend").flatMap((edit) => edit.lines);
+  const appends = edits.filter((edit) => edit.op === "append").flatMap((edit) => edit.lines);
 
   return {
     hasTrailingNewline: prepends.length + appends.length > 0,
@@ -231,10 +215,7 @@ export const buildCreatedFile = (edits: NormalizedEdit[]): ParsedFile => {
   };
 };
 
-const collectLinesByOperation = (
-  edits: NormalizedEdit[],
-  op: "append" | "prepend",
-) => {
+const collectLinesByOperation = (edits: NormalizedEdit[], op: "append" | "prepend") => {
   const grouped = new Map<number, string[]>();
 
   for (const edit of edits) {

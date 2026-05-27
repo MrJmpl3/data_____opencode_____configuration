@@ -356,10 +356,7 @@ export class UsersController extends Controller {
   @Security("bearerAuth")
   @Response<ErrorResponse>(400, "Invalid request")
   @Response<ErrorResponse>(404, "User not found")
-  public async updateUser(
-    @Path() userId: string,
-    @Body() body: UpdateUserRequest,
-  ): Promise<User> {
+  public async updateUser(@Path() userId: string, @Body() body: UpdateUserRequest): Promise<User> {
     throw new Error("Not implemented");
   }
 

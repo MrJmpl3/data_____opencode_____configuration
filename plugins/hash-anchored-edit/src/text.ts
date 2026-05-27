@@ -29,11 +29,7 @@ export const parseText = (content: string): ParsedFile => {
   };
 };
 
-export const serializeText = ({
-  hasTrailingNewline,
-  lines,
-  newline,
-}: ParsedFile) => {
+export const serializeText = ({ hasTrailingNewline, lines, newline }: ParsedFile) => {
   const body = lines.join(newline);
 
   if (hasTrailingNewline && lines.length > 0) return `${body}${newline}`;
@@ -52,15 +48,9 @@ export const readTextFile = async (filePath: string) => {
 };
 
 export const renderAnchoredLines = (lines: string[], startLine = 1) =>
-  lines
-    .map((line, index) => formatAnchoredLine(startLine + index, line))
-    .join("\n");
+  lines.map((line, index) => formatAnchoredLine(startLine + index, line)).join("\n");
 
-export const renderContextAroundLine = (
-  file: ParsedFile,
-  line: number,
-  radius = 1,
-) => {
+export const renderContextAroundLine = (file: ParsedFile, line: number, radius = 1) => {
   const start = Math.max(1, line - radius);
   const end = Math.min(file.lines.length, line + radius);
 
@@ -69,14 +59,8 @@ export const renderContextAroundLine = (
 
 export const validateAnchor = (file: ParsedFile, anchor: ParsedAnchor) => {
   if (anchor.line < 1 || anchor.line > file.lines.length) {
-    const nearestLine = Math.min(
-      Math.max(anchor.line, 1),
-      Math.max(file.lines.length, 1),
-    );
-    const context =
-      file.lines.length > 0
-        ? `\n${renderContextAroundLine(file, nearestLine)}`
-        : "";
+    const nearestLine = Math.min(Math.max(anchor.line, 1), Math.max(file.lines.length, 1));
+    const context = file.lines.length > 0 ? `\n${renderContextAroundLine(file, nearestLine)}` : "";
 
     throw new Error(`Anchor ${anchor.raw} is out of range.${context}`);
   }
@@ -94,8 +78,7 @@ export const validateAnchor = (file: ParsedFile, anchor: ParsedAnchor) => {
 
 const getHunkCount = (lines: string[]) => lines.length;
 
-const getHunkStart = (lineNumber: number, count: number) =>
-  count === 0 ? 0 : lineNumber;
+const getHunkStart = (lineNumber: number, count: number) => (count === 0 ? 0 : lineNumber);
 
 export const renderUnifiedDiff = (before: ParsedFile, after: ParsedFile) => {
   if (serializeText(before) === serializeText(after)) {
@@ -132,20 +115,14 @@ export const renderUnifiedDiff = (before: ParsedFile, after: ParsedFile) => {
   const afterCount = getHunkCount(afterChunk);
   const beforeStart = getHunkStart(prefix + 1, beforeCount);
   const afterStart = getHunkStart(prefix + 1, afterCount);
-  const output = [
-    `@@ -${beforeStart},${beforeCount} +${afterStart},${afterCount} @@`,
-  ];
+  const output = [`@@ -${beforeStart},${beforeCount} +${afterStart},${afterCount} @@`];
 
   for (let index = 0; index < beforeChunk.length; index += 1) {
-    output.push(
-      `- ${formatAnchoredLine(prefix + index + 1, beforeChunk[index])}`,
-    );
+    output.push(`- ${formatAnchoredLine(prefix + index + 1, beforeChunk[index])}`);
   }
 
   for (let index = 0; index < afterChunk.length; index += 1) {
-    output.push(
-      `+ ${formatAnchoredLine(prefix + index + 1, afterChunk[index])}`,
-    );
+    output.push(`+ ${formatAnchoredLine(prefix + index + 1, afterChunk[index])}`);
   }
 
   return output.join("\n");
@@ -173,11 +150,7 @@ export const renderDeleteDiff = (file: ParsedFile) => {
   return output.join("\n");
 };
 
-export const renderAnchoredSlice = (
-  file: ParsedFile,
-  offset: number,
-  limit: number,
-) => {
+export const renderAnchoredSlice = (file: ParsedFile, offset: number, limit: number) => {
   const start = Math.max(offset, 1);
   const end = Math.min(file.lines.length, start + limit - 1);
 

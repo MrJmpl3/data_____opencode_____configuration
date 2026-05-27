@@ -25,9 +25,7 @@ export default function getPostQueryFactory() {
 
   return (ulid: MaybeRef<string>) => {
     return useQuery(`post-${toValue(ulid)}`, () => {
-      const params = useJsonSpec()
-        .include("author", "comments", "tags")
-        .build();
+      const params = useJsonSpec().include("author", "comments", "tags").build();
 
       return postApi.get(toValue(ulid), params);
     });
@@ -57,10 +55,7 @@ import type { MaybeRef } from "vue";
 import { KebabCase } from "#layers/base/app/utils";
 
 // Define filter interface
-export interface GetPostsFilters extends Pick<
-  Filters,
-  "page" | "size" | "search"
-> {
+export interface GetPostsFilters extends Pick<Filters, "page" | "size" | "search"> {
   status?: string;
   isDraft?: boolean;
 }
@@ -99,13 +94,7 @@ const { filters } = useReactiveFilters<GetPostsFilters>({
 
 // Create query
 const getPostsQuery = getPostsQueryFactory();
-const {
-  data: posts,
-  refresh,
-  isLoading,
-  isFetching,
-  pagination,
-} = getPostsQuery(filters);
+const { data: posts, refresh, isLoading, isFetching, pagination } = getPostsQuery(filters);
 
 // Data auto-refetches when filters change
 filters.status = "published"; // Triggers refetch
@@ -188,27 +177,18 @@ pagination: {
 
 ```typescript
 // app/features/posts/queries/get-posts-by-author-query.ts
-export interface GetPostsByAuthorFilters extends Pick<
-  Filters,
-  "page" | "size"
-> {
+export interface GetPostsByAuthorFilters extends Pick<Filters, "page" | "size"> {
   status?: string;
 }
 
 export default function getPostsByAuthorQueryFactory() {
   const postApi = useRepository("posts");
 
-  return (
-    authorUlid: MaybeRef<string>,
-    filters: MaybeRef<GetPostsByAuthorFilters>,
-  ) => {
+  return (authorUlid: MaybeRef<string>, filters: MaybeRef<GetPostsByAuthorFilters>) => {
     return useFilterQuery(
       `posts-by-author-${toValue(authorUlid)}`,
       () => {
-        const params = useJsonSpec()
-          .filters(filters, KebabCase)
-          .include("tags")
-          .build();
+        const params = useJsonSpec().filters(filters, KebabCase).include("tags").build();
 
         return postApi.listByAuthor(toValue(authorUlid), params);
       },
@@ -222,10 +202,7 @@ export default function getPostsByAuthorQueryFactory() {
 
 ```typescript
 // app/features/users/queries/get-users-query.ts
-export interface GetUsersFilters extends Pick<
-  Filters,
-  "page" | "size" | "search"
-> {}
+export interface GetUsersFilters extends Pick<Filters, "page" | "size" | "search"> {}
 
 export default function getUsersQueryFactory() {
   const userApi = useRepository("users");
@@ -234,10 +211,7 @@ export default function getUsersQueryFactory() {
     return useFilterQuery(
       "users",
       () => {
-        const params = useJsonSpec()
-          .filters(filters, KebabCase)
-          .include("posts")
-          .build();
+        const params = useJsonSpec().filters(filters, KebabCase).include("posts").build();
 
         return userApi.list(params);
       },
@@ -263,10 +237,7 @@ export default function getCommentsQueryFactory() {
     return useFilterQuery(
       "comments",
       () => {
-        const params = useJsonSpec()
-          .filters(filters, KebabCase)
-          .sort("-created_at")
-          .build();
+        const params = useJsonSpec().filters(filters, KebabCase).sort("-created_at").build();
 
         return commentApi.list(params);
       },
@@ -287,28 +258,21 @@ import getPostsQueryFactory, {
 } from "~/features/posts/queries/get-posts-query";
 
 // Set up filters
-const { filters, hasFilters, resetFilters } =
-  useReactiveFilters<GetPostsFilters>(
-    {
-      status: undefined,
-      isDraft: undefined,
-      page: 1,
-      size: 25,
-    },
-    {
-      syncWithUrl: true,
-    },
-  );
+const { filters, hasFilters, resetFilters } = useReactiveFilters<GetPostsFilters>(
+  {
+    status: undefined,
+    isDraft: undefined,
+    page: 1,
+    size: 25,
+  },
+  {
+    syncWithUrl: true,
+  },
+);
 
 // Create query
 const getPostsQuery = getPostsQueryFactory();
-const {
-  data: posts,
-  refresh,
-  isLoading,
-  isFetching,
-  pagination,
-} = getPostsQuery(filters);
+const { data: posts, refresh, isLoading, isFetching, pagination } = getPostsQuery(filters);
 </script>
 
 <template>
@@ -323,11 +287,7 @@ const {
     <PostsTable :posts="posts?.data || []" :loading="isLoading" />
 
     <!-- Pagination -->
-    <XPagination
-      v-if="pagination"
-      v-model:page="filters.page"
-      :pagination="pagination"
-    />
+    <XPagination v-if="pagination" v-model:page="filters.page" :pagination="pagination" />
   </div>
 </template>
 ```

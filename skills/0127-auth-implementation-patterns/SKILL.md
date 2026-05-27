@@ -206,8 +206,7 @@ class RefreshTokenService {
 app.post("/api/auth/refresh", async (req, res) => {
   const { refreshToken } = req.body;
   try {
-    const { accessToken } =
-      await refreshTokenService.refreshAccessToken(refreshToken);
+    const { accessToken } = await refreshTokenService.refreshAccessToken(refreshToken);
     res.json({ accessToken });
   } catch (error) {
     res.status(401).json({ error: "Invalid refresh token" });
@@ -349,9 +348,7 @@ app.get(
     // Generate JWT
     const tokens = generateTokens(req.user.id, req.user.email, req.user.role);
     // Redirect to frontend with token
-    res.redirect(
-      `${process.env.FRONTEND_URL}/auth/callback?token=${tokens.accessToken}`,
-    );
+    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${tokens.accessToken}`);
   },
 );
 ```
@@ -393,16 +390,11 @@ function requireRole(...roles: Role[]) {
 }
 
 // Usage
-app.delete(
-  "/api/users/:id",
-  authenticate,
-  requireRole(Role.ADMIN),
-  async (req, res) => {
-    // Only admins can delete users
-    await db.users.delete(req.params.id);
-    res.json({ message: "User deleted" });
-  },
-);
+app.delete("/api/users/:id", authenticate, requireRole(Role.ADMIN), async (req, res) => {
+  // Only admins can delete users
+  await db.users.delete(req.params.id);
+  res.json({ message: "User deleted" });
+});
 ```
 
 ### Pattern 2: Permission-Based Access Control
@@ -418,11 +410,7 @@ enum Permission {
 
 const rolePermissions: Record<Role, Permission[]> = {
   [Role.USER]: [Permission.READ_POSTS, Permission.WRITE_POSTS],
-  [Role.MODERATOR]: [
-    Permission.READ_POSTS,
-    Permission.WRITE_POSTS,
-    Permission.READ_USERS,
-  ],
+  [Role.MODERATOR]: [Permission.READ_POSTS, Permission.WRITE_POSTS, Permission.READ_USERS],
   [Role.ADMIN]: Object.values(Permission),
 };
 
@@ -449,25 +437,17 @@ function requirePermission(...permissions: Permission[]) {
 }
 
 // Usage
-app.get(
-  "/api/users",
-  authenticate,
-  requirePermission(Permission.READ_USERS),
-  async (req, res) => {
-    const users = await db.users.findAll();
-    res.json({ users });
-  },
-);
+app.get("/api/users", authenticate, requirePermission(Permission.READ_USERS), async (req, res) => {
+  const users = await db.users.findAll();
+  res.json({ users });
+});
 ```
 
 ### Pattern 3: Resource Ownership
 
 ```typescript
 // Check if user owns resource
-async function requireOwnership(
-  resourceType: "post" | "comment",
-  resourceIdParam: string = "id",
-) {
+async function requireOwnership(resourceType: "post" | "comment", resourceIdParam: string = "id") {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -501,16 +481,11 @@ async function requireOwnership(
 }
 
 // Usage
-app.put(
-  "/api/posts/:id",
-  authenticate,
-  requireOwnership("post"),
-  async (req, res) => {
-    // User can only update their own posts
-    const post = await db.posts.update(req.params.id, req.body);
-    res.json({ post });
-  },
-);
+app.put("/api/posts/:id", authenticate, requireOwnership("post"), async (req, res) => {
+  // User can only update their own posts
+  const post = await db.posts.update(req.params.id, req.body);
+  res.json({ post });
+});
 ```
 
 ## Security Best Practices
@@ -537,10 +512,7 @@ async function hashPassword(password: string): Promise<string> {
 }
 
 // Verify password
-async function verifyPassword(
-  password: string,
-  hash: string,
-): Promise<boolean> {
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }
 

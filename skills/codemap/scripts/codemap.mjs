@@ -90,13 +90,7 @@ function walkFiles(root) {
   return files.sort();
 }
 
-export function selectFiles(
-  root,
-  includePatterns,
-  excludePatterns,
-  exceptions,
-  gitignorePatterns,
-) {
+export function selectFiles(root, includePatterns, excludePatterns, exceptions, gitignorePatterns) {
   const includeMatcher = new PatternMatcher(includePatterns);
   const excludeMatcher = new PatternMatcher(excludePatterns);
   const gitignoreMatcher = new PatternMatcher(gitignorePatterns);
@@ -130,8 +124,7 @@ export function computeFolderHash(folder, fileHashes) {
   const folderFiles = Object.entries(fileHashes)
     .filter(
       ([filePath]) =>
-        filePath.startsWith(`${folder}/`) ||
-        (folder === "." && !filePath.includes("/")),
+        filePath.startsWith(`${folder}/`) || (folder === "." && !filePath.includes("/")),
     )
     .sort(([a], [b]) => a.localeCompare(b));
 
@@ -169,9 +162,7 @@ export function migrateLegacyState(root) {
 
   mkdirSync(stateDir, { recursive: true });
   renameSync(legacyPath, statePath);
-  console.log(
-    `Migrated ${STATE_DIR}/${LEGACY_STATE_FILE} -> ${STATE_DIR}/${STATE_FILE}`,
-  );
+  console.log(`Migrated ${STATE_DIR}/${LEGACY_STATE_FILE} -> ${STATE_DIR}/${STATE_FILE}`);
   return true;
 }
 
@@ -190,10 +181,7 @@ export function loadState(root) {
 export function saveState(root, state) {
   const stateDir = path.join(root, STATE_DIR);
   mkdirSync(stateDir, { recursive: true });
-  writeFileSync(
-    path.join(stateDir, STATE_FILE),
-    `${JSON.stringify(state, null, 2)}\n`,
-  );
+  writeFileSync(path.join(stateDir, STATE_FILE), `${JSON.stringify(state, null, 2)}\n`);
 }
 
 export function createEmptyCodemap(folderPath, folderName) {
@@ -224,13 +212,7 @@ export function createEmptyCodemap(folderPath, folderName) {
   writeFileSync(codemapPath, content);
 }
 
-function buildState(
-  root,
-  includePatterns,
-  excludePatterns,
-  exceptions,
-  selectedFiles,
-) {
+function buildState(root, includePatterns, excludePatterns, exceptions, selectedFiles) {
   const fileHashes = {};
   for (const filePath of selectedFiles) {
     const relPath = path.relative(root, filePath).replaceAll(path.sep, "/");
@@ -298,8 +280,7 @@ export function cmdInit({ root, include = [], exclude = [], exception = [] }) {
   console.log(`Created ${STATE_DIR}/${STATE_FILE}`);
 
   for (const folder of folders) {
-    const folderPath =
-      folder === "." ? resolvedRoot : path.join(resolvedRoot, folder);
+    const folderPath = folder === "." ? resolvedRoot : path.join(resolvedRoot, folder);
     const folderName = folder === "." ? path.basename(resolvedRoot) : folder;
     createEmptyCodemap(folderPath, folderName);
   }
@@ -341,12 +322,8 @@ export function cmdChanges({ root }) {
   const currentPaths = new Set(Object.keys(currentHashes));
   const savedPaths = new Set(Object.keys(savedHashes));
 
-  const added = [...currentPaths]
-    .filter((filePath) => !savedPaths.has(filePath))
-    .sort();
-  const removed = [...savedPaths]
-    .filter((filePath) => !currentPaths.has(filePath))
-    .sort();
+  const added = [...currentPaths].filter((filePath) => !savedPaths.has(filePath)).sort();
+  const removed = [...savedPaths].filter((filePath) => !currentPaths.has(filePath)).sort();
   const modified = [...currentPaths]
     .filter((filePath) => savedPaths.has(filePath))
     .filter((filePath) => currentHashes[filePath] !== savedHashes[filePath])
@@ -420,9 +397,7 @@ export function cmdUpdate({ root }) {
   );
 
   saveState(resolvedRoot, nextState);
-  console.log(
-    `Updated ${STATE_DIR}/${STATE_FILE} with ${selectedFiles.length} files`,
-  );
+  console.log(`Updated ${STATE_DIR}/${STATE_FILE} with ${selectedFiles.length} files`);
   return 0;
 }
 

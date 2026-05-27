@@ -55,11 +55,7 @@ const { data: posts, isLoading, pagination } = getPostsQuery(filters);
   <div>
     <UInput v-model="filters.search" placeholder="Search..." />
     <PostsTable :posts="posts?.data || []" :loading="isLoading" />
-    <XPagination
-      v-if="pagination"
-      v-model:page="filters.page"
-      :pagination="pagination"
-    />
+    <XPagination v-if="pagination" v-model:page="filters.page" :pagination="pagination" />
   </div>
 </template>
 ```

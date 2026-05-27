@@ -60,11 +60,7 @@ export const HashAnchoredEditPlugin: Plugin = async () => {
 
           return {
             title: label,
-            output: renderAnchoredSlice(
-              file,
-              args.offset ?? 1,
-              args.limit ?? 2000,
-            ),
+            output: renderAnchoredSlice(file, args.offset ?? 1, args.limit ?? 2000),
           };
         },
       }),
@@ -88,9 +84,7 @@ export const HashAnchoredEditPlugin: Plugin = async () => {
             )
             .optional(),
           filePath: tool.schema.string(),
-          mode: tool.schema
-            .enum(["replace", "insert_before", "insert_after"])
-            .optional(),
+          mode: tool.schema.enum(["replace", "insert_before", "insert_after"]).optional(),
           newText: tool.schema.string().optional(),
           rename: tool.schema.string().optional(),
         },
@@ -101,9 +95,7 @@ export const HashAnchoredEditPlugin: Plugin = async () => {
           const renamePath = args.rename
             ? resolveFilePath(context.directory, args.rename)
             : undefined;
-          const renameLabel = renamePath
-            ? relativeLabel(context.worktree, renamePath)
-            : undefined;
+          const renameLabel = renamePath ? relativeLabel(context.worktree, renamePath) : undefined;
           const pureRename =
             Boolean(renamePath && renamePath !== filePath) &&
             !args.delete &&
@@ -115,9 +107,7 @@ export const HashAnchoredEditPlugin: Plugin = async () => {
           validateDeleteMode(args);
 
           if (renamePath && renamePath !== filePath && hasEditPayload(args)) {
-            throw new Error(
-              "rename cannot be combined with edits. Use separate calls.",
-            );
+            throw new Error("rename cannot be combined with edits. Use separate calls.");
           }
 
           const info = await readFileInfo(filePath);
@@ -137,9 +127,7 @@ export const HashAnchoredEditPlugin: Plugin = async () => {
 
             return {
               title: label,
-              output: [`Deleted ${label}`, renderDeleteDiff(deletedFile)].join(
-                "\n",
-              ),
+              output: [`Deleted ${label}`, renderDeleteDiff(deletedFile)].join("\n"),
             };
           }
 
@@ -163,10 +151,7 @@ export const HashAnchoredEditPlugin: Plugin = async () => {
 
             return {
               title: renameLabel ?? label,
-              output: [
-                `Moved ${label} -> ${renameLabel}`,
-                "(No content changes)",
-              ].join("\n"),
+              output: [`Moved ${label} -> ${renameLabel}`, "(No content changes)"].join("\n"),
             };
           }
 
@@ -182,9 +167,7 @@ export const HashAnchoredEditPlugin: Plugin = async () => {
 
             return {
               title: label,
-              output: [`Created ${label}`, renderCreateDiff(nextFile)].join(
-                "\n",
-              ),
+              output: [`Created ${label}`, renderCreateDiff(nextFile)].join("\n"),
             };
           }
 
@@ -211,10 +194,7 @@ export const HashAnchoredEditPlugin: Plugin = async () => {
 
           return {
             title: label,
-            output: [
-              `Updated ${label}`,
-              renderUnifiedDiff(file, nextFile),
-            ].join("\n"),
+            output: [`Updated ${label}`, renderUnifiedDiff(file, nextFile)].join("\n"),
           };
         },
       }),

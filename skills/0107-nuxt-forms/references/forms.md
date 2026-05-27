@@ -117,10 +117,7 @@ const onError = ({ error }: { error: unknown }) => {
     >
       <div class="space-y-4">
         <!-- Author lookup -->
-        <AuthorEmailInput
-          v-model:email="formData.email"
-          v-model:author="existingAuthor"
-        />
+        <AuthorEmailInput v-model:email="formData.email" v-model:author="existingAuthor" />
 
         <!-- Name -->
         <UFormField label="Name" name="name">
@@ -140,22 +137,13 @@ const onError = ({ error }: { error: unknown }) => {
         <!-- Options -->
         <div class="space-y-2">
           <UCheckbox v-model="formData.isDraft" label="Save as draft" />
-          <UCheckbox
-            v-model="formData.notifySubscribers"
-            label="Notify subscribers"
-          />
+          <UCheckbox v-model="formData.notifySubscribers" label="Notify subscribers" />
         </div>
       </div>
 
       <template #actions>
-        <UButton variant="ghost" @click="emits('close', false)">
-          Cancel
-        </UButton>
-        <UButton
-          type="submit"
-          label="Create Post"
-          :loading="is(waitingFor.posts.creating)"
-        />
+        <UButton variant="ghost" @click="emits('close', false)"> Cancel </UButton>
+        <UButton type="submit" label="Create Post" :loading="is(waitingFor.posts.creating)" />
       </template>
     </XForm>
   </USlideover>

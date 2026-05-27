@@ -161,18 +161,9 @@ function AccessibleDialog({ isOpen, onClose, title, children }: DialogProps) {
   if (!isOpen) return null;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      aria-describedby={descriptionId}
-    >
+    <div role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId}>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50"
-        aria-hidden="true"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/50" aria-hidden="true" onClick={onClose} />
 
       {/* Focus trap container */}
       <FocusTrap>
@@ -182,11 +173,7 @@ function AccessibleDialog({ isOpen, onClose, title, children }: DialogProps) {
               {title}
             </h2>
             <div id={descriptionId}>{children}</div>
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4"
-              aria-label="Close dialog"
-            >
+            <button onClick={onClose} className="absolute top-4 right-4" aria-label="Close dialog">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -213,9 +200,7 @@ function AccessibleForm() {
           aria-live="assertive"
           className="bg-destructive/10 border border-destructive p-4 rounded-md mb-4"
         >
-          <h2 className="font-semibold text-destructive">
-            Please fix the following errors:
-          </h2>
+          <h2 className="font-semibold text-destructive">Please fix the following errors:</h2>
           <ul className="list-disc list-inside mt-2">
             {Object.entries(errors).map(([field, message]) => (
               <li key={field}>
@@ -245,10 +230,7 @@ function AccessibleForm() {
           aria-required="true"
           aria-invalid={!!errors.email}
           aria-describedby={errors.email ? "email-error" : "email-hint"}
-          className={cn(
-            "w-full px-3 py-2 border rounded-md",
-            errors.email && "border-destructive",
-          )}
+          className={cn("w-full px-3 py-2 border rounded-md", errors.email && "border-destructive")}
         />
         {errors.email ? (
           <p id="email-error" className="text-sm text-destructive" role="alert">
@@ -320,12 +302,7 @@ function useAnnounce() {
   );
 
   const Announcer = () => (
-    <div
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-      className="sr-only"
-    >
+    <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
       {message}
     </div>
   );

@@ -79,19 +79,10 @@ Organized by category:
 import { wrap, unique, flatten } from "#layers/base/app/utils/array";
 
 // String utilities
-import {
-  capitalize,
-  truncate,
-  formatBytes,
-} from "#layers/base/app/utils/string";
+import { capitalize, truncate, formatBytes } from "#layers/base/app/utils/string";
 
 // Object utilities
-import {
-  pick,
-  combine,
-  transformKeys,
-  removeEmptyProperties,
-} from "#layers/base/app/utils/object";
+import { pick, combine, transformKeys, removeEmptyProperties } from "#layers/base/app/utils/object";
 
 // Async utilities
 import { sleep, retry } from "#layers/base/app/utils/async";

@@ -55,10 +55,7 @@ const createShell = ({
     }
 
     throw new Error(`Unexpected command: ${command}`);
-  }) as unknown as (
-    strings: TemplateStringsArray,
-    ...values: unknown[]
-  ) => ShellRunner;
+  }) as unknown as (strings: TemplateStringsArray, ...values: unknown[]) => ShellRunner;
 
   return { calls, shell };
 };
@@ -85,9 +82,7 @@ const createHook = async ({
 
   return {
     calls: shellState.calls,
-    executeBefore: hooks["tool.execute.before"] as
-      | ToolExecuteBefore
-      | undefined,
+    executeBefore: hooks["tool.execute.before"] as ToolExecuteBefore | undefined,
   };
 };
 
@@ -103,9 +98,7 @@ describe("RtkOpenCodePlugin", () => {
 
     expect(executeBefore).toBeUndefined();
     expect(calls).toEqual(["which rtk"]);
-    expect(warn).toHaveBeenCalledWith(
-      "[rtk] rtk binary not found in PATH — plugin disabled",
-    );
+    expect(warn).toHaveBeenCalledWith("[rtk] rtk binary not found in PATH — plugin disabled");
   });
 
   it("rewrites bash commands when rtk returns a different command", async () => {
@@ -114,10 +107,9 @@ describe("RtkOpenCodePlugin", () => {
     });
     const args = { command: "git status --short" };
 
-    await executeBefore?.(
-      { callID: "call", sessionID: "session", tool: "bash" },
-      { args } as never,
-    );
+    await executeBefore?.({ callID: "call", sessionID: "session", tool: "bash" }, {
+      args,
+    } as never);
 
     expect(args.command).toBe("rtk git status --short");
   });
@@ -128,10 +120,9 @@ describe("RtkOpenCodePlugin", () => {
     });
     const args = { command: "git status --short" };
 
-    await executeBefore?.(
-      { callID: "call", sessionID: "session", tool: "read" },
-      { args } as never,
-    );
+    await executeBefore?.({ callID: "call", sessionID: "session", tool: "read" }, {
+      args,
+    } as never);
 
     expect(args.command).toBe("git status --short");
     expect(calls).toEqual(["which rtk"]);
@@ -141,10 +132,9 @@ describe("RtkOpenCodePlugin", () => {
     const { executeBefore } = await createHook({ rewrite: () => "" });
     const args = { command: "git status --short" };
 
-    await executeBefore?.(
-      { callID: "call", sessionID: "session", tool: "bash" },
-      { args } as never,
-    );
+    await executeBefore?.({ callID: "call", sessionID: "session", tool: "bash" }, {
+      args,
+    } as never);
 
     expect(args.command).toBe("git status --short");
   });
@@ -157,10 +147,9 @@ describe("RtkOpenCodePlugin", () => {
     });
     const args = { command: "git status --short" };
 
-    await executeBefore?.(
-      { callID: "call", sessionID: "session", tool: "bash" },
-      { args } as never,
-    );
+    await executeBefore?.({ callID: "call", sessionID: "session", tool: "bash" }, {
+      args,
+    } as never);
 
     expect(args.command).toBe("git status --short");
   });

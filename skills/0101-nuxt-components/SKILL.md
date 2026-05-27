@@ -52,9 +52,7 @@ const isOpen = ref(false);
 const formData = ref<CreatePostData>({ title: "", content: "" });
 
 // 8. Computed
-const canSubmit = computed(
-  () => formData.value.title && formData.value.content,
-);
+const canSubmit = computed(() => formData.value.title && formData.value.content);
 
 // 9. Fetch + queries
 const { data: posts, refresh } = getPostsQuery(filters);

@@ -1,12 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-  mkdir,
-  readdir,
-  rename,
-  stat,
-  unlink,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export const resolveFilePath = (directory: string, filePath: string) => {
@@ -37,10 +30,7 @@ export const ensureParentDirectory = async (filePath: string) => {
   await mkdir(path.dirname(filePath), { recursive: true });
 };
 
-export const writeTextFileAtomically = async (
-  filePath: string,
-  content: string,
-) => {
+export const writeTextFileAtomically = async (filePath: string, content: string) => {
   await ensureParentDirectory(filePath);
 
   const tempFilePath = path.join(
@@ -61,9 +51,7 @@ export const renderDirectory = async (filePath: string) => {
   const entries = await readdir(filePath, { withFileTypes: true });
 
   return entries
-    .sort((left: { name: string }, right: { name: string }) =>
-      left.name.localeCompare(right.name),
-    )
+    .sort((left: { name: string }, right: { name: string }) => left.name.localeCompare(right.name))
     .map(
       (entry: { isDirectory: () => boolean; name: string }) =>
         `${entry.name}${entry.isDirectory() ? "/" : ""}`,

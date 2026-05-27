@@ -181,11 +181,7 @@ composer require brainmaestro/composer-git-hooks --dev
 {
   "extra": {
     "hooks": {
-      "pre-commit": [
-        "./vendor/bin/pint",
-        "./vendor/bin/phpstan analyse",
-        "./vendor/bin/pest"
-      ]
+      "pre-commit": ["./vendor/bin/pint", "./vendor/bin/phpstan analyse", "./vendor/bin/pest"]
     }
   },
   "scripts": {

@@ -33,9 +33,7 @@ export default function {verb}{Entity}ActionFactory() {
 
 ```typescript
 // app/features/posts/actions/create-post-action.ts
-import createPostMutationFactory, {
-  type CreatePostData,
-} from "../mutations/create-post-mutation";
+import createPostMutationFactory, { type CreatePostData } from "../mutations/create-post-mutation";
 import type Post from "~/models/Post";
 
 export default function createPostActionFactory() {
@@ -62,9 +60,7 @@ export default function createPostActionFactory() {
 
 ```typescript
 // app/features/posts/actions/update-post-action.ts
-import updatePostMutationFactory, {
-  type UpdatePostData,
-} from "../mutations/update-post-mutation";
+import updatePostMutationFactory, { type UpdatePostData } from "../mutations/update-post-mutation";
 import type Post from "~/models/Post";
 
 export default function updatePostActionFactory() {
@@ -137,10 +133,7 @@ Standardized error handling with user-friendly messages:
 export function useHandleActionError() {
   const flash = useFlash();
 
-  const handleActionError = (
-    error: unknown,
-    context: { entity: string; operation: string },
-  ) => {
+  const handleActionError = (error: unknown, context: { entity: string; operation: string }) => {
     const message = `Failed to ${context.operation} ${context.entity}.`;
 
     if (error instanceof ValidationError) {
@@ -281,9 +274,7 @@ export default function bulkDeletePostsActionFactory() {
   const flash = useFlash();
   const { handleActionError } = useHandleActionError();
 
-  return async (
-    posts: Post[],
-  ): Promise<{ success: number; failed: number }> => {
+  return async (posts: Post[]): Promise<{ success: number; failed: number }> => {
     let success = 0;
     let failed = 0;
 

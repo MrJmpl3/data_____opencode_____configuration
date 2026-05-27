@@ -223,11 +223,7 @@ canBeEdited(): boolean {
 ### Select Options
 
 ```vue
-<USelect
-  v-model="filters.status"
-  :options="statusOptions"
-  placeholder="Filter by status"
-/>
+<USelect v-model="filters.status" :options="statusOptions" placeholder="Filter by status" />
 
 <script setup>
 import PostStatus from "~/enums/PostStatus";

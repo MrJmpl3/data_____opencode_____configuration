@@ -76,12 +76,7 @@ function Accordion({ items }) {
                 <span aria-hidden="true">{isOpen ? "−" : "+"}</span>
               </button>
             </h3>
-            <div
-              id={panelId}
-              role="region"
-              aria-labelledby={headingId}
-              hidden={!isOpen}
-            >
+            <div id={panelId} role="region" aria-labelledby={headingId} hidden={!isOpen}>
               {item.content}
             </div>
           </div>
@@ -221,13 +216,7 @@ function MenuButton({ label, items }) {
       </button>
 
       {isOpen && (
-        <ul
-          ref={menuRef}
-          id={menuId}
-          role="menu"
-          aria-label={label}
-          onKeyDown={handleKeyDown}
-        >
+        <ul ref={menuRef} id={menuId} role="menu" aria-label={label} onKeyDown={handleKeyDown}>
           {items.map((item, index) => (
             <li
               key={index}
@@ -268,9 +257,7 @@ function Combobox({ options, onSelect, placeholder }) {
       case "ArrowDown":
         e.preventDefault();
         setIsOpen(true);
-        setActiveIndex((prev) =>
-          Math.min(prev + 1, filteredOptions.length - 1),
-        );
+        setActiveIndex((prev) => Math.min(prev + 1, filteredOptions.length - 1));
         break;
       case "ArrowUp":
         e.preventDefault();
@@ -304,9 +291,7 @@ function Combobox({ options, onSelect, placeholder }) {
         role="combobox"
         aria-expanded={isOpen}
         aria-controls={listboxId}
-        aria-activedescendant={
-          activeIndex >= 0 ? `option-${activeIndex}` : undefined
-        }
+        aria-activedescendant={activeIndex >= 0 ? `option-${activeIndex}` : undefined}
         aria-autocomplete="list"
         value={inputValue}
         placeholder={placeholder}
@@ -360,12 +345,7 @@ function AlertDialog({ isOpen, onConfirm, onCancel, title, message }) {
 
   return (
     <FocusTrap>
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={descId}
-      >
+      <div role="alertdialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descId}>
         <div className="backdrop" onClick={onCancel} />
 
         <div className="dialog">
@@ -418,12 +398,7 @@ function Toolbar({ items }) {
   };
 
   return (
-    <div
-      ref={toolbarRef}
-      role="toolbar"
-      aria-label="Text formatting"
-      onKeyDown={handleKeyDown}
-    >
+    <div ref={toolbarRef} role="toolbar" aria-label="Text formatting" onKeyDown={handleKeyDown}>
       {items.map((item, index) => (
         <button
           key={index}

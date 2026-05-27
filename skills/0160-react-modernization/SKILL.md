@@ -168,11 +168,7 @@ class ThemedButton extends React.Component {
   static contextType = ThemeContext;
 
   render() {
-    return (
-      <button style={{ background: this.context.theme }}>
-        {this.props.children}
-      </button>
-    );
+    return <button style={{ background: this.context.theme }}>{this.props.children}</button>;
   }
 }
 
@@ -394,9 +390,7 @@ function ExpensiveComponent({ items, filter }) {
 
 // Child component with memo
 const List = React.memo(({ items, onClick }) => {
-  return items.map((item) => (
-    <Item key={item.id} item={item} onClick={onClick} />
-  ));
+  return items.map((item) => <Item key={item.id} item={item} onClick={onClick} />);
 });
 ```
 

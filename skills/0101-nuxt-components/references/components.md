@@ -58,9 +58,7 @@ const formData = ref<CreatePostData>({
 const selectedAuthor = ref<Author>();
 
 // 8. Computed props
-const canSubmit = computed(
-  () => formData.value.title && formData.value.content,
-);
+const canSubmit = computed(() => formData.value.title && formData.value.content);
 const isEditing = computed(() => !!props.post);
 
 // 9. Fetch + associated calls (queries)
@@ -337,11 +335,7 @@ const onConfirm = async () => {
 
     <template #footer>
       <UButton variant="ghost" @click="emits('close', false)"> Cancel </UButton>
-      <UButton
-        color="error"
-        :loading="is(waitingFor.post.deleting(post.ulid))"
-        @click="onConfirm"
-      >
+      <UButton color="error" :loading="is(waitingFor.post.deleting(post.ulid))" @click="onConfirm">
         Delete
       </UButton>
     </template>

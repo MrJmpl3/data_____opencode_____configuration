@@ -86,10 +86,7 @@ export default class PostRepository extends BaseRepository<Post> {
   }
 
   // Custom: Update post status
-  async updateStatus(
-    ulid: string,
-    status: string,
-  ): Promise<DataResponse<Post>> {
+  async updateStatus(ulid: string, status: string): Promise<DataResponse<Post>> {
     return this.jsonPatch(`${this.resource}/${ulid}/status`, { status });
   }
 }

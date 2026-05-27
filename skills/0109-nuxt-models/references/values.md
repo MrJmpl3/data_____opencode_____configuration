@@ -103,9 +103,7 @@ class Post extends Model {
     <span>{{ post.createdAt.fromNow() }}</span>
 
     <!-- Conditional display -->
-    <span v-if="post.publishAt?.isFuture()">
-      Scheduled for {{ post.publishAt.format() }}
-    </span>
+    <span v-if="post.publishAt?.isFuture()"> Scheduled for {{ post.publishAt.format() }} </span>
   </div>
 </template>
 ```

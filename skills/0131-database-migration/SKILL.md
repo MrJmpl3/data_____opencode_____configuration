@@ -205,9 +205,7 @@ module.exports = {
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     // Get all records
-    const [users] = await queryInterface.sequelize.query(
-      "SELECT id, address_string FROM users",
-    );
+    const [users] = await queryInterface.sequelize.query("SELECT id, address_string FROM users");
 
     // Transform each record
     for (const user of users) {
@@ -293,9 +291,7 @@ module.exports = {
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     // Create backup table
-    await queryInterface.sequelize.query(
-      "CREATE TABLE users_backup AS SELECT * FROM users",
-    );
+    await queryInterface.sequelize.query("CREATE TABLE users_backup AS SELECT * FROM users");
 
     try {
       // Perform migration
@@ -317,9 +313,7 @@ module.exports = {
     } catch (error) {
       // Restore from backup
       await queryInterface.sequelize.query("DROP TABLE users");
-      await queryInterface.sequelize.query(
-        "CREATE TABLE users AS SELECT * FROM users_backup",
-      );
+      await queryInterface.sequelize.query("CREATE TABLE users AS SELECT * FROM users_backup");
       await queryInterface.dropTable("users_backup");
       throw error;
     }

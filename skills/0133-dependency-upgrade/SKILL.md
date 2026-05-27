@@ -193,10 +193,7 @@ glob("src/**/*.tsx", (err, files) => {
     let content = fs.readFileSync(file, "utf8");
 
     // Replace old API with new API
-    content = content.replace(
-      /componentWillMount/g,
-      "UNSAFE_componentWillMount",
-    );
+    content = content.replace(/componentWillMount/g, "UNSAFE_componentWillMount");
 
     // Update imports
     content = content.replace(

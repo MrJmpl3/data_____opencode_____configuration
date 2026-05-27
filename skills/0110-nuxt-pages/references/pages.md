@@ -98,28 +98,21 @@ const { setBreadcrumbs } = useBreadcrumbs();
 setBreadcrumbs([{ label: "Content" }, { label: "Posts" }]);
 
 // Reactive filters
-const { filters, hasFilters, resetFilters } =
-  useReactiveFilters<GetPostsFilters>(
-    {
-      status: undefined,
-      isDraft: undefined,
-      page: 1,
-      size: 25,
-    },
-    {
-      syncWithUrl: true,
-    },
-  );
+const { filters, hasFilters, resetFilters } = useReactiveFilters<GetPostsFilters>(
+  {
+    status: undefined,
+    isDraft: undefined,
+    page: 1,
+    size: 25,
+  },
+  {
+    syncWithUrl: true,
+  },
+);
 
 // Query
 const getPostsQuery = getPostsQueryFactory();
-const {
-  data: posts,
-  refresh,
-  isLoading,
-  isFetching,
-  pagination,
-} = getPostsQuery(filters);
+const { data: posts, refresh, isLoading, isFetching, pagination } = getPostsQuery(filters);
 
 // Actions
 const deletePostAction = deletePostActionFactory();
@@ -165,9 +158,7 @@ const tableRowActions = computed(() => (row: Row<Post>) => [
         option-attribute="text"
       />
 
-      <UButton v-if="hasFilters" variant="ghost" @click="resetFilters">
-        Clear filters
-      </UButton>
+      <UButton v-if="hasFilters" variant="ghost" @click="resetFilters"> Clear filters </UButton>
 
       <div class="flex-1" />
 
@@ -305,15 +296,10 @@ privateChannel(Post, ulid.value).on(PostUpdated, refresh);
     <div v-else-if="post">
       <!-- Actions -->
       <div class="flex gap-2 mb-4">
-        <UButton
-          v-if="can(UpdatePost)"
-          @click="openEditSlideover({ post: post.data })"
-        >
+        <UButton v-if="can(UpdatePost)" @click="openEditSlideover({ post: post.data })">
           Edit
         </UButton>
-        <UButton v-if="can(DeletePost)" color="error" @click="handleDelete">
-          Delete
-        </UButton>
+        <UButton v-if="can(DeletePost)" color="error" @click="handleDelete"> Delete </UButton>
       </div>
 
       <!-- Tabs -->
@@ -415,11 +401,7 @@ setAppHeader({
 ```typescript
 const { setBreadcrumbs, breadcrumbs } = useBreadcrumbs();
 
-setBreadcrumbs([
-  { label: "Content" },
-  { label: "Posts", to: "/posts" },
-  { label: "My Post" },
-]);
+setBreadcrumbs([{ label: "Content" }, { label: "Posts", to: "/posts" }, { label: "My Post" }]);
 ```
 
 ---

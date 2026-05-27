@@ -19,8 +19,7 @@ export function createColumnBuilder<TModel>(
 ): ColumnBuilder<TModel> {
   return {
     all: () => Object.values(columns),
-    build: (columnKeys: string[]) =>
-      columnKeys.map((key) => columns[key]).filter(Boolean),
+    build: (columnKeys: string[]) => columnKeys.map((key) => columns[key]).filter(Boolean),
     except: (columnsToExclude: string[]) =>
       Object.keys(columns)
         .filter((key) => !columnsToExclude.includes(key))
@@ -47,9 +46,7 @@ const ulidColumn: TableColumn<Post> = {
   accessorKey: "ulid",
   header: "ULID",
   cell: ({ row }) =>
-    h(Copyable, { content: row.original.ulid }, () =>
-      truncateMiddle(row.original.ulid, 8),
-    ),
+    h(Copyable, { content: row.original.ulid }, () => truncateMiddle(row.original.ulid, 8)),
 };
 
 // Status column with badge
@@ -125,10 +122,7 @@ const commentsColumn: TableColumn<Post> = {
 const draftColumn: TableColumn<Post> = {
   id: "isDraft",
   header: "Draft",
-  cell: ({ row }) =>
-    row.original.isDraft
-      ? h(UBadge, { color: "warning" }, () => "Draft")
-      : null,
+  cell: ({ row }) => (row.original.isDraft ? h(UBadge, { color: "warning" }, () => "Draft") : null),
 };
 
 // Export builder
@@ -361,10 +355,7 @@ const actionsColumn: TableColumn<Post> = {
 const draftColumn: TableColumn<Post> = {
   id: "isDraft",
   header: "Draft",
-  cell: ({ row }) =>
-    row.original.isDraft
-      ? h(UBadge, { color: "warning" }, () => "Draft")
-      : null,
+  cell: ({ row }) => (row.original.isDraft ? h(UBadge, { color: "warning" }, () => "Draft") : null),
 };
 ```
 

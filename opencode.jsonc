@@ -13,6 +13,10 @@
       "command": ["typescript-language-server", "--stdio"],
       "extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
     },
+    "vscode-eslint-language-server": {
+      "command": ["vscode-eslint-language-server", "--stdio"],
+      "extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue"],
+    },
     "vue-language-server": {
       "command": ["vue-language-server", "--stdio"],
       "extensions": [".vue"],
@@ -20,6 +24,22 @@
     "vscode-css-language-server": {
       "command": ["vscode-css-language-server", "--stdio"],
       "extensions": [".css", ".scss", ".less"],
+    },
+    "tailwindcss-language-server": {
+      "command": ["tailwindcss-language-server", "--stdio"],
+      "extensions": [
+        ".css",
+        ".scss",
+        ".less",
+        ".html",
+        ".js",
+        ".jsx",
+        ".ts",
+        ".tsx",
+        ".vue",
+        ".md",
+        ".php",
+      ],
     },
     "vscode-html-language-server": {
       "command": ["vscode-html-language-server", "--stdio"],
@@ -29,16 +49,25 @@
       "command": ["vscode-json-language-server", "--stdio"],
       "extensions": [".json", ".jsonc"],
     },
-    "vscode-markdown-language-server": {
-      "command": ["vscode-markdown-language-server", "--stdio"],
-      "extensions": [".md", ".mdx"],
+    "marksman": {
+      "command": ["marksman"],
+      "extensions": [".md"],
+    },
+    "taplo": {
+      "command": ["taplo", "lsp", "stdio"],
+      "extensions": [".toml"],
     },
     "yaml-language-server": {
       "command": ["yaml-language-server", "--stdio"],
       "extensions": [".yaml", ".yml"],
     },
   },
+  // Los servidores MCP se declaran globalmente aqui.
+  // El acceso por rol a esos MCPs lo define `oh-my-opencode-slim.json`.
   "mcp": {
+    // La busqueda estructural se declara globalmente, pero el acceso intensivo a MCPs se
+    // enruta intencionalmente a traves del preset activo. En el preset `openai` actual,
+    // los roles no orquestadores delegan cuando necesitan capacidades exclusivas de MCP.
     "ast_grep": {
       "enabled": true,
       "type": "local",
@@ -53,7 +82,9 @@
       "type": "remote",
       "url": "https://mcp.context7.com/mcp",
     },
-    "gh_grep": {
+    // Busqueda publica de codigo en GitHub para ejemplos reales. En el preset actual
+    // se enruta via `@librarian`.
+    "grep_app": {
       "enabled": true,
       "type": "remote",
       "url": "https://mcp.grep.app",
@@ -82,57 +113,6 @@
       "options": {
         "setCacheKey": true,
       },
-      "models": {
-        "gpt-5.4": {
-          "limit": {
-            "context": 272000,
-            "input": 272000,
-            "output": 128000,
-          },
-        },
-        "gpt-5.4-fast": {
-          "limit": {
-            "context": 272000,
-            "input": 272000,
-            "output": 128000,
-          },
-        },
-        "gpt-5.4-mini": {
-          "limit": {
-            "context": 272000,
-            "input": 272000,
-            "output": 128000,
-          },
-        },
-        "gpt-5.4-mini-fast": {
-          "limit": {
-            "context": 272000,
-            "input": 272000,
-            "output": 128000,
-          },
-        },
-        "gpt-5.5": {
-          "limit": {
-            "context": 272000,
-            "input": 272000,
-            "output": 128000,
-          },
-        },
-        "gpt-5.5-fast": {
-          "limit": {
-            "context": 272000,
-            "input": 272000,
-            "output": 128000,
-          },
-        },
-        "gpt-5.5-pro": {
-          "limit": {
-            "context": 272000,
-            "input": 272000,
-            "output": 128000,
-          },
-        },
-      },
     },
   },
   "agent": {
@@ -154,6 +134,8 @@
     "fixer": {
       "color": "#EF4444",
     },
+    // Los roles genericos integrados siguen deshabilitados porque el setup activo usa
+    // el conjunto de roles de `oh-my-opencode-slim`.
     "explore": {
       "disable": true,
     },
@@ -161,9 +143,15 @@
       "disable": true,
     },
   },
-  "compaction": {
-    "auto": true,
-    "reserved": 32000,
-  },
-  "plugin": ["oh-my-opencode-slim"],
+  "plugin": [
+    "oh-my-opencode-slim",
+    [
+      "opencode-auto-resume",
+      {
+        "chunkTimeoutMs": 45000,
+        "gracePeriodMs": 3000,
+        "maxRetries": 3,
+      },
+    ],
+  ],
 }

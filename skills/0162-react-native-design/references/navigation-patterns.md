@@ -20,10 +20,7 @@ npm install react-native-screens react-native-safe-area-context
 // navigation/types.ts
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import {
-  CompositeScreenProps,
-  NavigatorScreenParams,
-} from "@react-navigation/native";
+import { CompositeScreenProps, NavigatorScreenParams } from "@react-navigation/native";
 
 // Define param lists for each navigator
 export type RootStackParamList = {
@@ -45,14 +42,15 @@ export type AuthStackParamList = {
 };
 
 // Screen props helpers
-export type RootStackScreenProps<T extends keyof RootStackParamList> =
-  NativeStackScreenProps<RootStackParamList, T>;
+export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<
+  RootStackParamList,
+  T
+>;
 
-export type MainTabScreenProps<T extends keyof MainTabParamList> =
-  CompositeScreenProps<
-    BottomTabScreenProps<MainTabParamList, T>,
-    RootStackScreenProps<keyof RootStackParamList>
-  >;
+export type MainTabScreenProps<T extends keyof MainTabParamList> = CompositeScreenProps<
+  BottomTabScreenProps<MainTabParamList, T>,
+  RootStackScreenProps<keyof RootStackParamList>
+>;
 
 // Global type declaration
 declare global {

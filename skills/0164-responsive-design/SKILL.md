@@ -132,12 +132,8 @@ function ResponsiveCard({ title, image, description }) {
           className="w-full @md:w-48 @lg:w-64 aspect-video @md:aspect-square object-cover"
         />
         <div className="p-4 @md:p-0">
-          <h2 className="text-lg @md:text-xl @lg:text-2xl font-semibold">
-            {title}
-          </h2>
-          <p className="mt-2 text-muted-foreground @md:line-clamp-3">
-            {description}
-          </p>
+          <h2 className="text-lg @md:text-xl @lg:text-2xl font-semibold">{title}</h2>
+          <p className="mt-2 text-muted-foreground @md:line-clamp-3">{description}</p>
         </div>
       </article>
     </div>
@@ -187,12 +183,7 @@ p {
 
 ```tsx
 // Utility function for fluid values
-function fluidValue(
-  minSize: number,
-  maxSize: number,
-  minWidth = 320,
-  maxWidth = 1280,
-) {
+function fluidValue(minSize: number, maxSize: number, minWidth = 320, maxWidth = 1280) {
   const slope = (maxSize - minSize) / (maxWidth - minWidth);
   const yAxisIntersection = -minWidth * slope + minSize;
 
@@ -359,16 +350,8 @@ function ResponsiveHero() {
   return (
     <picture>
       {/* Art direction: different crops for different screens */}
-      <source
-        media="(min-width: 1024px)"
-        srcSet="/hero-wide.webp"
-        type="image/webp"
-      />
-      <source
-        media="(min-width: 768px)"
-        srcSet="/hero-medium.webp"
-        type="image/webp"
-      />
+      <source media="(min-width: 1024px)" srcSet="/hero-wide.webp" type="image/webp" />
+      <source media="(min-width: 768px)" srcSet="/hero-medium.webp" type="image/webp" />
       <source srcSet="/hero-mobile.webp" type="image/webp" />
 
       {/* Fallback */}
@@ -440,9 +423,7 @@ function ResponsiveDataTable({ data, columns }) {
   return (
     <>
       {/* Desktop table */}
-      <table className="hidden md:table w-full">
-        {/* ... standard table */}
-      </table>
+      <table className="hidden md:table w-full">{/* ... standard table */}</table>
 
       {/* Mobile cards */}
       <div className="md:hidden space-y-4">
@@ -450,9 +431,7 @@ function ResponsiveDataTable({ data, columns }) {
           <div key={i} className="border rounded-lg p-4 space-y-2">
             {columns.map((col) => (
               <div key={col.key} className="flex justify-between">
-                <span className="font-medium text-muted-foreground">
-                  {col.label}
-                </span>
+                <span className="font-medium text-muted-foreground">{col.label}</span>
                 <span>{row[col.key]}</span>
               </div>
             ))}
