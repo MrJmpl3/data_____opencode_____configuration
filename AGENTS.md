@@ -24,11 +24,19 @@ higher-priority instructions.
 - Treat a task as OpenCode-specific only when it explicitly targets OpenCode
   configuration, agents, skills, plugins, commands, or runtime behavior.
 
-## Intent And Task Routing
+## IntentGate And Task Routing
 
-- Determine the real user intent before acting.
+- Run IntentGate before choosing tools, agents, or edits: infer the user's real
+  goal from the full conversation, the active workspace, supplied evidence, and
+  likely implied outcome. Do not act on a literal reading when the broader
+  context points to a different intent.
+- Treat IntentGate as a routing pre-step, not a replacement for specialist
+  delegation. After intent is clear, still choose tools and agents from the
+  active session's available roster.
 - Classify the work as one of: `explain`, `plan`, `implement`, `debug`,
   `review`, `refactor`, `validate`, `recommend`.
+- If the user names a mechanism but likely wants an outcome, optimize for the
+  outcome and mention the mechanism only when it materially affects the work.
 - If ambiguity is minor and can be resolved by inspection, inspect first.
 - Ask a question only when it unlocks a material decision.
 - If you must ask, ask one short, decision-oriented question.
@@ -122,6 +130,9 @@ higher-priority instructions.
   review, or browser automation when one is available.
 - Do not assume any specific agent names, tools, MCPs, or skills exist in
   every runtime.
+- When the active session prompt or config explicitly lists specialist agents,
+  treat those names as available; the previous rule only forbids inventing
+  agents that are not available in the current runtime.
 - If the current role does not expose the needed capability, delegate to a
   suitable role when available.
 - If the task is bounded but crosses multiple layers, prefer one clearly
