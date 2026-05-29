@@ -162,7 +162,9 @@ const readJsonResponse = async (
   } catch {
     const preview = describeResponseBody(normalized);
     return {
-      error: preview ? `${label} returned invalid JSON · ${preview}` : `${label} returned invalid JSON`,
+      error: preview
+        ? `${label} returned invalid JSON · ${preview}`
+        : `${label} returned invalid JSON`,
     };
   }
 };

@@ -5,12 +5,12 @@
     [
       "./plugins-tui/quota",
       {
-        "visibleProviders": ["openai", "github-copilot"],
-      },
+        "visibleProviders": ["openai", "github-copilot"]
+      }
     ],
     "./plugins-tui/cache",
     "opencode-quotes-plugin",
-    "oh-my-opencode-slim",
+    "oh-my-opencode-slim"
   ],
-  "theme": "opencode",
+  "theme": "opencode"
 }

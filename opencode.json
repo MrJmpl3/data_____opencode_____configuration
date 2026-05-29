@@ -1,0 +1,138 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "designer": {
+      "color": "#8B5CF6"
+    },
+    "explore": {
+      "disable": true
+    },
+    "explorer": {
+      "color": "#10B981"
+    },
+    "fixer": {
+      "color": "#EF4444"
+    },
+    "general": {
+      "disable": true
+    },
+    "librarian": {
+      "color": "#06B6D4"
+    },
+    "oracle": {
+      "color": "#F59E0B"
+    },
+    "orchestrator": {
+      "color": "#3B82F6"
+    }
+  },
+  "lsp": {
+    "bash-language-server": {
+      "command": ["bash-language-server", "start"],
+      "extensions": [".sh", ".bash", ".zsh"]
+    },
+    "intelephense": {
+      "command": ["intelephense", "--stdio"],
+      "extensions": [".php", ".phtml"]
+    },
+    "marksman": {
+      "command": ["marksman"],
+      "extensions": [".md"]
+    },
+    "tailwindcss-language-server": {
+      "command": ["tailwindcss-language-server", "--stdio"],
+      "extensions": [
+        ".css",
+        ".scss",
+        ".less",
+        ".html",
+        ".js",
+        ".jsx",
+        ".ts",
+        ".tsx",
+        ".vue",
+        ".md",
+        ".php"
+      ]
+    },
+    "taplo": {
+      "command": ["taplo", "lsp", "stdio"],
+      "extensions": [".toml"]
+    },
+    "typescript-language-server": {
+      "command": ["typescript-language-server", "--stdio"],
+      "extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
+    },
+    "vscode-css-language-server": {
+      "command": ["vscode-css-language-server", "--stdio"],
+      "extensions": [".css", ".scss", ".less"]
+    },
+    "vscode-eslint-language-server": {
+      "command": ["vscode-eslint-language-server", "--stdio"],
+      "extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue"]
+    },
+    "vscode-html-language-server": {
+      "command": ["vscode-html-language-server", "--stdio"],
+      "extensions": [".html", ".htm"]
+    },
+    "vscode-json-language-server": {
+      "command": ["vscode-json-language-server", "--stdio"],
+      "extensions": [".json", ".jsonc"]
+    },
+    "vue-language-server": {
+      "command": ["vue-language-server", "--stdio"],
+      "extensions": [".vue"]
+    },
+    "yaml-language-server": {
+      "command": ["yaml-language-server", "--stdio"],
+      "extensions": [".yaml", ".yml"]
+    }
+  },
+  "mcp": {
+    "ast_grep": {
+      "command": ["ast-grep-mcp"],
+      "enabled": true,
+      "timeout": 30000,
+      "type": "local"
+    },
+    "context7": {
+      "enabled": true,
+      "headers": {
+        "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}"
+      },
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "deepwiki": {
+      "enabled": true,
+      "type": "remote",
+      "url": "https://mcp.deepwiki.com/mcp"
+    },
+    "github": {
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer {env:COMPOSER_AUTH_TOKEN}"
+      },
+      "type": "remote",
+      "url": "https://api.githubcopilot.com/mcp"
+    },
+    "grep_app": {
+      "enabled": true,
+      "type": "remote",
+      "url": "https://mcp.grep.app"
+    },
+    "nuxt": {
+      "enabled": true,
+      "type": "remote",
+      "url": "https://nuxt.com/mcp"
+    }
+  },
+  "plugin": ["oh-my-opencode-slim"],
+  "provider": {
+    "openai": {
+      "options": {
+        "setCacheKey": true
+      }
+    }
+  }
+}
