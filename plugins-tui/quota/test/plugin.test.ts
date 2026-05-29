@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import plugin, { formatResponsibleWeeklyUsage } from "../index.tsx";
+import plugin, {
+  formatResponsibleWeeklyUsage,
+  isQuotaRateLimitError,
+  retryAfterMsFromMessage,
+} from "../index.tsx";
 import { createRefreshScheduler } from "../refresh-scheduler.ts";
 import { fmtDuration, parseAdditionalRateLimits } from "../providers.ts";
 
@@ -15,7 +19,7 @@ describe("quota tui plugin", () => {
     expect(typeof plugin.tui).toBe("function");
   });
 
-  it("schedules refreshes and stops after dispose", () => {
+  it("coalesces repeated immediate refresh events before execution", () => {
     const events = new Map<string, () => void>();
     const onRefresh = vi.fn();
     const scheduler = createRefreshScheduler({
@@ -25,24 +29,39 @@ describe("quota tui plugin", () => {
       },
       onRefresh,
       immediateEvents: ["now"],
-      completionEvents: ["later"],
+      completionEvents: [],
+      pollIntervalMs: 0,
+      refreshDelayMs: 250,
     });
 
     events.get("now")?.();
-    vi.advanceTimersByTime(300);
+    events.get("now")?.();
+    events.get("now")?.();
+    events.get("now")?.();
+    vi.advanceTimersByTime(249);
+    expect(onRefresh).toHaveBeenCalledTimes(0);
+
+    events.get("now")?.();
+    vi.advanceTimersByTime(1);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
     expect(onRefresh).toHaveBeenCalledWith("now");
 
-    events.get("later")?.();
-    vi.advanceTimersByTime(549);
-    expect(onRefresh).toHaveBeenCalledTimes(1);
-
-    vi.advanceTimersByTime(1);
-    expect(onRefresh).toHaveBeenCalledWith("later");
-
     scheduler.dispose();
-    events.get("now")?.();
-    vi.advanceTimersByTime(1000);
-    expect(onRefresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("recognizes rate-limit errors and ignores plain parse errors", () => {
+    expect(isQuotaRateLimitError("Request failed with status code 429: Too Many Requests")).toBe(true);
+    expect(isQuotaRateLimitError("Rate limit exceeded while processing request")).toBe(true);
+    expect(isQuotaRateLimitError("Cannot parse response: unexpected token in JSON at position 1")).toBe(false);
+  });
+
+  it("honors retry-after details even when an error body follows", () => {
+    expect(retryAfterMsFromMessage("OpenAI HTTP 429; retry-after=3600; body: slow down")).toBe(
+      3_600_000,
+    );
+    expect(retryAfterMsFromMessage("OpenRouter HTTP 429; retry-after 120: slow down")).toBe(
+      120_000,
+    );
   });
 
   it("formats weekly responsible usage pace", () => {

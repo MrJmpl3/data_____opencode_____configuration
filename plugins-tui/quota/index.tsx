@@ -13,7 +13,7 @@ import { createRefreshScheduler } from "./refresh-scheduler.js";
 
 // --- Quota sidebar plugin: real-time API usage across multiple providers ---
 // Fetches configured providers and renders them in the sidebar.
-// Event-driven refresh with 120s polling fallback.
+// Event-driven refresh with cache/backoff guards and an infrequent polling fallback.
 
 type QuotaProviderId = "go" | "copilot" | "openrouter" | "openai";
 type QuotaDisplayMode = "remaining" | "used";
@@ -21,6 +21,10 @@ type QuotaDisplayMode = "remaining" | "used";
 type QuotaPluginOptions = {
   displayMode?: QuotaDisplayMode;
   visibleProviders?: readonly string[];
+  pollIntervalMs?: number;
+  minRefreshIntervalMs?: number;
+  providerCacheTtlMs?: number;
+  providerErrorBackoffMs?: number;
 };
 
 type ProviderSpec = {
@@ -41,6 +45,16 @@ type QuotaLine =
   | { kind: "pace"; usedPct: number; resetAtMs: number; windowSeconds: number };
 
 type ProviderResult = QuotaLine[] | string | null;
+type CachedProviderValue = QuotaLine[] | string;
+type ProviderFetchResult = CachedProviderValue | undefined;
+
+type ProviderCacheEntry = {
+  value?: CachedProviderValue;
+  fetchedAtMs: number;
+  cooldownUntilMs?: number;
+  consecutiveErrors: number;
+  inFlight?: Promise<ProviderFetchResult>;
+};
 
 const PROVIDER_SPECS: readonly ProviderSpec[] = [
   { id: "go", label: "OpenCode Go" },
@@ -50,6 +64,13 @@ const PROVIDER_SPECS: readonly ProviderSpec[] = [
 ];
 
 const DEFAULT_VISIBLE_PROVIDERS: readonly QuotaProviderId[] = ["go", "copilot", "openrouter"];
+const DEFAULT_POLL_INTERVAL_MS = 10 * 60_000;
+const DEFAULT_MIN_REFRESH_INTERVAL_MS = 120_000;
+const DEFAULT_PROVIDER_CACHE_TTL_MS = 5 * 60_000;
+const DEFAULT_PROVIDER_ERROR_BACKOFF_MS = 15 * 60_000;
+const MIN_SAFE_REFRESH_INTERVAL_MS = 60_000;
+const MIN_SAFE_CACHE_TTL_MS = 60_000;
+const MAX_PROVIDER_BACKOFF_MS = 60 * 60_000;
 
 const detailLine = (text: string): string => `  ${text}`;
 const headingLine = (text: string): QuotaLine => ({ kind: "heading", text });
@@ -128,6 +149,64 @@ const getVisibleProviders = (options: unknown): readonly ProviderSpec[] => {
 const getDisplayModeSetting = (options: unknown): QuotaDisplayMode => {
   if (!options || typeof options !== "object") return "remaining";
   return (options as QuotaPluginOptions).displayMode === "used" ? "used" : "remaining";
+};
+
+const getNumberOption = (
+  options: unknown,
+  key: keyof QuotaPluginOptions,
+  fallback: number,
+  minimum: number,
+  allowZero = false,
+): number => {
+  if (!options || typeof options !== "object") return fallback;
+  const value = (options as QuotaPluginOptions)[key];
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  if (allowZero && value === 0) return 0;
+  return Math.max(minimum, value);
+};
+
+export const isQuotaRateLimitError = (message: string): boolean => {
+  return /\b(429|403)\b|rate.?limit|too many requests|temporar(?:y|ily)|secondary rate/i.test(
+    message,
+  );
+};
+
+export const retryAfterMsFromMessage = (message: string): number => {
+  const retryAfterMs = parseBackoffDelayMs(message, /retry[- ]after[:=]?\s*([^;\n]+)/i);
+  if (retryAfterMs > 0) return retryAfterMs;
+
+  return parseBackoffResetMs(message, /rate[- ]limit[- ]reset[:=]?\s*([^;\n]+)/i);
+};
+
+const parseBackoffDelayMs = (message: string, pattern: RegExp): number => {
+  const match = message.match(pattern);
+  if (!match) return 0;
+  const rawValue = match[1].trim();
+  const numericValue = rawValue.match(/^\d+(?:\.\d+)?/)?.[0];
+  const seconds = numericValue ? Number(numericValue) : Number.NaN;
+  if (Number.isFinite(seconds) && seconds > 0) return seconds * 1000;
+
+  const retryAtMs = Date.parse(rawValue);
+  if (!Number.isNaN(retryAtMs)) return Math.max(0, retryAtMs - Date.now());
+
+  return 0;
+};
+
+const parseBackoffResetMs = (message: string, pattern: RegExp): number => {
+  const match = message.match(pattern);
+  if (!match) return 0;
+  const rawValue = match[1].trim();
+  const numericValue = rawValue.match(/^\d+(?:\.\d+)?/)?.[0];
+  const resetValue = numericValue ? Number(numericValue) : Number.NaN;
+  if (Number.isFinite(resetValue) && resetValue > 0) {
+    const resetAtMs = resetValue > 1_000_000_000 ? resetValue * 1000 : Date.now() + resetValue * 1000;
+    return Math.max(0, resetAtMs - Date.now());
+  }
+
+  const retryAtMs = Date.parse(rawValue);
+  if (!Number.isNaN(retryAtMs)) return Math.max(0, retryAtMs - Date.now());
+
+  return 0;
 };
 
 const formatPercentQuota = (
@@ -223,15 +302,15 @@ const formatCountQuota = (
   displayMode: QuotaDisplayMode,
 ): string => {
   const { used, remaining, total } = data;
-  if (typeof total !== "number" || total <= 0) return data.text;
+  const hasTotal = typeof total === "number" && Number.isFinite(total) && total > 0;
 
   const value =
     displayMode === "used"
-      ? (used ?? (typeof remaining === "number" ? total - remaining : undefined))
-      : (remaining ?? (typeof used === "number" ? total - used : undefined));
+      ? (used ?? (hasTotal && typeof remaining === "number" ? total - remaining : undefined))
+      : (remaining ?? (hasTotal && typeof used === "number" ? total - used : undefined));
 
   if (typeof value !== "number" || !Number.isFinite(value)) return data.text;
-  return `${Math.max(0, value).toFixed(0)}/${total.toFixed(0)}`;
+  return `${Math.max(0, value).toFixed(0)} pts`;
 };
 
 const formatCreditQuota = (
@@ -307,223 +386,321 @@ const plugin: TuiPluginModule & { id: string } = {
     const COMPLETION_REFRESH_EVENTS = ["session.idle"];
     const displayMode = getDisplayModeSetting(options);
     const visibleProviders = getVisibleProviders(options);
+    const pollIntervalMs = getNumberOption(
+      options,
+      "pollIntervalMs",
+      DEFAULT_POLL_INTERVAL_MS,
+      MIN_SAFE_REFRESH_INTERVAL_MS,
+      true,
+    );
+    const minRefreshIntervalMs = getNumberOption(
+      options,
+      "minRefreshIntervalMs",
+      DEFAULT_MIN_REFRESH_INTERVAL_MS,
+      MIN_SAFE_REFRESH_INTERVAL_MS,
+    );
+    const providerCacheTtlMs = getNumberOption(
+      options,
+      "providerCacheTtlMs",
+      DEFAULT_PROVIDER_CACHE_TTL_MS,
+      MIN_SAFE_CACHE_TTL_MS,
+    );
+    const providerErrorBackoffMs = getNumberOption(
+      options,
+      "providerErrorBackoffMs",
+      DEFAULT_PROVIDER_ERROR_BACKOFF_MS,
+      MIN_SAFE_CACHE_TTL_MS,
+    );
+    const providerCache = new Map<QuotaProviderId, ProviderCacheEntry>();
+    let refreshPromise: Promise<void> | undefined;
+    let pendingRefreshSource: string | undefined;
+    let deferredRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+    let lastRefreshStartedAtMs = 0;
     // Session select triggers immediate refresh.
     // Session idle (post-LLM-call) triggers a delayed refresh with staggered timers.
 
-    // --- refresh() fetches configured providers sequentially ---
-    // Sequential (not parallel) avoids rate limits and keeps error handling simple.
-    const refresh = async (source?: string) => {
+    const getErrorCooldownMs = (message: string, attempts: number): number => {
+      const retryAfterMs = retryAfterMsFromMessage(message);
+      const baseMs = isQuotaRateLimitError(message) ? providerErrorBackoffMs : providerCacheTtlMs;
+      const multipliedMs = baseMs * Math.min(4, Math.max(1, attempts));
+      return Math.max(retryAfterMs, Math.min(multipliedMs, MAX_PROVIDER_BACKOFF_MS));
+    };
+
+    const fetchProviderLines = async (
+      providerId: QuotaProviderId,
+      goConfig: ReturnType<typeof readGoConfig>,
+    ): Promise<ProviderFetchResult> => {
+      if (providerId === "go") {
+        if (!goConfig) return undefined;
+        const result = await fetchGoDashboard(goConfig.workspaceId, goConfig.authCookie);
+        if (!("data" in result)) return result.error;
+
+        const fetchedAtMs = Date.now();
+        setNowMs(fetchedAtMs);
+        const dataLines: QuotaLine[] = [];
+        for (const [name, key] of [
+          ["5h window", "rolling"],
+          ["Weekly", "weekly"],
+          ["Monthly", "monthly"],
+        ] as const) {
+          const window = result.data[key];
+          if (!window) continue;
+          dataLines.push(
+            windowLine(
+              name,
+              formatPercentQuota(window.used, window.remaining, displayMode),
+              window.resetInSec,
+              fetchedAtMs,
+            ),
+          );
+        }
+        return dataLines.length ? dataLines : [detailTextLine("No windows")];
+      }
+
+      if (providerId === "copilot") {
+        const cp = await fetchCopilotQuota();
+        if (cp === null) return undefined;
+        if ("error" in cp) return cp.error;
+
+        const fetchedAtMs = Date.now();
+        setNowMs(fetchedAtMs);
+        const value = formatCountQuota(cp, displayMode);
+        return cp.resetSec
+          ? [windowLine("Monthly", value, cp.resetSec, fetchedAtMs)]
+          : [detailTextLine(`Monthly · ${value}`)];
+      }
+
+      if (providerId === "openrouter") {
+        const openRouter = await fetchOpenRouterQuota();
+        if (openRouter === null) return undefined;
+        if ("error" in openRouter) return openRouter.error;
+        return [detailTextLine(`Credits · ${formatCreditQuota(openRouter, displayMode)}`)];
+      }
+
+      const openAI = await fetchOpenAIQuota();
+      if (openAI === null) return undefined;
+      if ("error" in openAI) return openAI.error;
+
+      const fetchedAtMs = Date.now();
+      setNowMs(fetchedAtMs);
+      const openAILines: QuotaLine[] = [];
+      const sparkLines: QuotaLine[] = [];
+      const addWindow = (
+        targetLines: QuotaLine[],
+        label: string,
+        window: PercentWindow | undefined,
+        paceWindowSeconds?: number,
+      ) => {
+        if (!window) return;
+        targetLines.push(
+          windowLine(
+            label,
+            formatUsedPercentQuota(window.usedPct, displayMode),
+            window.resetSec,
+            fetchedAtMs,
+          ),
+        );
+        if (paceWindowSeconds) {
+          targetLines.push(paceLine(window, paceWindowSeconds, fetchedAtMs));
+        }
+      };
+
+      addWindow(openAILines, "5h", openAI.hourly);
+      addWindow(openAILines, "Weekly", openAI.weekly, WEEK_SECONDS);
+      addWindow(openAILines, "Code Review", openAI.codeReview);
+
+      for (const limit of openAI.additionalRateLimits ?? []) {
+        const status = formatOpenAIRateLimitStatus(limit);
+        if (isOpenAISparkRateLimit(limit)) {
+          addWindow(sparkLines, "5h", limit.primary);
+          addWindow(
+            sparkLines,
+            "Weekly",
+            limit.secondary,
+            limit.secondary?.limitWindowSec || WEEK_SECONDS,
+          );
+          continue;
+        }
+
+        const primaryLabel = status ? `${limit.label} · ${status}` : limit.label;
+        addWindow(openAILines, primaryLabel, limit.primary);
+        addWindow(
+          openAILines,
+          limit.primary ? `${limit.label} Secondary` : `${primaryLabel} Secondary`,
+          limit.secondary,
+        );
+      }
+
+      if (openAI.credits) openAILines.push(detailTextLine(`Credits · ${openAI.credits}`));
+
+      const dataLines: QuotaLine[] = [];
+      if (openAILines.length) dataLines.push(headingLine("OpenAI"), ...openAILines);
+      if (sparkLines.length) dataLines.push(headingLine("OpenAI Spark"), ...sparkLines);
+
+      return dataLines.length ? dataLines : [detailTextLine("No windows")];
+    };
+
+    const cacheProviderResult = (
+      providerId: QuotaProviderId,
+      value: ProviderFetchResult,
+    ): ProviderFetchResult => {
+      if (value === undefined) {
+        providerCache.delete(providerId);
+        return undefined;
+      }
+
+      const now = Date.now();
+      const previous = providerCache.get(providerId);
+      const consecutiveErrors =
+        typeof value === "string" ? (previous?.consecutiveErrors ?? 0) + 1 : 0;
+      providerCache.set(providerId, {
+        value,
+        fetchedAtMs: now,
+        consecutiveErrors,
+        cooldownUntilMs:
+          typeof value === "string" ? now + getErrorCooldownMs(value, consecutiveErrors) : undefined,
+      });
+      return value;
+    };
+
+    const getCachedProviderLines = async (
+      providerId: QuotaProviderId,
+      goConfig: ReturnType<typeof readGoConfig>,
+    ): Promise<ProviderFetchResult> => {
+      const now = Date.now();
+      const entry = providerCache.get(providerId);
+      if (entry?.inFlight) return entry.inFlight;
+      if (entry?.cooldownUntilMs && entry.cooldownUntilMs > now) {
+        return (
+          entry.value ??
+          `Refresh paused · retry in ${fmtDuration(Math.ceil((entry.cooldownUntilMs - now) / 1000))}`
+        );
+      }
+      if (entry?.value !== undefined && now - entry.fetchedAtMs < providerCacheTtlMs) {
+        return entry.value;
+      }
+
+      let request: Promise<ProviderFetchResult>;
+      request = fetchProviderLines(providerId, goConfig)
+        .then((value) => cacheProviderResult(providerId, value))
+        .catch((error: unknown) => {
+          const message = `Error: ${error instanceof Error ? error.message : String(error)}`;
+          return cacheProviderResult(providerId, message);
+        });
+
+      providerCache.set(providerId, {
+        value: entry?.value,
+        fetchedAtMs: entry?.fetchedAtMs ?? 0,
+        cooldownUntilMs: entry?.cooldownUntilMs,
+        consecutiveErrors: entry?.consecutiveErrors ?? 0,
+        inFlight: request,
+      });
+
+      return request;
+    };
+
+    // --- refresh() renders cached data first, then fetches providers sequentially ---
+    // Sequential requests plus cache/backoff guards avoid bursts that can trigger bans.
+    const refresh = async (_source?: string) => {
       if (disposed) return;
-      // Each call gets a unique version number.
-      // If a newer call finishes first, this one's results are stale and get discarded.
       const currentVersion = ++inFlightVersion;
-
       const results = new Map<QuotaProviderId, ProviderResult>();
-      // results map encodes per-provider state:
-      //   null      = loading (shows a spinner)
-      //   string[]  = success (shows data lines)
-      //   string    = error (shows error icon + message)
-
-      // Mark configured providers as loading
       const goConfig = readGoConfig();
+
       for (const provider of visibleProviders) {
         if (provider.id === "go" && !goConfig) continue;
-        results.set(provider.id, null);
+        results.set(provider.id, providerCache.get(provider.id)?.value ?? null);
       }
-      // Only providers with config get marked. OpenCode Go is conditional;
-      // Copilot and OpenRouter are always attempted.
 
-      // --- buildLines() converts the results map to sidebar-ready text ---
       const buildLines = () => {
         const items: QuotaLine[] = [];
         for (const provider of visibleProviders) {
-          const r = results.get(provider.id);
-          if (r === undefined) continue;
-          // undefined means this provider was never set: not configured, skip it.
-          if (r === null) {
-            // null means the fetch is still running, show a spinner.
+          const result = results.get(provider.id);
+          if (result === undefined) continue;
+          if (result === null) {
             items.push(headingLine(provider.label));
             items.push(detailTextLine("Refreshing…"));
-          } else if (typeof r === "string") {
+          } else if (typeof result === "string") {
             items.push(headingLine(provider.label));
-            items.push(detailTextLine(`Unavailable · ${r}`));
+            items.push(detailTextLine(`Unavailable · ${result}`));
           } else {
-            if (r[0]?.kind !== "heading") items.push(headingLine(provider.label));
-            items.push(...r);
+            if (result[0]?.kind !== "heading") items.push(headingLine(provider.label));
+            items.push(...result);
           }
-          // string[] means data loaded successfully, display it.
         }
         return items;
       };
 
       setNowMs(Date.now());
       setLines(buildLines());
-      // Show loading state immediately, then update per-provider as results arrive.
 
-      try {
-        // ── OpenCode Go ──
-        if (goConfig && results.has("go")) {
-          const result = await fetchGoDashboard(goConfig.workspaceId, goConfig.authCookie);
-          if (currentVersion !== inFlightVersion) return;
-          // Stale check: discard if a newer refresh already finished.
-          if ("data" in result) {
-            const fetchedAtMs = Date.now();
-            setNowMs(fetchedAtMs);
-            const d = result.data;
-            const dataLines: QuotaLine[] = [];
-            for (const [name, key] of [
-              ["5h window", "rolling"],
-              ["Weekly", "weekly"],
-              ["Monthly", "monthly"],
-            ] as const) {
-              const w = d[key];
-              if (w)
-                dataLines.push(
-                  windowLine(
-                    name,
-                    formatPercentQuota(w.used, w.remaining, displayMode),
-                    w.resetInSec,
-                    fetchedAtMs,
-                  ),
-                );
-            }
-            results.set("go", dataLines.length ? dataLines : [detailTextLine("No windows")]);
-          } else {
-            results.set("go", result.error);
-          }
-          setLines(buildLines());
-        }
-
-        // --- Provider: GitHub Copilot (reads OAuth token from auth.json) ---
-        // ── GitHub Copilot ──
-        if (results.has("copilot")) {
-          const cp = await fetchCopilotQuota();
-          if (currentVersion !== inFlightVersion) return;
-          if (cp === null) {
-            results.delete("copilot");
-          } else if (!("error" in cp)) {
-            const fetchedAtMs = Date.now();
-            setNowMs(fetchedAtMs);
-            const value = formatCountQuota(cp, displayMode);
-            results.set(
-              "copilot",
-              cp.resetSec
-                ? [windowLine("Monthly", value, cp.resetSec, fetchedAtMs)]
-                : [detailTextLine(`Monthly · ${value}`)],
-            );
-          } else {
-            results.set("copilot", cp.error);
-          }
-          setLines(buildLines());
-        }
-
-        // ── OpenRouter ──
-        if (results.has("openrouter")) {
-          const or = await fetchOpenRouterQuota();
-          if (currentVersion !== inFlightVersion) return;
-          if (or === null) {
-            results.delete("openrouter");
-          } else if (!("error" in or)) {
-            results.set("openrouter", [
-              detailTextLine(`Credits · ${formatCreditQuota(or, displayMode)}`),
-            ]);
-          } else {
-            results.set("openrouter", or.error);
-          }
-          setLines(buildLines());
-        }
-
-        // ── OpenAI ──
-        if (results.has("openai")) {
-          const oa = await fetchOpenAIQuota();
-          if (currentVersion !== inFlightVersion) return;
-          if (oa === null) {
-            results.delete("openai");
-          } else if (!("error" in oa)) {
-            const fetchedAtMs = Date.now();
-            setNowMs(fetchedAtMs);
-            const openAILines: QuotaLine[] = [];
-            const sparkLines: QuotaLine[] = [];
-            const addWindow = (
-              targetLines: QuotaLine[],
-              label: string,
-              window: PercentWindow | undefined,
-              paceWindowSeconds?: number,
-            ) => {
-              if (!window) return;
-              targetLines.push(
-                windowLine(
-                  label,
-                  formatUsedPercentQuota(window.usedPct, displayMode),
-                  window.resetSec,
-                  fetchedAtMs,
-                ),
-              );
-              if (paceWindowSeconds) {
-                targetLines.push(paceLine(window, paceWindowSeconds, fetchedAtMs));
-              }
-            };
-
-            addWindow(openAILines, "5h", oa.hourly);
-            addWindow(openAILines, "Weekly", oa.weekly, WEEK_SECONDS);
-            addWindow(openAILines, "Code Review", oa.codeReview);
-
-            for (const limit of oa.additionalRateLimits ?? []) {
-              const status = formatOpenAIRateLimitStatus(limit);
-              if (isOpenAISparkRateLimit(limit)) {
-                addWindow(sparkLines, "5h", limit.primary);
-                addWindow(
-                  sparkLines,
-                  "Weekly",
-                  limit.secondary,
-                  limit.secondary?.limitWindowSec || WEEK_SECONDS,
-                );
-                continue;
-              }
-
-              const primaryLabel = status ? `${limit.label} · ${status}` : limit.label;
-              addWindow(openAILines, primaryLabel, limit.primary);
-              addWindow(
-                openAILines,
-                limit.primary ? `${limit.label} Secondary` : `${primaryLabel} Secondary`,
-                limit.secondary,
-              );
-            }
-
-            if (oa.credits) openAILines.push(detailTextLine(`Credits · ${oa.credits}`));
-
-            const dataLines: QuotaLine[] = [];
-            if (openAILines.length) dataLines.push(headingLine("OpenAI"), ...openAILines);
-            if (sparkLines.length) dataLines.push(headingLine("OpenAI Spark"), ...sparkLines);
-
-            results.set("openai", dataLines.length ? dataLines : [detailTextLine("No windows")]);
-          } else {
-            results.set("openai", oa.error);
-          }
-          setLines(buildLines());
-        }
-      } catch (e) {
+      for (const provider of visibleProviders) {
+        if (!results.has(provider.id)) continue;
+        const result = await getCachedProviderLines(provider.id, goConfig);
         if (disposed || currentVersion !== inFlightVersion) return;
-        const msg = `Error: ${e instanceof Error ? e.message : String(e)}`;
-        setLines([detailTextLine(msg)]);
+        if (result === undefined) {
+          results.delete(provider.id);
+        } else {
+          results.set(provider.id, result);
+        }
+        setLines(buildLines());
       }
-      // Network errors or unexpected failures.
-      // Both guards checked again because await can resolve after dispose.
     };
+    const scheduleDeferredRefresh = (source?: string, delayMs: number = minRefreshIntervalMs) => {
+      pendingRefreshSource = source ?? pendingRefreshSource;
+      if (deferredRefreshTimer) return;
+      deferredRefreshTimer = setTimeout(() => {
+        deferredRefreshTimer = undefined;
+        const queuedSource = pendingRefreshSource;
+        pendingRefreshSource = undefined;
+        requestRefresh(queuedSource);
+      }, delayMs);
+    };
+
+    const requestRefresh = (source?: string, force = false) => {
+      if (disposed) return;
+      if (refreshPromise) {
+        pendingRefreshSource = source ?? pendingRefreshSource;
+        return;
+      }
+
+      const now = Date.now();
+      const elapsedMs = lastRefreshStartedAtMs > 0 ? now - lastRefreshStartedAtMs : Infinity;
+      if (!force && elapsedMs < minRefreshIntervalMs) {
+        scheduleDeferredRefresh(source, minRefreshIntervalMs - elapsedMs);
+        return;
+      }
+
+      lastRefreshStartedAtMs = now;
+      const promise = refresh(source);
+      refreshPromise = promise;
+      promise
+        .finally(() => {
+          refreshPromise = undefined;
+          if (disposed || !pendingRefreshSource) return;
+          const queuedSource = pendingRefreshSource;
+          pendingRefreshSource = undefined;
+          requestRefresh(queuedSource);
+        })
+        .catch(() => {});
+    };
+
     // --- Event subscriptions: refresh on session select and idle ---
     const scheduler = createRefreshScheduler({
       subscribe: (eventName, handler) => evt.on(eventName as any, handler),
-      onRefresh: refresh,
+      onRefresh: requestRefresh,
       immediateEvents: IMMEDIATE_REFRESH_EVENTS,
       completionEvents: COMPLETION_REFRESH_EVENTS,
+      pollIntervalMs,
     });
     lifecycle.onDispose(() => {
       disposed = true;
       if (clockTimer) clearTimeout(clockTimer);
+      if (deferredRefreshTimer) clearTimeout(deferredRefreshTimer);
       scheduler.dispose();
     });
     // Fire-and-forget initial fetch (don't block slot registration)
-    refresh().catch(() => {});
+    requestRefresh("initial", true);
 
     slots.register({
       order: 180,
@@ -532,7 +709,7 @@ const plugin: TuiPluginModule & { id: string } = {
           const sid = (slotInput as any)?.session_id ?? "";
           if (sid && sid !== currentSessionId) {
             currentSessionId = sid;
-            refresh(sid).catch(() => {});
+            requestRefresh(`session:${sid}`);
           }
           return <View getLines={lines} getNowMs={nowMs} api={api} />;
         },

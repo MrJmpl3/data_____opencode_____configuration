@@ -3,12 +3,17 @@ export interface RefreshSchedulerConfig {
   onRefresh: (source?: string) => void;
   immediateEvents: string[];
   completionEvents: string[];
+  pollIntervalMs?: number;
+  refreshDelayMs?: number;
 }
 
 // --- event-driven refresh scheduler ---
 // Replaces polling with subscribe-based event binding.
-// Events trigger staggered timers that call onRefresh.
+// Events trigger a coalesced timer that calls onRefresh.
 // Clean dispose ensures no stale callbacks after unmount.
+
+const DEFAULT_REFRESH_DELAY_MS = 300;
+const DEFAULT_POLL_INTERVAL_MS = 10 * 60_000;
 
 export interface RefreshScheduler {
   scheduleRefresh(extraDelays?: number[], source?: string): void;
@@ -20,28 +25,44 @@ export const createRefreshScheduler = ({
   onRefresh,
   immediateEvents,
   completionEvents,
+  pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
+  refreshDelayMs = DEFAULT_REFRESH_DELAY_MS,
 }: RefreshSchedulerConfig): RefreshScheduler => {
-  // --- pendingTimers as Set prevents double-clear ---
-  // Each timer removes itself on fire. dispose() iterates survivors.
-  // Set handles the edge case where a timer fires during clearTimeout.
-
-  const pendingTimers = new Set<ReturnType<typeof setTimeout>>();
-  const REFRESH_DELAY_MS = 300;
   let disposed = false;
-  // --- polling fallback: refresh every 120s to catch stale data ---
-  const POLL_INTERVAL_MS = 120_000;
-  const pollTimer = setInterval(() => {
-    if (disposed) return;
-    onRefresh("poll");
-  }, POLL_INTERVAL_MS);
+  let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+  let pendingDueAtMs = 0;
+  let pendingSource: string | undefined;
+
+  // --- polling fallback: infrequent refresh to catch stale data ---
+  const pollTimer =
+    pollIntervalMs > 0
+      ? setInterval(() => {
+          if (disposed) return;
+          onRefresh("poll");
+        }, pollIntervalMs)
+      : undefined;
+
   const scheduleRefresh = (extraDelays: number[] = [], source?: string) => {
-    const delay = REFRESH_DELAY_MS + (extraDelays[0] ?? 0);
-    const timer = setTimeout(() => {
+    if (disposed) return;
+
+    const delay = refreshDelayMs + (extraDelays[0] ?? 0);
+    const dueAtMs = Date.now() + delay;
+
+    if (pendingTimer && pendingDueAtMs <= dueAtMs) {
+      return;
+    }
+
+    pendingSource = source ?? pendingSource;
+    if (pendingTimer) clearTimeout(pendingTimer);
+    pendingDueAtMs = dueAtMs;
+    pendingTimer = setTimeout(() => {
       if (disposed) return;
-      pendingTimers.delete(timer);
-      onRefresh(source);
+      const refreshSource = pendingSource;
+      pendingTimer = undefined;
+      pendingDueAtMs = 0;
+      pendingSource = undefined;
+      onRefresh(refreshSource);
     }, delay);
-    pendingTimers.add(timer);
   };
 
   // --- bindEvents maps event names to refresh triggers ---
@@ -57,14 +78,14 @@ export const createRefreshScheduler = ({
   const unsubscribers = [...bindEvents(immediateEvents), ...bindEvents(completionEvents, [250])];
 
   // --- disposed flag prevents onRefresh after unmount ---
-  // unsubscribers tear down event bindings, pendingTimers.forEach clears
-  // any timers that haven't fired yet. Triple-lock cleanup.
+  // unsubscribers tear down event bindings, and pendingTimer clears any
+  // coalesced refresh that has not fired yet. Triple-lock cleanup.
 
   const dispose = () => {
     disposed = true;
-    clearInterval(pollTimer);
+    if (pollTimer) clearInterval(pollTimer);
     for (const unsub of unsubscribers) unsub();
-    pendingTimers.forEach((timer) => clearTimeout(timer));
+    if (pendingTimer) clearTimeout(pendingTimer);
   };
 
   return {

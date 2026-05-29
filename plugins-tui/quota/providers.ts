@@ -86,6 +86,19 @@ export const fetchWithTimeout = (
   return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(timer));
 };
 
+const httpErrorMessage = (label: string, res: Response, body?: string): string => {
+  const details = [`${label} HTTP ${res.status}`];
+  const retryAfter = res.headers.get("retry-after")?.trim();
+  const rateLimitReset =
+    res.headers.get("x-ratelimit-reset")?.trim() || res.headers.get("ratelimit-reset")?.trim();
+
+  if (retryAfter) details.push(`retry-after=${retryAfter}`);
+  if (rateLimitReset) details.push(`rate-limit-reset=${rateLimitReset}`);
+  if (body?.trim()) details.push(body.trim().slice(0, 120));
+
+  return details.join("; ");
+};
+
 // ─── OS helpers ──────────────────────────────────────────
 
 const xdgDataHome = (): string => {
@@ -244,7 +257,7 @@ export const fetchGoDashboard = async (
       Cookie: `auth=${authCookie}`,
     },
   });
-  if (!res.ok) return { error: `OpenCode Go HTTP ${res.status}` };
+  if (!res.ok) return { error: httpErrorMessage("OpenCode Go", res) };
 
   const html = await res.text();
   const data = {
@@ -414,7 +427,7 @@ export const fetchCopilotQuota = async (): Promise<CopilotResult | null | { erro
       "User-Agent": USER_AGENT,
     },
   });
-  if (!res.ok) return { error: `Copilot API HTTP ${res.status}` };
+  if (!res.ok) return { error: httpErrorMessage("Copilot API", res) };
 
   const data: unknown = await res.json();
 
@@ -501,7 +514,7 @@ export const fetchOpenRouterQuota = async (): Promise<
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    return { error: `OpenRouter HTTP ${res.status}: ${text.slice(0, 120)}` };
+    return { error: httpErrorMessage("OpenRouter", res, text) };
   }
 
   const body: unknown = await res.json();
@@ -801,7 +814,7 @@ export const fetchOpenAIQuota = async (): Promise<OpenAIResult | null | { error:
       if (error instanceof Error) return error.message;
       return String(error);
     });
-    return { error: `OpenAI HTTP ${res.status}: ${text.slice(0, 120)}` };
+    return { error: httpErrorMessage("OpenAI", res, text) };
   }
 
   const body: unknown = await res.json();
