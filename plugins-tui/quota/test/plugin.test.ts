@@ -4,12 +4,14 @@ import { join } from "path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import * as quotaIndex from "../index.tsx";
 import plugin, {
   formatResponsibleWeeklyUsage,
   isQuotaRateLimitError,
   retryAfterMsFromMessage,
 } from "../index.tsx";
-import { createRefreshScheduler } from "../refresh-scheduler.ts";
+import { createRefreshScheduler } from "../runtime/refresh-scheduler.ts";
+import * as quotaProviders from "../providers.ts";
 import {
   fetchCopilotQuota,
   fetchOpenAIQuota,
@@ -40,6 +42,22 @@ describe("quota tui plugin", () => {
   it("exposes a stable plugin contract", () => {
     expect(plugin.id).toBe("quota");
     expect(typeof plugin.tui).toBe("function");
+  });
+
+  it("keeps the current index export surface available", () => {
+    expect(quotaIndex.default.id).toBe("quota");
+    expect(typeof quotaIndex.formatResponsibleUsagePace).toBe("function");
+    expect(typeof quotaIndex.formatResponsibleWeeklyUsage).toBe("function");
+    expect(typeof quotaIndex.isQuotaRateLimitError).toBe("function");
+    expect(typeof quotaIndex.retryAfterMsFromMessage).toBe("function");
+  });
+
+  it("keeps the current providers export surface available", () => {
+    expect(typeof quotaProviders.fetchCopilotQuota).toBe("function");
+    expect(typeof quotaProviders.fetchOpenAIQuota).toBe("function");
+    expect(typeof quotaProviders.fetchOpenRouterQuota).toBe("function");
+    expect(typeof quotaProviders.fmtDuration).toBe("function");
+    expect(typeof quotaProviders.parseAdditionalRateLimits).toBe("function");
   });
 
   it("coalesces repeated immediate refresh events before execution", () => {
