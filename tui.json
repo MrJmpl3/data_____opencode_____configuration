@@ -5,7 +5,7 @@
     [
       "./plugins-tui/quota",
       {
-        "visibleProviders": ["openai", "github-copilot"]
+        "visibleProviders": ["opencode", "openai", "github-copilot", "openrouter"]
       }
     ],
     "./plugins-tui/cache",
