@@ -5,11 +5,12 @@
     [
       "./plugins-tui/quota",
       {
-        "visibleProviders": ["opencode", "openai", "github-copilot", "openrouter"]
+        "visibleProviders": ["opencode-go", "openai", "ollama-cloud", "github-copilot", "openrouter"]
       }
     ],
     "./plugins-tui/cache",
-    "opencode-quotes-plugin"
+    "opencode-quotes-plugin@latest",
+    "oh-my-opencode-slim@latest"
   ],
   "theme": "opencode"
 }
