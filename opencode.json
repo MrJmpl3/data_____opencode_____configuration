@@ -4,7 +4,7 @@
     "gentle-orchestrator": {
       "description": "Gentle AI SDD Orchestrator - coordinates sub-agents, never does work inline",
       "mode": "primary",
-      "model": "openai/gpt-5.5",
+      "model": "openai/gpt-5.4",
       "permission": {
         "task": {
           "*": "deny",
