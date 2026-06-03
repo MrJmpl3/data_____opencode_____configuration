@@ -2,11 +2,11 @@
 
 ## Strategy Notes
 
-| | Stacked PRs to main | Feature Branch Chain |
-|---|---|---|
-| Speed | Each slice can ship in order | Full feature waits for tracker merge |
-| Rollback | Revert individual main PRs | Revert/hold the whole feature branch |
-| Risk | Partial behavior may land | Nothing lands until the chain completes |
+|            | Stacked PRs to main          | Feature Branch Chain                     |
+| ---------- | ---------------------------- | ---------------------------------------- |
+| Speed      | Each slice can ship in order | Full feature waits for tracker merge     |
+| Rollback   | Revert individual main PRs   | Revert/hold the whole feature branch     |
+| Risk       | Partial behavior may land    | Nothing lands until the chain completes  |
 | Complexity | Simpler retarget/rebase flow | Requires tracker and strict diff hygiene |
 
 ## Feature Branch Chain
@@ -48,20 +48,20 @@ After a parent PR merges, rebase/retarget the next PR so GitHub shows only the c
 
 Append this section to the repo PR template; do not replace required issue/checklist sections.
 
-```markdown
+````markdown
 ## Chain Context
 
-| Field | Value |
-|-------|-------|
-| Chain | <feature or stack name> |
-| Tracker PR | <#NNN or "Not needed"> |
-| Position | <N of total> |
-| Base | `<target branch>` |
-| Depends on | <PR/issue/link or "None"> |
-| Follow-up | <next PR or "None"> |
-| Review budget | <changed lines> / 400 |
-| Starts at | <branch, PR, or state this builds on> |
-| Ends with | <standalone result delivered by this PR> |
+| Field         | Value                                    |
+| ------------- | ---------------------------------------- |
+| Chain         | <feature or stack name>                  |
+| Tracker PR    | <#NNN or "Not needed">                   |
+| Position      | <N of total>                             |
+| Base          | `<target branch>`                        |
+| Depends on    | <PR/issue/link or "None">                |
+| Follow-up     | <next PR or "None">                      |
+| Review budget | <changed lines> / 400                    |
+| Starts at     | <branch, PR, or state this builds on>    |
+| Ends with     | <standalone result delivered by this PR> |
 
 ### Chain Overview
 
@@ -71,17 +71,21 @@ main
       └── 📍 #NNN This PR
            └── #NNN Next PR
 ```
+````
 
 ### Scope
+
 - Includes: <focused unit>
 - Excludes: <deferred work>
 
 ### Autonomy
+
 - [ ] CI is expected to pass for this PR branch
 - [ ] This PR has one deliverable scope
 - [ ] This PR can be rolled back without unrelated changes
 - [ ] Tests, docs, or manual verification cover this unit
-```
+
+````
 
 ## Commands
 
@@ -89,7 +93,7 @@ main
 gh pr view <PR_NUMBER> --json additions,deletions,changedFiles,title,url
 gh pr create --base feat/my-feature --title "feat(scope): focused slice" --body-file pr-body.md
 gh pr create --base feat/my-feature-01-core --title "feat(scope): next focused slice" --body-file pr-body.md
-```
+````
 
 ## Reviewer Guidance
 

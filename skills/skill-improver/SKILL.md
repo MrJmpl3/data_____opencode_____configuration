@@ -1,10 +1,10 @@
 ---
 name: skill-improver
-description: "Trigger: improve skills, audit skills, refactor skills, skill quality. Audit and upgrade existing LLM-first skills."
+description: 'Trigger: improve skills, audit skills, refactor skills, skill quality. Audit and upgrade existing LLM-first skills.'
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.0"
+  version: '1.0'
 ---
 
 ## Activation Contract
@@ -22,13 +22,13 @@ Use this skill when asked to audit, refactor, normalize, or improve existing `SK
 
 ## Decision Gates
 
-| Situation | Action |
-| --- | --- |
-| Missing or invalid frontmatter | Fix `name`, quoted one-line `description`, `license`, and `metadata` |
-| Skill reads like tutorial docs | Convert to runtime instructions and move background to `references/` |
-| Body exceeds budget | Preserve rules, move examples/background to supporting files |
-| Branching logic hidden in prose | Convert to a compact decision table |
-| Rules conflict or intent is unclear | Report the issue; do not rewrite that rule automatically |
+| Situation                           | Action                                                               |
+| ----------------------------------- | -------------------------------------------------------------------- |
+| Missing or invalid frontmatter      | Fix `name`, quoted one-line `description`, `license`, and `metadata` |
+| Skill reads like tutorial docs      | Convert to runtime instructions and move background to `references/` |
+| Body exceeds budget                 | Preserve rules, move examples/background to supporting files         |
+| Branching logic hidden in prose     | Convert to a compact decision table                                  |
+| Rules conflict or intent is unclear | Report the issue; do not rewrite that rule automatically             |
 
 ## Execution Steps
 
@@ -41,6 +41,7 @@ Use this skill when asked to audit, refactor, normalize, or improve existing `SK
 ## Output Contract
 
 Return:
+
 - Skills audited and paths used.
 - Issues found, grouped by severity.
 - Files changed, if apply mode was requested.

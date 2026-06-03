@@ -1,10 +1,10 @@
 ---
 name: go-testing
-description: "Trigger: Go tests, go test coverage, Bubbletea teatest, golden files. Apply focused Go testing patterns."
+description: 'Trigger: Go tests, go test coverage, Bubbletea teatest, golden files. Apply focused Go testing patterns.'
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.0"
+  version: '1.0'
 ---
 
 ## Activation Contract
@@ -23,15 +23,15 @@ Load this skill when writing or reviewing Go tests, adding coverage, testing Bub
 
 ## Decision Gates
 
-| Target | Test pattern |
-|---|---|
-| Pure function or parser | Table-driven unit test. |
-| Error behavior | Explicit success and failure cases. |
-| File operations | `t.TempDir()` plus focused assertions. |
-| TUI state transition | Direct `Model.Update()` call with `tea.Msg`. |
-| Full TUI interaction | `teatest.NewTestModel()`. |
-| Rendered output | Golden file test. |
-| Real external command | Integration test; skip in `-short`. |
+| Target                  | Test pattern                                 |
+| ----------------------- | -------------------------------------------- |
+| Pure function or parser | Table-driven unit test.                      |
+| Error behavior          | Explicit success and failure cases.          |
+| File operations         | `t.TempDir()` plus focused assertions.       |
+| TUI state transition    | Direct `Model.Update()` call with `tea.Msg`. |
+| Full TUI interaction    | `teatest.NewTestModel()`.                    |
+| Rendered output         | Golden file test.                            |
+| Real external command   | Integration test; skip in `-short`.          |
 
 ## Execution Steps
 

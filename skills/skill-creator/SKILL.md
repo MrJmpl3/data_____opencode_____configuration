@@ -1,15 +1,16 @@
 ---
 name: skill-creator
-description: "Trigger: new skills, agent instructions, documenting AI usage patterns. Create LLM-first skills with valid frontmatter."
+description: 'Trigger: new skills, agent instructions, documenting AI usage patterns. Create LLM-first skills with valid frontmatter.'
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.0"
+  version: '1.0'
 ---
 
 ## Activation Contract
 
 Create a skill when:
+
 - A pattern is used repeatedly and AI needs guidance
 - Project-specific conventions differ from generic best practices
 - Complex workflows need step-by-step instructions
@@ -28,12 +29,12 @@ Do not create a skill when the pattern is trivial, one-off, or better served by 
 
 ## Decision Gates
 
-| Need | Action |
-|------|--------|
-| Code templates, schemas, fixtures, generated examples | Put them in `assets/` |
-| Conceptual detail, edge cases, existing docs | Put local links in `references/` |
-| Long explanation in `SKILL.md` | Move it to a supporting file |
-| Multiple meaningful paths | Add a compact decision table |
+| Need                                                  | Action                           |
+| ----------------------------------------------------- | -------------------------------- |
+| Code templates, schemas, fixtures, generated examples | Put them in `assets/`            |
+| Conceptual detail, edge cases, existing docs          | Put local links in `references/` |
+| Long explanation in `SKILL.md`                        | Move it to a supporting file     |
+| Multiple meaningful paths                             | Add a compact decision table     |
 
 ## Execution Steps
 
@@ -50,18 +51,20 @@ skills/{skill-name}/
 └── references/           # Optional - links to local docs
     └── docs.md           # Points to docs/developer-guide/*.mdx
 ```
+
 4. Use this frontmatter shape:
 
 ```markdown
 ---
-name: {skill-name}
-description: "Trigger: {essential trigger words users or agents will say}. {What this skill does}."
+name: { skill-name }
+description: 'Trigger: {essential trigger words users or agents will say}. {What this skill does}.'
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.0"
+  version: '1.0'
 ---
 ```
+
 5. Write sections in this order: Activation Contract, Hard Rules, Decision Gates, Execution Steps, Output Contract, References.
 6. Register the skill in `AGENTS.md` when it is a project skill.
 
@@ -76,7 +79,7 @@ metadata:
 Good:
 
 ```yaml
-description: "Trigger: Jira task, ticket, issue, task creation. Create Jira tasks in the team format."
+description: 'Trigger: Jira task, ticket, issue, task creation. Create Jira tasks in the team format.'
 ```
 
 Bad:
@@ -91,6 +94,7 @@ Keywords: jira, task
 ## Output Contract
 
 Return:
+
 - Files created or modified.
 - Whether the repo style guide or inline fallback rules were used.
 - Any AGENTS.md registration change.

@@ -1,12 +1,12 @@
 ---
 name: sdd-archive
-description: "Archive a completed SDD change by syncing delta specs. Trigger: orchestrator launches archive after implementation and verification."
+description: 'Archive a completed SDD change by syncing delta specs. Trigger: orchestrator launches archive after implementation and verification.'
 disable-model-invocation: true
 user-invocable: false
 license: MIT
 metadata:
   author: gentleman-programming
-  version: "2.0"
+  version: '2.0'
   delegate_only: true
 ---
 
@@ -19,7 +19,6 @@ metadata:
 ## Executor Override
 
 If you ARE the `sdd-archive` sub-agent (NOT the orchestrator), the gate above does NOT apply to you. Continue with the phase work below. Do NOT delegate. Do NOT call the Skill tool. You are the executor — execute.
-
 
 ## Language Domain Contract
 
@@ -36,6 +35,7 @@ You are a sub-agent responsible for ARCHIVING. You merge delta specs into the ma
 ## What You Receive
 
 From the orchestrator:
+
 - Change name
 - Artifact store mode (`engram | openspec | hybrid | none`)
 
@@ -51,6 +51,7 @@ From the orchestrator:
 ## What to Do
 
 ### Step 1: Load Skills
+
 Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
 
 ### Step 2: Sync Delta Specs to Main Specs
@@ -73,6 +74,7 @@ FOR EACH SECTION in delta spec:
 ```
 
 **Merge carefully:**
+
 - Match requirements by name (e.g., "### Requirement: Session Expiration")
 - Preserve all OTHER requirements that aren't in the delta
 - Maintain proper Markdown formatting and heading hierarchy
@@ -105,6 +107,7 @@ Use today's date in ISO format (e.g., `2026-02-16`).
 ### Step 4: Verify Archive
 
 **IF mode is `openspec` or `hybrid`:** Confirm:
+
 - [ ] Main specs updated correctly
 - [ ] Change folder moved to archive
 - [ ] Archive contains all artifacts (proposal, specs, design, tasks)
@@ -119,6 +122,7 @@ Use today's date in ISO format (e.g., `2026-02-16`).
 **This step is MANDATORY — do NOT skip it.**
 
 Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
+
 - artifact: `archive-report`
 - topic_key: `sdd/{change-name}/archive-report`
 - type: `architecture`
@@ -134,21 +138,26 @@ Return to the orchestrator:
 **Archived to**: `openspec/changes/archive/{YYYY-MM-DD}-{change-name}/` (openspec/hybrid) | Engram archive report (engram) | inline (none)
 
 ### Specs Synced
-| Domain | Action | Details |
-|--------|--------|---------|
+
+| Domain   | Action          | Details                                       |
+| -------- | --------------- | --------------------------------------------- |
 | {domain} | Created/Updated | {N added, M modified, K removed requirements} |
 
 ### Archive Contents
+
 - proposal.md ✅
 - specs/ ✅
 - design.md ✅
 - tasks.md ✅ ({N}/{N} tasks complete)
 
 ### Source of Truth Updated
+
 The following specs now reflect the new behavior:
+
 - `openspec/specs/{domain}/spec.md`
 
 ### SDD Cycle Complete
+
 The change has been fully planned, implemented, verified, and archived.
 Ready for the next change.
 ```

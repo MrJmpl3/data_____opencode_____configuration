@@ -17,6 +17,7 @@ Before every sub-agent launch that involves reading, writing, reviewing, testing
 The registry is an **index** of skill names, triggers, scopes, and exact `SKILL.md` paths. It is not a compact-rules bundle.
 
 Resolution order:
+
 1. Use the session cache if present.
 2. `mem_search(query: "skill-registry", project: "{project}")` → `mem_get_observation(id)` for full content.
 3. Fallback: read `.atl/skill-registry.md` from the project root.
@@ -26,9 +27,9 @@ Resolution order:
 
 Match on two dimensions:
 
-| Context | Match against |
-| --- | --- |
-| Code/files | Registry trigger/description mentions the language, framework, tool, or path context |
+| Context     | Match against                                                                                       |
+| ----------- | --------------------------------------------------------------------------------------------------- |
+| Code/files  | Registry trigger/description mentions the language, framework, tool, or path context                |
 | Task/action | Registry trigger/description mentions actions like PR, review, docs, tests, Jira, comments, release |
 
 Prefer the smallest useful set. If more than five skills match, keep the five most relevant and prioritize code context over task context.

@@ -181,13 +181,15 @@ When Strict TDD Mode is active, your return summary MUST include this section:
 
 ```markdown
 ### TDD Cycle Evidence
-| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
-|------|-----------|-------|------------|-----|-------|-------------|----------|
-| 1.1 | `path/test.ext` | Unit | ✅ 5/5 | ✅ Written | ✅ Passed | ✅ 3 cases | ✅ Clean |
-| 1.2 | `path/test.ext` | Integration | N/A (new) | ✅ Written | ✅ Passed | ➖ Single | ✅ Clean |
-| 1.3 | `path/test.ext` | Unit | ✅ 2/2 | ✅ Written | ✅ Passed | ✅ 2 cases | ➖ None needed |
+
+| Task | Test File       | Layer       | Safety Net | RED        | GREEN     | TRIANGULATE | REFACTOR       |
+| ---- | --------------- | ----------- | ---------- | ---------- | --------- | ----------- | -------------- |
+| 1.1  | `path/test.ext` | Unit        | ✅ 5/5     | ✅ Written | ✅ Passed | ✅ 3 cases  | ✅ Clean       |
+| 1.2  | `path/test.ext` | Integration | N/A (new)  | ✅ Written | ✅ Passed | ➖ Single   | ✅ Clean       |
+| 1.3  | `path/test.ext` | Unit        | ✅ 2/2     | ✅ Written | ✅ Passed | ✅ 2 cases  | ➖ None needed |
 
 ### Test Summary
+
 - **Total tests written**: {N}
 - **Total tests passing**: {N}
 - **Layers used**: Unit ({N}), Integration ({N}), E2E ({N})
@@ -196,6 +198,7 @@ When Strict TDD Mode is active, your return summary MUST include this section:
 ```
 
 **Column definitions**:
+
 - **Safety Net**: Pre-existing tests run before modifying files. "N/A (new)" for new files.
 - **RED**: Test written first, referencing code that doesn't exist yet. Always "✅ Written".
 - **GREEN**: Tests executed and passing after minimal implementation. Must show execution result.
@@ -248,6 +251,7 @@ for (const item of items) { ... }                # ✅ Now the loop actually run
 ### What Makes a REAL Assertion
 
 Every test assertion must satisfy ALL of these:
+
 1. **Calls production code** — the test invokes a function, method, or component from the implementation
 2. **Asserts a specific output** — compares against a concrete expected value derived from the spec
 3. **Would FAIL if the production code were wrong** — if you change the implementation logic, THIS test breaks
@@ -264,6 +268,7 @@ expect(result).toHaveLength(3)                     # AND you set up exactly 3 it
 ### Empty Collection Rule
 
 `expect(result).toEqual([])` or `assert len(result) == 0` is ONLY valid when:
+
 1. You set up a specific precondition that SHOULD produce an empty result (e.g., no matching records)
 2. The production code actually ran and filtered/processed data to arrive at empty
 3. A companion test with different setup produces a NON-EMPTY result (triangulation)
@@ -345,6 +350,7 @@ expect(screen.getByRole("button")).toBeDisabled();
 ```
 
 **CSS class assertions are NEVER valid test assertions.** If you need to verify visual styling:
+
 1. Test the **semantic outcome** (e.g., element has `role="alert"`, text is visible, button is disabled)
 2. OR use a visual regression tool / E2E screenshot comparison
 3. NEVER assert specific Tailwind/CSS class names — they are implementation details

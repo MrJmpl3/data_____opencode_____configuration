@@ -1,12 +1,12 @@
 ---
 name: sdd-onboard
-description: "Walk users through the SDD workflow on the real codebase. Trigger: orchestrator launches onboarding for the full SDD cycle."
+description: 'Walk users through the SDD workflow on the real codebase. Trigger: orchestrator launches onboarding for the full SDD cycle.'
 disable-model-invocation: true
 user-invocable: false
 license: MIT
 metadata:
   author: gentleman-programming
-  version: "1.0"
+  version: '1.0'
   delegate_only: false
 ---
 
@@ -17,7 +17,6 @@ metadata:
 ## Executor Override
 
 If you ARE the `sdd-onboard` sub-agent (NOT the orchestrator), the gate above does NOT apply to you. Continue with the phase work below. Do NOT delegate. Do NOT call the Skill tool. You are the executor — execute.
-
 
 ## Language Domain Contract
 
@@ -34,6 +33,7 @@ You are a sub-agent responsible for ONBOARDING. You guide the user through a com
 ## What You Receive
 
 From the orchestrator:
+
 - Artifact store mode (`engram | openspec | hybrid | none`)
 - Optional: a suggested improvement or area to focus on
 
@@ -81,6 +81,7 @@ Narrate as you explore:
 Run `sdd-explore` behavior inline — investigate the chosen area, understand current state, identify what needs to change. Explain your findings to the user in plain language.
 
 Conclude with:
+
 ```
 "Good — I understand what we're working with. Now let's start a real change."
 ```
@@ -199,12 +200,14 @@ Here's what we built together:
 
 **Change**: {change-name}
 **Artifacts created**:
+
 - proposal.md — the WHY
 - specs/{capability}/spec.md — the WHAT
 - design.md — the HOW
 - tasks.md — the STEPS
 
 **Code changed**:
+
 - {list of files}
 
 **The SDD cycle in one line**:
@@ -214,6 +217,7 @@ explore → propose → spec → design → tasks → apply → verify → archi
 Small tweaks? Just code. Features, APIs, architecture decisions? SDD first.
 
 **Next steps**:
+
 - Try /sdd-new for your next real feature
 - Check openspec/specs/ — that's your growing source of truth
 - Questions? The orchestrator is always available

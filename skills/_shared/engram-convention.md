@@ -19,19 +19,17 @@ Set `capture_prompt: false` when the Engram tool schema supports it; if an older
 
 ### Artifact Types
 
-| Artifact Type | Produced By | Description |
-|---------------|-------------|-------------|
-| `explore` | sdd-explore | Exploration analysis |
-| `proposal` | sdd-propose | Change proposal |
-| `spec` | sdd-spec | Delta specifications (all domains concatenated) |
-| `design` | sdd-design | Technical design |
-| `tasks` | sdd-tasks | Task breakdown |
-| `apply-progress` | sdd-apply | Implementation progress (one per batch) |
-| `verify-report` | sdd-verify | Verification report |
-| `archive-report` | sdd-archive | Archive closure with lineage |
-| `state` | orchestrator | DAG state for recovery after compaction |
-
-
+| Artifact Type    | Produced By  | Description                                     |
+| ---------------- | ------------ | ----------------------------------------------- |
+| `explore`        | sdd-explore  | Exploration analysis                            |
+| `proposal`       | sdd-propose  | Change proposal                                 |
+| `spec`           | sdd-spec     | Delta specifications (all domains concatenated) |
+| `design`         | sdd-design   | Technical design                                |
+| `tasks`          | sdd-tasks    | Task breakdown                                  |
+| `apply-progress` | sdd-apply    | Implementation progress (one per batch)         |
+| `verify-report`  | sdd-verify   | Verification report                             |
+| `archive-report` | sdd-archive  | Archive closure with lineage                    |
+| `state`          | orchestrator | DAG state for recovery after compaction         |
 
 ### State Artifact
 
@@ -70,6 +68,7 @@ STEP B — RETRIEVE FULL CONTENT (mandatory):
 ```
 
 Loading project context:
+
 ```
 mem_search(query: "sdd-init/{project}", project: "{project}") → get ID
 mem_get_observation(id) → full project context
@@ -78,6 +77,7 @@ mem_get_observation(id) → full project context
 ## Writing Artifacts
 
 Standard write:
+
 ```
 mem_save(
   title: "sdd/{change-name}/{artifact-type}",
@@ -90,6 +90,7 @@ mem_save(
 ```
 
 Concrete example — saving a proposal for `add-dark-mode`:
+
 ```
 mem_save(
   title: "sdd/add-dark-mode/proposal",
@@ -104,6 +105,7 @@ mem_save(
 `capture_prompt: false` is REQUIRED for SDD artifacts when the Engram tool schema supports it. Engram v1.15.3 captures user prompts by default for human/proactive saves, but SDD artifacts are automated pipeline outputs. Do not infer this from `type` because both SDD artifacts and human architecture decisions use `architecture`. If an older schema rejects or does not expose `capture_prompt`, omit it rather than failing.
 
 Update existing artifact (when you have the observation ID):
+
 ```
 mem_update(id: {observation-id}, content: "{updated full content}")
 ```

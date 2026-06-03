@@ -1,12 +1,12 @@
 ---
 name: sdd-apply
-description: "Implement SDD tasks from specs and design. Trigger: orchestrator launches apply for one or more change tasks."
+description: 'Implement SDD tasks from specs and design. Trigger: orchestrator launches apply for one or more change tasks.'
 disable-model-invocation: true
 user-invocable: false
 license: MIT
 metadata:
   author: gentleman-programming
-  version: "3.0"
+  version: '3.0'
   delegate_only: true
 ---
 
@@ -19,7 +19,6 @@ metadata:
 ## Executor Override
 
 If you ARE the `sdd-apply` sub-agent (NOT the orchestrator), the gate above does NOT apply to you. Continue with the phase work below. Do NOT delegate. Do NOT call the Skill tool. You are the executor — execute.
-
 
 ## Language Domain Contract
 
@@ -36,6 +35,7 @@ You are a sub-agent responsible for IMPLEMENTATION. You receive specific tasks f
 ## What You Receive
 
 From the orchestrator:
+
 - Change name
 - The specific task(s) to implement (e.g., "Phase 1, tasks 1.1-1.3")
 - Artifact store mode (`engram | openspec | hybrid | none`)
@@ -53,11 +53,13 @@ From the orchestrator:
 ## What to Do
 
 ### Step 1: Load Skills
+
 Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
 
 ### Step 2: Read Context
 
 Before writing ANY code:
+
 1. Read the specs — understand WHAT the code must do
 2. Read the design — understand HOW to structure the code
 3. Read existing code in affected files — understand current patterns
@@ -80,6 +82,7 @@ Then you MUST confirm the orchestrator/user provided a resolved delivery path:
 3. **`single-pr` above budget**: continue only after the prompt explicitly records `size:exception`.
 
 Also check for `Chain strategy` in the tasks artifact. If present and not `pending`, follow it consistently:
+
 - `stacked-to-main`: each PR targets the previous PR's branch (or `main` after the previous merges).
 - `feature-branch-chain`: PR #1 targets the feature/tracker branch; later PRs target the immediate previous PR branch. The tracker PR aggregates the feature branch to `main`; child PR diffs must stay focused on only the current work unit and must never target `main` directly.
 
@@ -123,6 +126,7 @@ Resolve mode:
 #### Hard Gate (Strict TDD Only)
 
 If Strict TDD Mode is active (either from orchestrator injection or self-discovery):
+
 - You MUST produce a **TDD Cycle Evidence** table in your apply-progress artifact
 - Each task row MUST have: RED (test written first) → GREEN (implementation passes) → REFACTOR columns
 - If you complete a task WITHOUT writing tests first, mark it as FAILED in the evidence table
@@ -154,7 +158,7 @@ Update `tasks.md` — change `- [ ]` to `- [x]` for completed tasks:
 
 - [x] 1.1 Create `internal/auth/middleware.go` with JWT validation
 - [x] 1.2 Add `AuthConfig` struct to `internal/config/config.go`
-- [ ] 1.3 Add auth routes to `internal/server/server.go`  ← still pending
+- [ ] 1.3 Add auth routes to `internal/server/server.go` ← still pending
 ```
 
 ### Step 6: Persist Progress
@@ -162,6 +166,7 @@ Update `tasks.md` — change `- [ ]` to `- [x]` for completed tasks:
 **This step is MANDATORY — do NOT skip it.**
 
 Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
+
 - artifact: `apply-progress`
 - topic_key: `sdd/{change-name}/apply-progress`
 - type: `architecture`
@@ -170,6 +175,7 @@ Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
 #### Merge Protocol
 
 When saving apply-progress:
+
 1. If you read previous progress in Step 2b, your artifact MUST include ALL previously completed tasks (copy their status and evidence) PLUS your new completions
 2. The final artifact should show the cumulative state of ALL tasks across ALL batches
 3. Format: keep the same structure but ensure no completed task is lost from prior batches
@@ -185,36 +191,43 @@ Return to the orchestrator:
 **Mode**: {Strict TDD | Standard}
 
 ### Completed Tasks
+
 - [x] {task 1.1 description}
 - [x] {task 1.2 description}
 
 ### Files Changed
-| File | Action | What Was Done |
-|------|--------|---------------|
-| `path/to/file.ext` | Created | {brief description} |
+
+| File                | Action   | What Was Done       |
+| ------------------- | -------- | ------------------- |
+| `path/to/file.ext`  | Created  | {brief description} |
 | `path/to/other.ext` | Modified | {brief description} |
 
 {IF Strict TDD Mode → include TDD Cycle Evidence table from strict-tdd.md}
 
 ### Deviations from Design
+
 {List any places where the implementation deviated from design.md and why.
 If none, say "None — implementation matches design."}
 
 ### Issues Found
+
 {List any problems discovered during implementation.
 If none, say "None."}
 
 ### Remaining Tasks
+
 - [ ] {next task}
 - [ ] {next task}
 
 ### Workload / PR Boundary
+
 - Mode: {single PR | chained PR slice | stacked PR slice | size:exception}
 - Current work unit: {unit name or "N/A"}
 - Boundary: {what this apply batch starts from and ends with}
 - Estimated review budget impact: {brief note}
 
 ### Status
+
 {N}/{total} tasks complete. {Ready for next batch / Ready for verify / Blocked by X}
 ```
 

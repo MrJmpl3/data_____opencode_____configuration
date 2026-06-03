@@ -17,14 +17,14 @@ Default (if user doesn't specify): if Engram is available → `engram`. Otherwis
 
 ### Mode Comparison
 
-| Capability | `engram` | `openspec` | `hybrid` | `none` |
-|------------|----------|------------|----------|--------|
-| Cross-session recovery | ✅ | ❌ (needs git) | ✅ | ❌ |
-| Compaction survival | ✅ | ❌ | ✅ | ❌ |
-| Shareable with team | ❌ (local DB) | ✅ (committed files) | ✅ (files) | ❌ |
-| Full iteration history | ❌ (upsert overwrites) | ✅ (git history) | ✅ (files + git) | ❌ |
-| Audit trail (archive) | Partial (report only) | ✅ (full folder) | ✅ (both) | ❌ |
-| Project files created | Never | Yes | Yes | Never |
+| Capability             | `engram`               | `openspec`           | `hybrid`         | `none` |
+| ---------------------- | ---------------------- | -------------------- | ---------------- | ------ |
+| Cross-session recovery | ✅                     | ❌ (needs git)       | ✅               | ❌     |
+| Compaction survival    | ✅                     | ❌                   | ✅               | ❌     |
+| Shareable with team    | ❌ (local DB)          | ✅ (committed files) | ✅ (files)       | ❌     |
+| Full iteration history | ❌ (upsert overwrites) | ✅ (git history)     | ✅ (files + git) | ❌     |
+| Audit trail (archive)  | Partial (report only)  | ✅ (full folder)     | ✅ (both)        | ❌     |
+| Project files created  | Never                  | Yes                  | Yes              | Never  |
 
 ### `engram` mode limitation
 
@@ -32,16 +32,17 @@ Engram uses `topic_key`-based upserts. Re-running a phase for the same change **
 
 ## Behavior Per Mode
 
-| Mode | Read from | Write to | Project files |
-|------|-----------|----------|---------------|
-| `engram` | Engram | Engram | Never |
-| `openspec` | Filesystem | Filesystem | Yes |
-| `hybrid` | Engram (primary) + Filesystem (fallback) | Both | Yes |
-| `none` | Orchestrator prompt context | Nowhere | Never |
+| Mode       | Read from                                | Write to   | Project files |
+| ---------- | ---------------------------------------- | ---------- | ------------- |
+| `engram`   | Engram                                   | Engram     | Never         |
+| `openspec` | Filesystem                               | Filesystem | Yes           |
+| `hybrid`   | Engram (primary) + Filesystem (fallback) | Both       | Yes           |
+| `none`     | Orchestrator prompt context              | Nowhere    | Never         |
 
 ### Hybrid Mode
 
 Persists every artifact to BOTH Engram and OpenSpec simultaneously:
+
 - Engram: cross-session recovery, compaction survival, deterministic search
 - OpenSpec: human-readable files, version-controllable artifacts
 
@@ -55,14 +56,14 @@ Token cost warning: hybrid consumes MORE tokens per operation. Use only when you
 
 The orchestrator persists DAG state after each phase transition to enable SDD recovery after compaction.
 
-| Mode | Persist State | Recover State |
-|------|--------------|---------------|
-| `engram` | `mem_save(topic_key: "sdd/{change-name}/state", capture_prompt: false*)` | `mem_search("sdd/*/state")` → `mem_get_observation(id)` |
-| `openspec` | Write `openspec/changes/{change-name}/state.yaml` | Read `openspec/changes/{change-name}/state.yaml` |
-| `hybrid` | Both: `mem_save` AND write `state.yaml` | Engram first; filesystem fallback |
-| `none` | Not possible — warn user | Not possible |
+| Mode       | Persist State                                                            | Recover State                                           |
+| ---------- | ------------------------------------------------------------------------ | ------------------------------------------------------- |
+| `engram`   | `mem_save(topic_key: "sdd/{change-name}/state", capture_prompt: false*)` | `mem_search("sdd/*/state")` → `mem_get_observation(id)` |
+| `openspec` | Write `openspec/changes/{change-name}/state.yaml`                        | Read `openspec/changes/{change-name}/state.yaml`        |
+| `hybrid`   | Both: `mem_save` AND write `state.yaml`                                  | Engram first; filesystem fallback                       |
+| `none`     | Not possible — warn user                                                 | Not possible                                            |
 
-*For state automated artifacts, set `capture_prompt: false` when the Engram tool schema supports it; if an older schema rejects or does not expose the field, omit it rather than failing.
+\*For state automated artifacts, set `capture_prompt: false` when the Engram tool schema supports it; if an older schema rejects or does not expose the field, omit it rather than failing.
 
 ## Common Rules
 
@@ -78,11 +79,13 @@ The orchestrator persists DAG state after each phase transition to enable SDD re
 Sub-agents launch with a fresh context and NO access to the orchestrator's instructions or memory protocol.
 
 Who reads, who writes:
+
 - Non-SDD (general task): orchestrator searches engram, passes summary in prompt; sub-agent saves discoveries via `mem_save`
 - SDD (phase with dependencies): sub-agent reads artifacts directly from backend; sub-agent saves its artifact
 - SDD (phase without dependencies, e.g. explore): nobody reads; sub-agent saves its artifact
 
 Why this split:
+
 - Orchestrator reads for non-SDD: it knows what context is relevant; sub-agents doing their own searches waste tokens on irrelevant results
 - Sub-agents read for SDD: SDD artifacts are large; inlining them in the orchestrator prompt would consume the entire context window
 - Sub-agents always write: they have the complete detail on what happened; nuance is lost by the time results flow back to the orchestrator
@@ -90,6 +93,7 @@ Why this split:
 ## Orchestrator Prompt Instructions for Sub-Agents
 
 Non-SDD:
+
 ```
 PERSISTENCE (MANDATORY):
 If you make important discoveries, decisions, or fix bugs, you MUST save them to engram before returning:
@@ -99,6 +103,7 @@ Do NOT return without saving what you learned. This is how the team builds persi
 ```
 
 SDD (with dependencies):
+
 ```
 Artifact store mode: {engram|openspec|hybrid|none}
 Read these artifacts before starting (search returns truncated previews):
@@ -119,6 +124,7 @@ If you return without calling mem_save, the next phase CANNOT find your artifact
 ```
 
 SDD (no dependencies):
+
 ```
 Artifact store mode: {engram|openspec|hybrid|none}
 

@@ -1,15 +1,16 @@
 ---
 name: branch-pr
-description: "Create Gentle AI pull requests with issue-first checks. Trigger: creating, opening, or preparing PRs for review."
+description: 'Create Gentle AI pull requests with issue-first checks. Trigger: creating, opening, or preparing PRs for review.'
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "2.0"
+  version: '2.0'
 ---
 
 ## When to Use
 
 Use this skill when:
+
 - Creating a pull request for any change
 - Preparing a branch for submission
 - Helping a contributor open a PR
@@ -49,19 +50,19 @@ Branch names MUST match this regex:
 
 **Format:** `type/description` — lowercase, no spaces, only `a-z0-9._-` in description.
 
-| Type | Branch pattern | Example |
-|------|---------------|---------|
-| Feature | `feat/<description>` | `feat/user-login` |
-| Bug fix | `fix/<description>` | `fix/zsh-glob-error` |
-| Chore | `chore/<description>` | `chore/update-ci-actions` |
-| Docs | `docs/<description>` | `docs/installation-guide` |
-| Style | `style/<description>` | `style/format-scripts` |
-| Refactor | `refactor/<description>` | `refactor/extract-shared-logic` |
-| Performance | `perf/<description>` | `perf/reduce-startup-time` |
-| Test | `test/<description>` | `test/add-setup-coverage` |
-| Build | `build/<description>` | `build/update-shellcheck` |
-| CI | `ci/<description>` | `ci/add-branch-validation` |
-| Revert | `revert/<description>` | `revert/broken-setup-change` |
+| Type        | Branch pattern           | Example                         |
+| ----------- | ------------------------ | ------------------------------- |
+| Feature     | `feat/<description>`     | `feat/user-login`               |
+| Bug fix     | `fix/<description>`      | `fix/zsh-glob-error`            |
+| Chore       | `chore/<description>`    | `chore/update-ci-actions`       |
+| Docs        | `docs/<description>`     | `docs/installation-guide`       |
+| Style       | `style/<description>`    | `style/format-scripts`          |
+| Refactor    | `refactor/<description>` | `refactor/extract-shared-logic` |
+| Performance | `perf/<description>`     | `perf/reduce-startup-time`      |
+| Test        | `test/<description>`     | `test/add-setup-coverage`       |
+| Build       | `build/<description>`    | `build/update-shellcheck`       |
+| CI          | `ci/<description>`       | `ci/add-branch-validation`      |
+| Revert      | `revert/<description>`   | `revert/broken-setup-change`    |
 
 ---
 
@@ -82,14 +83,14 @@ The linked issue MUST have the `status:approved` label.
 
 Check exactly ONE in the template and add the matching label:
 
-| Checkbox | Label to add |
-|----------|-------------|
-| Bug fix | `type:bug` |
-| New feature | `type:feature` |
-| Documentation only | `type:docs` |
-| Code refactoring | `type:refactor` |
-| Maintenance/tooling | `type:chore` |
-| Breaking change | `type:breaking-change` |
+| Checkbox            | Label to add           |
+| ------------------- | ---------------------- |
+| Bug fix             | `type:bug`             |
+| New feature         | `type:feature`         |
+| Documentation only  | `type:docs`            |
+| Code refactoring    | `type:refactor`        |
+| Maintenance/tooling | `type:chore`           |
+| Breaking change     | `type:breaking-change` |
 
 ### 3. Summary
 
@@ -98,8 +99,8 @@ Check exactly ONE in the template and add the matching label:
 ### 4. Changes Table
 
 ```markdown
-| File | Change |
-|------|--------|
+| File           | Change       |
+| -------------- | ------------ |
 | `path/to/file` | What changed |
 ```
 
@@ -114,6 +115,7 @@ Check exactly ONE in the template and add the matching label:
 ### 6. Contributor Checklist
 
 All boxes must be checked:
+
 - Linked an approved issue
 - Added exactly one `type:*` label
 - Ran shellcheck on modified scripts
@@ -126,12 +128,12 @@ All boxes must be checked:
 
 ## Automated Checks (all must pass)
 
-| Check | Job name | What it verifies |
-|-------|----------|-----------------|
-| PR Validation | `Check Issue Reference` | Body contains `Closes/Fixes/Resolves #N` |
-| PR Validation | `Check Issue Has status:approved` | Linked issue has `status:approved` |
-| PR Validation | `Check PR Has type:* Label` | PR has exactly one `type:*` label |
-| CI | `Shellcheck` | Shell scripts pass `shellcheck` |
+| Check         | Job name                          | What it verifies                         |
+| ------------- | --------------------------------- | ---------------------------------------- |
+| PR Validation | `Check Issue Reference`           | Body contains `Closes/Fixes/Resolves #N` |
+| PR Validation | `Check Issue Has status:approved` | Linked issue has `status:approved`       |
+| PR Validation | `Check PR Has type:* Label`       | PR has exactly one `type:*` label        |
+| CI            | `Shellcheck`                      | Shell scripts pass `shellcheck`          |
 
 ---
 
@@ -152,22 +154,23 @@ Commit messages MUST match this regex:
 
 Type-to-label mapping:
 
-| Commit type | PR label |
-|-------------|----------|
-| `feat` | `type:feature` |
-| `fix` | `type:bug` |
-| `docs` | `type:docs` |
-| `refactor` | `type:refactor` |
-| `chore` | `type:chore` |
-| `style` | `type:chore` |
-| `perf` | `type:feature` |
-| `test` | `type:chore` |
-| `build` | `type:chore` |
-| `ci` | `type:chore` |
-| `revert` | `type:bug` |
+| Commit type      | PR label               |
+| ---------------- | ---------------------- |
+| `feat`           | `type:feature`         |
+| `fix`            | `type:bug`             |
+| `docs`           | `type:docs`            |
+| `refactor`       | `type:refactor`        |
+| `chore`          | `type:chore`           |
+| `style`          | `type:chore`           |
+| `perf`           | `type:feature`         |
+| `test`           | `type:chore`           |
+| `build`          | `type:chore`           |
+| `ci`             | `type:chore`           |
+| `revert`         | `type:bug`             |
 | `feat!` / `fix!` | `type:breaking-change` |
 
 Examples:
+
 ```
 feat(scripts): add Codex support to setup.sh
 fix(skills): correct topic key format in sdd-apply

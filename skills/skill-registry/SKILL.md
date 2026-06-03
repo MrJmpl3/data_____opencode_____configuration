@@ -1,10 +1,10 @@
 ---
 name: skill-registry
-description: "Trigger: update skills, skill registry, actualizar skills, after skill changes. Index available skills by trigger and path."
+description: 'Trigger: update skills, skill registry, actualizar skills, after skill changes. Index available skills by trigger and path.'
 license: MIT
 metadata:
   author: gentleman-programming
-  version: "1.0"
+  version: '1.0'
 ---
 
 ## Activation Contract
@@ -22,12 +22,12 @@ Use this skill after installing, removing, creating, moving, or renaming skills,
 
 ## Decision Gates
 
-| Situation | Action |
-| --- | --- |
-| Same skill exists globally and in project | Keep the project-level skill |
-| Same skill exists in multiple global locations | Keep the first source in scan order |
-| No skills found | Write an empty registry so agents stop searching blindly |
-| Agent will delegate work | Select matching registry rows and pass their `SKILL.md` paths |
+| Situation                                      | Action                                                        |
+| ---------------------------------------------- | ------------------------------------------------------------- |
+| Same skill exists globally and in project      | Keep the project-level skill                                  |
+| Same skill exists in multiple global locations | Keep the first source in scan order                           |
+| No skills found                                | Write an empty registry so agents stop searching blindly      |
+| Agent will delegate work                       | Select matching registry rows and pass their `SKILL.md` paths |
 
 ## Execution Steps
 
@@ -40,6 +40,7 @@ Use this skill after installing, removing, creating, moving, or renaming skills,
 ## Output Contract
 
 Return:
+
 - Project name and `.atl/skill-registry.md` path.
 - Number of indexed skills.
 - Whether the cache was hit or regenerated.

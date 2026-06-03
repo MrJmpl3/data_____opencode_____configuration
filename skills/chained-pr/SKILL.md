@@ -1,10 +1,10 @@
 ---
 name: chained-pr
-description: "Trigger: PRs over 400 lines, stacked PRs, review slices. Split oversized changes into chained PRs that protect review focus."
+description: 'Trigger: PRs over 400 lines, stacked PRs, review slices. Split oversized changes into chained PRs that protect review focus.'
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.0"
+  version: '1.0'
 ---
 
 ## Activation Contract
@@ -24,13 +24,13 @@ Load this skill when a planned PR may exceed **400 changed lines**, SDD forecast
 
 ## Decision Gates
 
-| Condition | Action |
-|---|---|
-| PR ≤400 changed lines and focused | Keep single PR. |
-| PR >400, each slice can land independently | Use Stacked PRs to main. |
-| PR >400, feature must integrate before main | Use Feature Branch Chain with tracker. |
-| Generated/vendor/migration diff cannot split cleanly | Ask maintainer for `size:exception`. |
-| SDD provides `delivery_strategy` | Follow it before apply/PR creation. |
+| Condition                                            | Action                                 |
+| ---------------------------------------------------- | -------------------------------------- |
+| PR ≤400 changed lines and focused                    | Keep single PR.                        |
+| PR >400, each slice can land independently           | Use Stacked PRs to main.               |
+| PR >400, feature must integrate before main          | Use Feature Branch Chain with tracker. |
+| Generated/vendor/migration diff cannot split cleanly | Ask maintainer for `size:exception`.   |
+| SDD provides `delivery_strategy`                     | Follow it before apply/PR creation.    |
 
 ## Execution Steps
 

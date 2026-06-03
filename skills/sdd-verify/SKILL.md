@@ -1,12 +1,12 @@
 ---
 name: sdd-verify
-description: "Trigger: SDD verification phase, verify change. Execute tests and prove implementation matches specs, design, and tasks."
+description: 'Trigger: SDD verification phase, verify change. Execute tests and prove implementation matches specs, design, and tasks.'
 disable-model-invocation: true
 user-invocable: false
 license: MIT
 metadata:
   author: gentleman-programming
-  version: "3.0"
+  version: '3.0'
   delegate_only: true
 ---
 
@@ -45,15 +45,15 @@ Run when the orchestrator launches verification for an SDD change. You are the q
 
 ## Decision Gates
 
-| Condition | Action |
-|---|---|
-| Orchestrator says `STRICT TDD MODE IS ACTIVE` | Treat as authoritative. |
-| Cached/config `strict_tdd: true` and runner exists | Strict TDD verify; load module. |
-| Strict TDD false or no runner | Standard verify; skip TDD checks. |
-| Task incomplete | CRITICAL for core task, WARNING for cleanup task. |
-| Test command exits non-zero | CRITICAL. |
-| Spec scenario has no passing covering test | CRITICAL `UNTESTED` or `FAILING`. |
-| Design deviation exists | WARNING unless it breaks a spec. |
+| Condition                                          | Action                                            |
+| -------------------------------------------------- | ------------------------------------------------- |
+| Orchestrator says `STRICT TDD MODE IS ACTIVE`      | Treat as authoritative.                           |
+| Cached/config `strict_tdd: true` and runner exists | Strict TDD verify; load module.                   |
+| Strict TDD false or no runner                      | Standard verify; skip TDD checks.                 |
+| Task incomplete                                    | CRITICAL for core task, WARNING for cleanup task. |
+| Test command exits non-zero                        | CRITICAL.                                         |
+| Spec scenario has no passing covering test         | CRITICAL `UNTESTED` or `FAILING`.                 |
+| Design deviation exists                            | WARNING unless it breaks a spec.                  |
 
 ## Execution Steps
 

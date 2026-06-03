@@ -1,12 +1,12 @@
 ---
 name: sdd-init
-description: "Trigger: sdd init, iniciar sdd, openspec init. Initialize SDD context, testing capabilities, registry, and persistence."
+description: 'Trigger: sdd init, iniciar sdd, openspec init. Initialize SDD context, testing capabilities, registry, and persistence.'
 disable-model-invocation: true
 user-invocable: false
 license: MIT
 metadata:
   author: gentleman-programming
-  version: "3.0"
+  version: '3.0'
   delegate_only: true
 ---
 
@@ -45,15 +45,15 @@ Run this phase when the orchestrator/user asks to initialize SDD in a project. Y
 
 ## Decision Gates
 
-| Input | Action |
-|---|---|
-| `mode=engram` | Save context and capabilities to Engram only. |
-| `mode=openspec` | Create/update openspec bootstrap files only. |
-| `mode=hybrid` | Do both Engram and openspec persistence. |
-| `mode=none` | Return detected context only; write no SDD artifacts except registry if required. |
-| strict TDD marker/config found | Use that value. |
-| no marker/config but test runner exists | Default `strict_tdd: true`. |
-| no test runner | Set `strict_tdd: false` and explain unavailable. |
+| Input                                   | Action                                                                            |
+| --------------------------------------- | --------------------------------------------------------------------------------- |
+| `mode=engram`                           | Save context and capabilities to Engram only.                                     |
+| `mode=openspec`                         | Create/update openspec bootstrap files only.                                      |
+| `mode=hybrid`                           | Do both Engram and openspec persistence.                                          |
+| `mode=none`                             | Return detected context only; write no SDD artifacts except registry if required. |
+| strict TDD marker/config found          | Use that value.                                                                   |
+| no marker/config but test runner exists | Default `strict_tdd: true`.                                                       |
+| no test runner                          | Set `strict_tdd: false` and explain unavailable.                                  |
 
 ## Execution Steps
 

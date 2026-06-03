@@ -1,12 +1,12 @@
 ---
 name: sdd-propose
-description: "Create an SDD change proposal with intent, scope, and approach. Trigger: orchestrator launches proposal work for a change."
+description: 'Create an SDD change proposal with intent, scope, and approach. Trigger: orchestrator launches proposal work for a change.'
 disable-model-invocation: true
 user-invocable: false
 license: MIT
 metadata:
   author: gentleman-programming
-  version: "2.0"
+  version: '2.0'
   delegate_only: true
 ---
 
@@ -19,7 +19,6 @@ metadata:
 ## Executor Override
 
 If you ARE the `sdd-propose` sub-agent (NOT the orchestrator), the gate above does NOT apply to you. Continue with the phase work below. Do NOT delegate. Do NOT call the Skill tool. You are the executor — execute.
-
 
 ## Language Domain Contract
 
@@ -36,6 +35,7 @@ You are a sub-agent responsible for creating PROPOSALS. You take the exploration
 ## What You Receive
 
 From the orchestrator:
+
 - Change name (e.g., "add-dark-mode")
 - Exploration analysis (from sdd-explore) OR direct user description
 - Artifact store mode (`engram | openspec | hybrid | none`)
@@ -53,6 +53,7 @@ From the orchestrator:
 ## What to Do
 
 ### Step 1: Load Skills
+
 Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
 
 ### Step 2: Create Change Directory
@@ -87,11 +88,13 @@ Be specific about the user need or technical debt being addressed.}
 ## Scope
 
 ### In Scope
+
 - {Concrete deliverable 1}
 - {Concrete deliverable 2}
 - {Concrete deliverable 3}
 
 ### Out of Scope
+
 - {What we're explicitly NOT doing}
 - {Future work that's related but deferred}
 
@@ -102,15 +105,19 @@ Be specific about the user need or technical debt being addressed.}
 > Research `openspec/specs/` before filling this in.
 
 ### New Capabilities
+
 <!-- Capabilities being introduced. Each becomes a new `openspec/specs/<name>/spec.md`.
      Use kebab-case names (e.g., user-auth, data-export, api-rate-limiting).
      Leave empty if no new capabilities. -->
+
 - `<capability-name>`: <brief description of what this capability covers>
 
 ### Modified Capabilities
+
 <!-- Existing capabilities whose REQUIREMENTS are changing (not just implementation).
      Only list here if spec-level behavior changes. Each needs a delta spec.
      Use existing spec names from openspec/specs/. Leave empty if none. -->
+
 - `<existing-capability-name>`: <what requirement is changing>
 
 ## Approach
@@ -120,14 +127,14 @@ Reference the recommended approach from exploration if available.}
 
 ## Affected Areas
 
-| Area | Impact | Description |
-|------|--------|-------------|
+| Area           | Impact               | Description    |
+| -------------- | -------------------- | -------------- |
 | `path/to/area` | New/Modified/Removed | {What changes} |
 
 ## Risks
 
-| Risk | Likelihood | Mitigation |
-|------|------------|------------|
+| Risk               | Likelihood   | Mitigation        |
+| ------------------ | ------------ | ----------------- |
 | {Risk description} | Low/Med/High | {How we mitigate} |
 
 ## Rollback Plan
@@ -149,6 +156,7 @@ Reference the recommended approach from exploration if available.}
 **This step is MANDATORY — do NOT skip it.**
 
 Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
+
 - artifact: `proposal`
 - topic_key: `sdd/{change-name}/proposal`
 - type: `architecture`
@@ -164,12 +172,14 @@ Return to the orchestrator:
 **Location**: `openspec/changes/{change-name}/proposal.md` (openspec/hybrid) | Engram `sdd/{change-name}/proposal` (engram) | inline (none)
 
 ### Summary
+
 - **Intent**: {one-line summary}
 - **Scope**: {N deliverables in, M items deferred}
 - **Approach**: {one-line approach}
 - **Risk Level**: {Low/Medium/High}
 
 ### Next Step
+
 Ready for specs (sdd-spec) or design (sdd-design).
 ```
 

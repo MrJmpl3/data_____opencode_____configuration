@@ -1,10 +1,10 @@
 ---
 name: cognitive-doc-design
-description: "Design docs that reduce cognitive load. Trigger: writing guides, READMEs, RFCs, onboarding, architecture, or review-facing docs."
+description: 'Design docs that reduce cognitive load. Trigger: writing guides, READMEs, RFCs, onboarding, architecture, or review-facing docs.'
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.0"
+  version: '1.0'
 ---
 
 ## When to Use
@@ -20,14 +20,14 @@ Use it especially for:
 
 ## Critical Patterns
 
-| Pattern | Rule |
-|---------|------|
-| Lead with the answer | Put the decision, action, or outcome first. Context comes after. |
-| Progressive disclosure | Start with the happy path, then add details, edge cases, and references. |
-| Chunking | Group related information into small sections. Keep flat lists short. |
-| Signposting | Use headings, labels, callouts, and summaries so readers know where they are. |
+| Pattern                 | Rule                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------- |
+| Lead with the answer    | Put the decision, action, or outcome first. Context comes after.                       |
+| Progressive disclosure  | Start with the happy path, then add details, edge cases, and references.               |
+| Chunking                | Group related information into small sections. Keep flat lists short.                  |
+| Signposting             | Use headings, labels, callouts, and summaries so readers know where they are.          |
 | Recognition over recall | Prefer tables, checklists, examples, and templates over prose that must be remembered. |
-| Review empathy | Design docs so reviewers can verify intent without reconstructing the whole story. |
+| Review empathy          | Design docs so reviewers can verify intent without reconstructing the whole story.     |
 
 ## Documentation Shape
 
@@ -46,8 +46,8 @@ Use this default structure unless the repo already provides a stronger template:
 
 ## Details
 
-| Topic | Decision |
-|-------|----------|
+| Topic  | Decision              |
+| ------ | --------------------- |
 | <area> | <concise explanation> |
 
 ## Checklist

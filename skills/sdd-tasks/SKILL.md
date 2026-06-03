@@ -1,12 +1,12 @@
 ---
 name: sdd-tasks
-description: "Break an SDD change into implementation tasks. Trigger: orchestrator launches task planning for a change."
+description: 'Break an SDD change into implementation tasks. Trigger: orchestrator launches task planning for a change.'
 disable-model-invocation: true
 user-invocable: false
 license: MIT
 metadata:
   author: gentleman-programming
-  version: "2.0"
+  version: '2.0'
   delegate_only: true
 ---
 
@@ -19,7 +19,6 @@ metadata:
 ## Executor Override
 
 If you ARE the `sdd-tasks` sub-agent (NOT the orchestrator), the gate above does NOT apply to you. Continue with the phase work below. Do NOT delegate. Do NOT call the Skill tool. You are the executor — execute.
-
 
 ## Language Domain Contract
 
@@ -36,6 +35,7 @@ You are a sub-agent responsible for creating the TASK BREAKDOWN. You take the pr
 ## What You Receive
 
 From the orchestrator:
+
 - Change name
 - Artifact store mode (`engram | openspec | hybrid | none`)
 - Delivery strategy (`ask-on-risk | auto-chain | single-pr | exception-ok`)
@@ -52,11 +52,13 @@ From the orchestrator:
 ## What to Do
 
 ### Step 1: Load Skills
+
 Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
 
 ### Step 2: Analyze the Design
 
 From the design document, identify:
+
 - All files that need to be created/modified/deleted
 - The dependency order (what must come first)
 - Testing requirements per component
@@ -82,14 +84,14 @@ openspec/changes/{change-name}/
 
 ## Review Workload Forecast
 
-| Field | Value |
-|-------|-------|
-| Estimated changed lines | <rough estimate or range> |
-| 400-line budget risk | Low / Medium / High |
-| Chained PRs recommended | Yes / No |
-| Suggested split | <single PR or PR 1 → PR 2 → PR 3> |
-| Delivery strategy | <ask-on-risk / auto-chain / single-pr / exception-ok> |
-| Chain strategy | <stacked-to-main / feature-branch-chain / size-exception / pending> |
+| Field                   | Value                                                               |
+| ----------------------- | ------------------------------------------------------------------- |
+| Estimated changed lines | <rough estimate or range>                                           |
+| 400-line budget risk    | Low / Medium / High                                                 |
+| Chained PRs recommended | Yes / No                                                            |
+| Suggested split         | <single PR or PR 1 → PR 2 → PR 3>                                   |
+| Delivery strategy       | <ask-on-risk / auto-chain / single-pr / exception-ok>               |
+| Chain strategy          | <stacked-to-main / feature-branch-chain / size-exception / pending> |
 
 Decision needed before apply: <Yes|No>
 Chained PRs recommended: <Yes|No>
@@ -98,10 +100,10 @@ Chain strategy: <stacked-to-main|feature-branch-chain|size-exception|pending>
 
 ### Suggested Work Units
 
-| Unit | Goal | Likely PR | Notes |
-|------|------|-----------|-------|
-| 1 | <standalone deliverable> | PR 1 | <base branch; tests/docs included> |
-| 2 | <standalone deliverable> | PR 2 | <immediate parent/base branch boundary; depends on PR 1 or independent> |
+| Unit | Goal                     | Likely PR | Notes                                                                   |
+| ---- | ------------------------ | --------- | ----------------------------------------------------------------------- |
+| 1    | <standalone deliverable> | PR 1      | <base branch; tests/docs included>                                      |
+| 2    | <standalone deliverable> | PR 2      | <immediate parent/base branch boundary; depends on PR 1 or independent> |
 
 ## Phase 1: {Phase Name} (e.g., Infrastructure / Foundation)
 
@@ -132,12 +134,12 @@ Chain strategy: <stacked-to-main|feature-branch-chain|size-exception|pending>
 
 Each task MUST be:
 
-| Criteria | Example ✅ | Anti-example ❌ |
-|----------|-----------|----------------|
-| **Specific** | "Create `internal/auth/middleware.go` with JWT validation" | "Add auth" |
-| **Actionable** | "Add `ValidateToken()` method to `AuthService`" | "Handle tokens" |
-| **Verifiable** | "Test: `POST /login` returns 401 without token" | "Make sure it works" |
-| **Small** | One file or one logical unit of work | "Implement the feature" |
+| Criteria       | Example ✅                                                 | Anti-example ❌         |
+| -------------- | ---------------------------------------------------------- | ----------------------- |
+| **Specific**   | "Create `internal/auth/middleware.go` with JWT validation" | "Add auth"              |
+| **Actionable** | "Add `ValidateToken()` method to `AuthService`"            | "Handle tokens"         |
+| **Verifiable** | "Test: `POST /login` returns 401 without token"            | "Make sure it works"    |
+| **Small**      | One file or one logical unit of work                       | "Implement the feature" |
 
 ### Review Workload Forecast Rules
 
@@ -203,6 +205,7 @@ Phase 5: Cleanup (if needed)
 **This step is MANDATORY — do NOT skip it.**
 
 Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
+
 - artifact: `tasks`
 - topic_key: `sdd/{change-name}/tasks`
 - type: `architecture`
@@ -218,17 +221,20 @@ Return to the orchestrator:
 **Location**: `openspec/changes/{change-name}/tasks.md` (openspec/hybrid) | Engram `sdd/{change-name}/tasks` (engram) | inline (none)
 
 ### Breakdown
-| Phase | Tasks | Focus |
-|-------|-------|-------|
-| Phase 1 | {N} | {Phase name} |
-| Phase 2 | {N} | {Phase name} |
-| Phase 3 | {N} | {Phase name} |
-| Total | {N} | |
+
+| Phase   | Tasks | Focus        |
+| ------- | ----- | ------------ |
+| Phase 1 | {N}   | {Phase name} |
+| Phase 2 | {N}   | {Phase name} |
+| Phase 3 | {N}   | {Phase name} |
+| Total   | {N}   |              |
 
 ### Implementation Order
+
 {Brief description of the recommended order and why}
 
 ### Review Workload Forecast
+
 - Estimated changed lines: {estimate or range}
 - 400-line budget risk: {Low | Medium | High}
 - Chained PRs recommended: {Yes | No}
@@ -237,6 +243,7 @@ Return to the orchestrator:
 - Suggested work-unit PR split: {brief list or "Not needed"}
 
 ### Next Step
+
 {Ready for implementation (sdd-apply) OR ask the user whether to use chained PRs before sdd-apply.}
 ```
 

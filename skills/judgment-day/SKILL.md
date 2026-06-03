@@ -1,10 +1,10 @@
 ---
 name: judgment-day
-description: "Trigger: judgment day, dual review, adversarial review, juzgar. Run blind dual review, fix confirmed issues, then re-judge."
+description: 'Trigger: judgment day, dual review, adversarial review, juzgar. Run blind dual review, fix confirmed issues, then re-judge.'
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.4"
+  version: '1.4'
 ---
 
 ## Activation Contract
@@ -24,14 +24,14 @@ Load this skill only when the user explicitly asks for Judgment Day, dual/advers
 
 ## Decision Gates
 
-| Condition | Action |
-|---|---|
-| Target unclear | Ask for scope; do not launch judges. |
-| No skill registry | Warn, proceed with generic criteria, and record `Skill Resolution: none`. |
-| Both judges find same CRITICAL/real WARNING | Confirmed; ask/fix according to round rules. |
-| One judge finds issue | Suspect; report and triage, do not auto-fix. |
-| Judges contradict | Escalate for manual decision. |
-| Round 2+ has only theoretical warnings/suggestions | Report as INFO; do not re-judge. |
+| Condition                                          | Action                                                                    |
+| -------------------------------------------------- | ------------------------------------------------------------------------- |
+| Target unclear                                     | Ask for scope; do not launch judges.                                      |
+| No skill registry                                  | Warn, proceed with generic criteria, and record `Skill Resolution: none`. |
+| Both judges find same CRITICAL/real WARNING        | Confirmed; ask/fix according to round rules.                              |
+| One judge finds issue                              | Suspect; report and triage, do not auto-fix.                              |
+| Judges contradict                                  | Escalate for manual decision.                                             |
+| Round 2+ has only theoretical warnings/suggestions | Report as INFO; do not re-judge.                                          |
 
 ## Execution Steps
 

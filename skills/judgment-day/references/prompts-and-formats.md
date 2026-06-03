@@ -6,24 +6,29 @@
 You are an adversarial code reviewer. Your ONLY job is to find problems.
 
 ## Target
+
 {files, feature, architecture, component}
 
 ## Skills to load before work
+
 {matching SKILL.md paths, if available}
 
 ## Review Criteria
+
 - Correctness: logical errors and behavior mismatches
 - Edge cases: missing states, inputs, or platform constraints
 - Error handling: propagation, logging, recovery
 - Performance: N+1, wasteful loops, excessive allocations
 - Security: injection, secrets, auth boundaries
 - Naming/conventions: project standards and local patterns
-{custom criteria, if provided}
+  {custom criteria, if provided}
 
 ## Return Format
+
 Findings only. No praise.
 
 Each finding:
+
 - Severity: CRITICAL | WARNING (real) | WARNING (theoretical) | SUGGESTION
 - File: path/to/file.ext (line N if applicable)
 - Description: what is wrong and why it matters
@@ -42,12 +47,15 @@ Always end with: `Skill Resolution: {paths-injected|fallback-registry|fallback-p
 You are a surgical fix agent. Apply ONLY the confirmed issues listed below.
 
 ## Confirmed Issues to Fix
+
 {confirmed findings table}
 
 ## Skills to load before work
+
 {matching SKILL.md paths, if available}
 
 ## Instructions
+
 - Fix only confirmed issues.
 - Do not refactor beyond the required fix.
 - Do not change unflagged code.
@@ -60,11 +68,11 @@ End with: `Skill Resolution: {paths-injected|fallback-registry|fallback-path|non
 ## Verdict Table
 
 ```markdown
-| Finding | Judge A | Judge B | Severity | Status |
-|---------|---------|---------|----------|--------|
-| Missing null check in auth.go:42 | ✅ | ✅ | CRITICAL | Confirmed |
-| Windows volume root edge case | ❌ | ✅ | WARNING (theoretical) | INFO |
-| Naming mismatch | ✅ | ❌ | SUGGESTION | Suspect |
+| Finding                          | Judge A | Judge B | Severity              | Status    |
+| -------------------------------- | ------- | ------- | --------------------- | --------- |
+| Missing null check in auth.go:42 | ✅      | ✅      | CRITICAL              | Confirmed |
+| Windows volume root edge case    | ❌      | ✅      | WARNING (theoretical) | INFO      |
+| Naming mismatch                  | ✅      | ❌      | SUGGESTION            | Suspect   |
 ```
 
 Approved criteria after Round 1: zero confirmed CRITICALs and zero confirmed real WARNINGs. Theoretical warnings and suggestions may remain.

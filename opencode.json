@@ -71,7 +71,7 @@
       "description": "Implement code changes from task definitions",
       "hidden": true,
       "mode": "subagent",
-      "model": "openai/gpt-5.4-mini",
+      "model": "openai/gpt-5.4",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-apply.md}",
       "tools": {
         "bash": true,
@@ -99,7 +99,7 @@
       "description": "Create technical design from proposals",
       "hidden": true,
       "mode": "subagent",
-      "model": "openai/gpt-5.4-mini",
+      "model": "openai/gpt-5.4",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-design.md}",
       "tools": {
         "bash": true,
@@ -127,7 +127,7 @@
       "description": "Bootstrap SDD context and project configuration",
       "hidden": true,
       "mode": "subagent",
-      "model": "openai/gpt-5.4",
+      "model": "openai/gpt-5.4-mini",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-init.md}",
       "tools": {
         "bash": true,
@@ -135,7 +135,7 @@
         "read": true,
         "write": true
       },
-      "variant": ""
+      "variant": "xhigh"
     },
     "sdd-onboard": {
       "description": "Guide user through a complete SDD cycle using their real codebase",
@@ -155,7 +155,7 @@
       "description": "Create change proposals from explorations",
       "hidden": true,
       "mode": "subagent",
-      "model": "openai/gpt-5.4-mini",
+      "model": "openai/gpt-5.4",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-propose.md}",
       "tools": {
         "bash": true,
@@ -169,7 +169,7 @@
       "description": "Write detailed specifications from proposals",
       "hidden": true,
       "mode": "subagent",
-      "model": "openai/gpt-5.4-mini",
+      "model": "openai/gpt-5.4",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-spec.md}",
       "tools": {
         "bash": true,
@@ -183,7 +183,7 @@
       "description": "Break down specs and designs into implementation tasks",
       "hidden": true,
       "mode": "subagent",
-      "model": "openai/gpt-5.4-mini",
+      "model": "openai/gpt-5.4",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-tasks.md}",
       "tools": {
         "bash": true,
@@ -197,7 +197,7 @@
       "description": "Validate implementation against specs",
       "hidden": true,
       "mode": "subagent",
-      "model": "openai/gpt-5.4-mini",
+      "model": "openai/gpt-5.4",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-verify.md}",
       "tools": {
         "bash": true,
