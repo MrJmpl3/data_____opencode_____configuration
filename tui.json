@@ -8,6 +8,7 @@
         "visibleProviders": ["opencode-go", "openai", "ollama-cloud", "github-copilot", "openrouter"]
       }
     ],
+    "opencode-sdd-engram-manage",
     "/home/mrjmpl3/.config/opencode/tui-plugins/gentle-logo.tsx"
   ],
   "theme": "opencode"

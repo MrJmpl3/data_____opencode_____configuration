@@ -7,6 +7,8 @@ import type { SubagentTokens } from './types.ts';
 const MAX_SYNC_LOG_READ_BYTES = 1024 * 1024;
 const DONE_TOKEN_REHYDRATE_THROTTLE_MS = 2000;
 const DONE_TOKEN_REHYDRATE_MAX_ATTEMPTS = 15;
+const DONE_TOKEN_CACHE_TTL_MS = 30 * 60 * 1000;
+const DONE_TOKEN_CACHE_MAX_ENTRIES = 64;
 
 type DoneTokenCacheEntry = {
   attempts: number;
@@ -15,6 +17,19 @@ type DoneTokenCacheEntry = {
 };
 
 const doneTokenCache = new Map<string, DoneTokenCacheEntry>();
+
+function pruneDoneTokenCache(nowMs: number): void {
+  for (const [sessionID, entry] of doneTokenCache) {
+    if (nowMs - entry.checkedAtMs <= DONE_TOKEN_CACHE_TTL_MS) continue;
+    doneTokenCache.delete(sessionID);
+  }
+
+  while (doneTokenCache.size > DONE_TOKEN_CACHE_MAX_ENTRIES) {
+    const oldestSessionID = doneTokenCache.keys().next().value;
+    if (typeof oldestSessionID !== 'string') break;
+    doneTokenCache.delete(oldestSessionID);
+  }
+}
 
 function safeRead<T>(reader: () => T): T | undefined {
   try {
@@ -192,8 +207,13 @@ export function hydrateDoneChildTokens(
   if (!sessionID.startsWith('ses_')) return undefined;
 
   const nowMs = Date.now();
+  pruneDoneTokenCache(nowMs);
   const cached = doneTokenCache.get(sessionID);
-  if (cached?.tokens) return cached.tokens;
+  if (cached?.tokens) {
+    doneTokenCache.delete(sessionID);
+    doneTokenCache.set(sessionID, { ...cached, checkedAtMs: nowMs });
+    return cached.tokens;
+  }
   if (cached && cached.attempts >= DONE_TOKEN_REHYDRATE_MAX_ATTEMPTS) {
     return undefined;
   }
@@ -226,6 +246,7 @@ export function hydrateDoneChildTokens(
     checkedAtMs: nowMs,
     tokens,
   });
+  pruneDoneTokenCache(nowMs);
 
   return tokens;
 }

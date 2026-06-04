@@ -1,6 +1,6 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import os from 'node:os';
 
 import type { SubagentChild, SubagentCounts, SubagentState, SubagentTokens } from './types.ts';
@@ -304,6 +304,18 @@ function terminalChildTimestamp(child: SubagentChild): number {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+function pruneStaleCountedChildIDs(state: SubagentState): boolean {
+  let changed = false;
+
+  for (const childID of Object.keys(state.countedChildIDs)) {
+    if (state.children[childID]) continue;
+    delete state.countedChildIDs[childID];
+    changed = true;
+  }
+
+  return changed;
+}
+
 export function createEmptyState(): SubagentState {
   return {
     children: {},
@@ -313,12 +325,15 @@ export function createEmptyState(): SubagentState {
   };
 }
 
-export function resolveStatePath(): string {
+export function resolveStatePath(workspaceDirectory = process.cwd()): string {
   const fromEnv = process.env.MRJMPL3_SUBAGENT_STATUS_STATE;
   if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) return fromEnv;
 
   const runtimeDir = process.env.XDG_RUNTIME_DIR ?? os.tmpdir();
-  return join(runtimeDir, STATUS_DIRNAME, `pid-${process.pid}`, STATUS_FILENAME);
+  const resolvedWorkspaceDirectory = resolve(workspaceDirectory);
+  const workspaceHash = createHash('sha256').update(resolvedWorkspaceDirectory).digest('hex').slice(0, 16);
+
+  return join(runtimeDir, STATUS_DIRNAME, `workspace-${workspaceHash}`, STATUS_FILENAME);
 }
 
 export function resolveTextPath(statePath: string): string {
@@ -349,6 +364,8 @@ export function pruneTerminalChildren(state: SubagentState, now = Date.now()): b
     delete state.children[child.id];
     changed = true;
   }
+
+  changed = pruneStaleCountedChildIDs(state) || changed;
 
   return changed;
 }
@@ -541,6 +558,8 @@ export function replaceChildren(state: SubagentState, nextChildren: SubagentChil
       markChildStatus(nextState, child.id, child.status, child.endedAt ?? child.updatedAt);
     }
   }
+
+  pruneStaleCountedChildIDs(nextState);
 
   const changed =
     JSON.stringify(state.children) !== JSON.stringify(nextState.children) ||

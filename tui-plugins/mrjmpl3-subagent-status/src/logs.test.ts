@@ -2,12 +2,29 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('node:fs', async () => {
+  const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
+
+  return {
+    ...actual,
+    readFileSync: vi.fn(actual.readFileSync),
+    readdirSync: vi.fn(actual.readdirSync),
+    statSync: vi.fn(actual.statSync),
+  };
+});
+
+import { readdirSync } from 'node:fs';
 
 import { hydrateDoneChildTokens, readOpenCodeLogFileIfSmall } from './logs.ts';
 
 describe('logs', () => {
   const tempDirs: string[] = [];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   afterEach(async () => {
     while (tempDirs.length > 0) {
@@ -88,5 +105,35 @@ describe('logs', () => {
       total: 13,
       contextPercent: 17,
     });
+  });
+
+  it('evicts old done token cache entries once the cap is exceeded', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'mrjmpl3-subagent-status-logs-'));
+    tempDirs.push(dir);
+    const logDir = join(dir, 'log');
+    const logPath = join(logDir, '2026-06-07.log');
+    const mockedReaddirSync = vi.mocked(readdirSync);
+
+    await mkdir(logDir, { recursive: true });
+
+    await writeFile(
+      logPath,
+      Array.from({ length: 65 }, (_, index) => {
+        const sessionID = `ses_cache_${String(index).padStart(3, '0')}`;
+        return `2026-06-07T00:00:${String(index).padStart(2, '0')}.000Z session=${sessionID} {"tokens":{"total":${index + 1}}}`;
+      }).join('\n'),
+      'utf8',
+    );
+
+    for (let index = 0; index < 65; index += 1) {
+      expect(hydrateDoneChildTokens(`ses_cache_${String(index).padStart(3, '0')}`, logDir)).toEqual({
+        total: index + 1,
+      });
+    }
+
+    expect(mockedReaddirSync).toHaveBeenCalledTimes(65);
+
+    expect(hydrateDoneChildTokens('ses_cache_000', logDir)).toEqual({ total: 1 });
+    expect(mockedReaddirSync).toHaveBeenCalledTimes(66);
   });
 });

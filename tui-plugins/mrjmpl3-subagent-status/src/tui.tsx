@@ -340,7 +340,7 @@ function hydrateChildStatusesFromTuiState(api: TuiPluginApi, state: SubagentStat
   return changed;
 }
 
-function hydrateChildTokensFromLogs(state: SubagentState): boolean {
+export function hydrateChildTokensFromLogs(state: SubagentState): boolean {
   let changed = false;
 
   for (const child of Object.values(state.children)) {
@@ -348,7 +348,10 @@ function hydrateChildTokensFromLogs(state: SubagentState): boolean {
     if (child.tokens?.total !== undefined || child.tokens?.input !== undefined || child.tokens?.output !== undefined)
       continue;
 
-    const tokens = hydrateDoneChildTokens(child.id);
+    const sessionID = resolveNavigationSessionID(child);
+    if (!sessionID) continue;
+
+    const tokens = hydrateDoneChildTokens(sessionID);
     if (!tokens) continue;
 
     changed = mergeChildDetails(state, child.id, { tokens }) || changed;
@@ -377,7 +380,7 @@ const plugin: TuiPluginModule & { id: string } = {
       const [nowMs, setNowMs] = createSignal(Date.now());
       const snapshot = createMemo(() => buildTuiSnapshot(state(), nowMs()));
 
-      const statePath = resolveStatePath();
+      const statePath = resolveStatePath(api.state.path.directory);
       const textPath = resolveTextPath(statePath);
 
       let disposed = false;

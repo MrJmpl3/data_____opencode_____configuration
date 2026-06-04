@@ -1,11 +1,19 @@
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import plugin, { buildTuiSnapshot, elapsedMs, navigateToChildSession, persistSnapshot } from './tui.tsx';
+import plugin, {
+  buildTuiSnapshot,
+  elapsedMs,
+  hydrateChildTokensFromLogs,
+  navigateToChildSession,
+  persistSnapshot,
+  resolveNavigationSessionID,
+} from './tui.tsx';
 import type { SubagentChild, SubagentState } from './types.ts';
 
 function createChild(
@@ -40,6 +48,21 @@ function createState(children: SubagentChild[], totalExecuted = children.length)
 }
 
 describe('tui elapsed time', () => {
+  const tempDirs: string[] = [];
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  afterEach(async () => {
+    while (tempDirs.length > 0) {
+      const dir = tempDirs.pop();
+      if (dir) {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+  });
+
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -132,8 +155,44 @@ describe('tui elapsed time', () => {
     expect(snapshot.statusLine).not.toContain('ctx');
   });
 
+  it('hydrates tokens onto a synthetic done row from matching log data', async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), 'mrjmpl3-subagent-status-data-'));
+    tempDirs.push(dataDir);
+    const logDir = join(dataDir, 'opencode', 'log');
+    const logPath = join(logDir, '2026-06-04.log');
+
+    vi.stubEnv('XDG_DATA_HOME', dataDir);
+    await mkdir(logDir, { recursive: true });
+    await writeFile(
+      logPath,
+      '2026-06-04T00:00:00.000Z session=ses_tool_row {"tokens":{"input":12,"output":8,"total":20,"contextPercent":42.5}}',
+      'utf8',
+    );
+
+    const row = createChild({
+      id: 'tool:row',
+      title: 'Synthetic tool row',
+      parentID: 'ses_parent',
+      source: 'tool',
+      status: 'done',
+      targetSessionID: 'ses_tool_row',
+      endedAt: '2026-06-04T11:57:00.000Z',
+      updatedAt: '2026-06-04T11:57:00.000Z',
+      elapsedMs: 2 * 60 * 1000,
+    });
+    const state = createState([row], 1);
+
+    expect(hydrateChildTokensFromLogs(state)).toBe(true);
+    expect(state.children[row.id]?.tokens).toEqual({
+      input: 12,
+      output: 8,
+      total: 20,
+      contextPercent: 42.5,
+    });
+  });
+
   it('persists the rendered status line for the current visible snapshot', async () => {
-    const statePath = join(mkdtempSync(join(tmpdir(), 'mrjmpl3-subagent-status-')), 'state.json');
+    const statePath = join(await mkdtemp(join(tmpdir(), 'mrjmpl3-subagent-status-')), 'state.json');
     const textPath = join(statePath, '..', 'status.txt');
     const state = createState(
       [
@@ -212,6 +271,12 @@ describe('tui elapsed time', () => {
       ),
     ).toBe(false);
     expect(navigate).toHaveBeenCalledTimes(1);
+
+    expect(
+      resolveNavigationSessionID(
+        createChild({ id: 'tool:2', title: 'Synthetic done row', parentID: 'ses_parent', targetSessionID: 'ses_child' }),
+      ),
+    ).toBe('ses_child');
 
     await plugin.tui(api, undefined, undefined as never);
 

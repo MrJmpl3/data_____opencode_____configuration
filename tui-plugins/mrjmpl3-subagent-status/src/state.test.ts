@@ -4,7 +4,15 @@ import { tmpdir } from 'node:os';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createEmptyState, getCounts, loadState, replaceChildren, saveState, upsertRunningChild } from './state.ts';
+import {
+  createEmptyState,
+  getCounts,
+  loadState,
+  replaceChildren,
+  resolveStatePath,
+  saveState,
+  upsertRunningChild,
+} from './state.ts';
 
 describe('state', () => {
   const tempDirs: string[] = [];
@@ -54,6 +62,52 @@ describe('state', () => {
     expect(JSON.parse(await readFile(statePath, 'utf8'))).toMatchObject({
       totalExecuted: 1,
     });
+  });
+
+  it('derives a stable workspace-scoped state path', () => {
+    const previousRuntimeDir = process.env.XDG_RUNTIME_DIR;
+    const previousOverride = process.env.MRJMPL3_SUBAGENT_STATUS_STATE;
+
+    try {
+      process.env.XDG_RUNTIME_DIR = '/run/user/1000';
+      delete process.env.MRJMPL3_SUBAGENT_STATUS_STATE;
+
+      const first = resolveStatePath('/workspaces/project-a');
+      const second = resolveStatePath('/workspaces/project-a');
+      const different = resolveStatePath('/workspaces/project-b');
+
+      expect(first).toBe(second);
+      expect(first).not.toContain(`pid-${process.pid}`);
+      expect(first).not.toBe(different);
+    } finally {
+      if (previousRuntimeDir === undefined) {
+        delete process.env.XDG_RUNTIME_DIR;
+      } else {
+        process.env.XDG_RUNTIME_DIR = previousRuntimeDir;
+      }
+
+      if (previousOverride === undefined) {
+        delete process.env.MRJMPL3_SUBAGENT_STATUS_STATE;
+      } else {
+        process.env.MRJMPL3_SUBAGENT_STATUS_STATE = previousOverride;
+      }
+    }
+  });
+
+  it('respects the explicit persisted state override', () => {
+    const previousOverride = process.env.MRJMPL3_SUBAGENT_STATUS_STATE;
+
+    try {
+      process.env.MRJMPL3_SUBAGENT_STATUS_STATE = '/tmp/custom-state.json';
+
+      expect(resolveStatePath('/workspaces/project-a')).toBe('/tmp/custom-state.json');
+    } finally {
+      if (previousOverride === undefined) {
+        delete process.env.MRJMPL3_SUBAGENT_STATUS_STATE;
+      } else {
+        process.env.MRJMPL3_SUBAGENT_STATUS_STATE = previousOverride;
+      }
+    }
   });
 
   it('does not rewrite identical children snapshots', () => {
@@ -134,8 +188,46 @@ describe('state', () => {
     const loaded = await loadState(statePath);
 
     expect(Object.keys(loaded.children)).toEqual(['ses_recent', 'ses_running']);
+    expect(loaded.countedChildIDs).toEqual({
+      ses_recent: true,
+      ses_running: true,
+    });
     expect(loaded.totalExecuted).toBe(3);
     expect(getCounts(loaded)).toEqual({ running: 1, done: 1, error: 0 });
+  });
+
+  it('drops stale counted ids when replacing children with a pruned snapshot', () => {
+    const state = createEmptyState();
+    state.children = {
+      ses_old: {
+        id: 'ses_old',
+        title: 'Old runner',
+        parentID: 'ses_parent',
+        status: 'done',
+        startedAt: '2026-06-04T10:00:00.000Z',
+        updatedAt: '2026-06-04T10:05:00.000Z',
+        endedAt: '2026-06-04T10:05:00.000Z',
+      },
+    };
+    state.countedChildIDs = { ses_old: true };
+    state.totalExecuted = 1;
+
+    expect(
+      replaceChildren(state, [
+        {
+          id: 'ses_recent',
+          title: 'Recent runner',
+          parentID: 'ses_parent',
+          status: 'running',
+          startedAt: '2026-06-04T11:40:00.000Z',
+          updatedAt: '2026-06-04T11:45:00.000Z',
+        },
+      ]),
+    ).toBe(true);
+
+    expect(state.children.ses_old).toBeUndefined();
+    expect(state.countedChildIDs).toEqual({ ses_recent: true });
+    expect(state.totalExecuted).toBe(2);
   });
 
   it('rekeys persisted fallback duplicates to a single counted session', async () => {
