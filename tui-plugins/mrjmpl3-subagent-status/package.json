@@ -1,0 +1,20 @@
+{
+  "name": "mrjmpl3-subagent-status",
+  "private": true,
+  "type": "module",
+  "exports": "./index.tsx",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "1.15.13",
+    "@opentui/solid": "^0.2.15",
+    "solid-js": "^1.9.12"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "vitest": "^4.1.7",
+    "typescript": "^5.9.3"
+  }
+}

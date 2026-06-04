@@ -274,7 +274,12 @@ describe('tui elapsed time', () => {
 
     expect(
       resolveNavigationSessionID(
-        createChild({ id: 'tool:2', title: 'Synthetic done row', parentID: 'ses_parent', targetSessionID: 'ses_child' }),
+        createChild({
+          id: 'tool:2',
+          title: 'Synthetic done row',
+          parentID: 'ses_parent',
+          targetSessionID: 'ses_child',
+        }),
       ),
     ).toBe('ses_child');
 
