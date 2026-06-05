@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  createBufferedTaskQueue,
-  createCoalescedTaskRunner,
-  createSerializedTaskQueue,
-  resolveSessionSlotTransition,
-} from './tui.tsx';
+import { createBufferedTaskQueue, createCoalescedTaskRunner, createSerializedTaskQueue } from './queue.ts';
+import { resolveSessionSlotTransition } from './session.ts';
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;

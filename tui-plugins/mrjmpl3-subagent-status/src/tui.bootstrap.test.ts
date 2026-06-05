@@ -41,22 +41,31 @@ describe('tui bootstrap buffering', () => {
       };
     });
 
-    vi.doMock('./state.ts', async () => {
-      const actual = await vi.importActual<typeof import('./state.ts')>('./state.ts');
+    vi.doMock('./persistence.ts', async () => {
+      const actual = await vi.importActual<typeof import('./persistence.ts')>('./persistence.ts');
+      const saveState = vi.fn(async (_path: string, state: { children: Record<string, unknown> }) => {
+        saveStateCount += 1;
+        saveStateCalls.push({ children: Object.keys(state.children) });
+
+        if (saveStateCount === 1) {
+          await firstSaveGate.promise;
+        }
+      });
+      const saveStatusText = vi.fn(async (_path: string, _contents: string) => undefined);
 
       return {
         ...actual,
         resolveStatePath: vi.fn(() => '/tmp/mrjmpl3-subagent-status-state.json'),
         resolveTextPath: vi.fn(() => '/tmp/mrjmpl3-subagent-status-status.txt'),
-        saveState: vi.fn(async (_path, state) => {
-          saveStateCount += 1;
-          saveStateCalls.push({ children: Object.keys(state.children) });
-
-          if (saveStateCount === 1) {
-            await firstSaveGate.promise;
-          }
-        }),
-        saveStatusText: vi.fn(async () => undefined),
+        saveState,
+        saveStatusText,
+        createPersistQueue: vi.fn(
+          (..._args: [string, string]) =>
+            async (state: { children: Record<string, unknown> }, _meta: unknown) => {
+              await saveState('/tmp/mrjmpl3-subagent-status-state.json', state);
+              await saveStatusText('/tmp/mrjmpl3-subagent-status-status.txt', '');
+            },
+        ),
         shouldPreserveStateOnStartup: vi.fn(() => false),
       };
     });

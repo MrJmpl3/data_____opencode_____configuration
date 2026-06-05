@@ -177,4 +177,38 @@ describe('reconcile', () => {
       endedAt: '2026-06-04T12:00:00.000Z',
     });
   });
+
+  it('prunes orphaned synthetic running rows when the last real session child disappears', () => {
+    const initial = createEmptyState();
+    initial.children.ses_child = {
+      id: 'ses_child',
+      title: 'Real child',
+      parentID: 'ses_parent',
+      source: 'session',
+      targetSessionID: 'ses_child',
+      status: 'running',
+      startedAt: '2026-06-04T11:50:00.000Z',
+      updatedAt: '2026-06-04T11:55:00.000Z',
+    };
+    initial.children['tool:delegate_1'] = {
+      id: 'tool:delegate_1',
+      title: 'Synthetic tool row',
+      parentID: 'ses_parent',
+      source: 'tool',
+      targetSessionID: 'ses_child',
+      status: 'running',
+      startedAt: '2026-06-04T11:50:00.000Z',
+      updatedAt: '2026-06-04T11:55:00.000Z',
+    };
+    initial.countedChildIDs = { ses_child: true };
+    initial.totalExecuted = 1;
+
+    const result = reconcileChildrenState(initial, { data: [] });
+
+    expect(result.changed).toBe(true);
+    expect(result.nextState.children.ses_child).toBeUndefined();
+    expect(result.nextState.children['tool:delegate_1']).toBeUndefined();
+    expect(result.nextState.countedChildIDs).toEqual({});
+    expect(result.nextState.totalExecuted).toBe(1);
+  });
 });

@@ -259,7 +259,10 @@ function countsFromChildren(children: readonly SubagentChild[]): SubagentCounts 
   );
 }
 
-function resolveElapsedMs(child: Pick<SubagentChild, 'startedAt' | 'updatedAt' | 'endedAt' | 'status'>, nowMs: number): number {
+function resolveElapsedMs(
+  child: Pick<SubagentChild, 'startedAt' | 'updatedAt' | 'endedAt' | 'status'>,
+  nowMs: number,
+): number {
   const startedMs = Date.parse(child.startedAt);
   if (Number.isNaN(startedMs)) return 0;
 
@@ -283,7 +286,10 @@ export interface SubagentSnapshotView {
   visibleCounts: SubagentCounts;
 }
 
-export function buildSubagentSnapshotView(children: readonly SubagentChild[], nowMs = Date.now()): SubagentSnapshotView {
+export function buildSubagentSnapshotView(
+  children: readonly SubagentChild[],
+  nowMs = Date.now(),
+): SubagentSnapshotView {
   const hydratedChildren = [...children].map((child) => hydrateSnapshotChild(child, nowMs)).sort(byPriority);
   const trackedChildren = collapseSubagentWorkItems(hydratedChildren).sort(byPriority);
   const visibleChildren = visibleSubagentWorkItems(hydratedChildren, nowMs).sort(byPriority);

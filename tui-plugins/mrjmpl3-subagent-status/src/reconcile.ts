@@ -1,4 +1,9 @@
-import { markChildStatus, pruneOrphanedSyntheticRunningChildren, pruneTerminalChildren, upsertRunningChild } from './state.ts';
+import {
+  markChildStatus,
+  pruneOrphanedSyntheticRunningChildren,
+  pruneTerminalChildren,
+  upsertRunningChild,
+} from './state.ts';
 import type { SubagentChild, SubagentState, SubagentTokens } from './types.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -159,6 +164,9 @@ export function reconcileChildrenState(
   const nextState = cloneState(state);
   const incomingChildren = normalizeChildrenResponse(response);
   const incomingIDs = new Set(incomingChildren.map((child) => child.id));
+  const hadRealSessionChildren = Object.values(state.children).some(
+    (child) => child.source === 'session' || child.id.startsWith('ses_'),
+  );
   let changed = false;
 
   for (const child of incomingChildren) {
@@ -182,7 +190,9 @@ export function reconcileChildrenState(
 
   const pruneReferenceMs = Date.parse(nextState.updatedAt);
   const pruned = pruneTerminalChildren(nextState, Number.isNaN(pruneReferenceMs) ? Date.now() : pruneReferenceMs);
-  const prunedSynthetic = pruneOrphanedSyntheticRunningChildren(nextState);
+  const prunedSynthetic = pruneOrphanedSyntheticRunningChildren(nextState, {
+    pruneWhenNoRealSessionChildren: hadRealSessionChildren,
+  });
   if (changed || pruned || prunedSynthetic) {
     nextState.updatedAt = new Date().toISOString();
   }

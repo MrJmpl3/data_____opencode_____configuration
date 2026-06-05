@@ -7,13 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createEmptyState,
   getCounts,
-  loadState,
   pruneOrphanedSyntheticRunningChildren,
   replaceChildren,
-  resolveStatePath,
-  saveState,
   upsertRunningChild,
 } from './state.ts';
+import { loadState, resolveStatePath, saveState } from './persistence.ts';
 
 describe('state', () => {
   const tempDirs: string[] = [];

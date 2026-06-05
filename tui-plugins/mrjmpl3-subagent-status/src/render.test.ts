@@ -132,7 +132,17 @@ describe('render', () => {
     expect(view.trackedCounts).toEqual({ running: 0, done: 2, error: 0 });
     expect(view.visibleCounts).toEqual({ running: 0, done: 1, error: 0 });
     expect(view.visibleChildren.map((item) => item.id)).toEqual(['done_recent']);
-    expect(renderStatusLine({ children: { done_recent: recentDone, done_old: staleDone }, countedChildIDs: {}, totalExecuted: 2, updatedAt: '2026-06-04T10:20:00.000Z' }, nowMs)).toContain('2 done');
+    expect(
+      renderStatusLine(
+        {
+          children: { done_recent: recentDone, done_old: staleDone },
+          countedChildIDs: {},
+          totalExecuted: 2,
+          updatedAt: '2026-06-04T10:20:00.000Z',
+        },
+        nowMs,
+      ),
+    ).toContain('2 done');
   });
 
   it('maps statuses to the expected color keys', () => {

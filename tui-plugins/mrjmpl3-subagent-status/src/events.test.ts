@@ -4,7 +4,7 @@ import { applySubagentEvent, extractTaskToolEvidence } from './events.ts';
 import { createEmptyState } from './state.ts';
 
 describe('events', () => {
-  it('parses subtask events and task tool terminal evidence', () => {
+  it('parses subtask events and keeps completed task tool evidence non-terminal', () => {
     const state = createEmptyState();
 
     expect(
@@ -53,10 +53,10 @@ describe('events', () => {
     });
 
     expect(evidence).toMatchObject({
-      status: 'done',
+      status: 'running',
       targetSessionID: 'ses_child_1',
-      endedAt: '2026-06-04T12:05:00.000Z',
     });
+    expect(evidence?.endedAt).toBeUndefined();
   });
 
   it('ignores ambiguous task target evidence', () => {
@@ -77,7 +77,7 @@ describe('events', () => {
     ).toBeUndefined();
   });
 
-  it('maps terminal task tool events onto a matching subtask by target session', () => {
+  it('keeps matching tool and subtask rows running until the delegated session finishes', () => {
     const state = createEmptyState();
 
     applySubagentEvent(state, {
@@ -118,13 +118,14 @@ describe('events', () => {
     ).toBe(true);
 
     expect(state.children['tool:tool_1']).toMatchObject({
-      status: 'done',
+      status: 'running',
       targetSessionID: 'ses_child_1',
     });
     expect(state.children['subtask:part_1']).toMatchObject({
-      status: 'done',
+      status: 'running',
       targetSessionID: 'ses_child_1',
-      endedAt: '2026-06-04T12:10:00.000Z',
     });
+    expect(state.children['tool:tool_1']?.endedAt).toBeUndefined();
+    expect(state.children['subtask:part_1']?.endedAt).toBeUndefined();
   });
 });

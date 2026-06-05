@@ -278,8 +278,7 @@ export function extractTaskToolEvidence(event: EventLike): TaskToolEvidence | nu
   if (!state) return null;
 
   const rawStatus = asString(state.status);
-  const status: TaskToolEvidence['status'] =
-    rawStatus === 'completed' ? 'done' : rawStatus === 'error' ? 'error' : 'running';
+  const status: TaskToolEvidence['status'] = rawStatus === 'error' ? 'error' : 'running';
 
   const metadata = isRecord(state.metadata) ? state.metadata : undefined;
   const parentSessionID = asString(part.sessionID) ?? extractSessionID(event);
@@ -294,10 +293,7 @@ export function extractTaskToolEvidence(event: EventLike): TaskToolEvidence | nu
   return {
     status,
     targetSessionID,
-    endedAt:
-      status === 'done' || status === 'error'
-        ? extractEventTimestamp(event, ['completed', 'end', 'ended', 'updated'])
-        : undefined,
+    endedAt: status === 'error' ? extractEventTimestamp(event, ['completed', 'end', 'ended', 'updated']) : undefined,
   };
 }
 
@@ -324,9 +320,7 @@ function extractToolChild(event: EventLike): SyntheticChild | null {
     tool;
   const evidence = extractTaskToolEvidence(event);
   const targetCandidates = extractPartTargetSessionCandidates(event);
-  const status =
-    evidence?.status ??
-    (asString(state.status) === 'error' ? 'error' : asString(state.status) === 'completed' ? 'done' : 'running');
+  const status = evidence?.status ?? (asString(state.status) === 'error' ? 'error' : 'running');
 
   return {
     id: `tool:${partID}`,

@@ -1,14 +1,5 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
-import os from 'node:os';
-
 import type { SubagentChild, SubagentCounts, SubagentState, SubagentTokens } from './types.ts';
 
-const STATUS_DIRNAME = 'mrjmpl3-subagent-status';
-const STATUS_FILENAME = 'state.json';
-const STATUS_DIR_MODE = 0o700;
-const STATUS_FILE_MODE = 0o600;
 const TERMINAL_CHILD_RETENTION_MS = 30 * 60 * 1000;
 const MAX_TERMINAL_CHILDREN = 50;
 
@@ -184,7 +175,7 @@ function findMatchingCountedSubtaskID(
   return byCorrelation.length === 1 ? byCorrelation[0] : undefined;
 }
 
-function rekeyCountedExecution(state: SubagentState, fromID: string, toID: string): boolean {
+export function rekeyCountedExecution(state: SubagentState, fromID: string, toID: string): boolean {
   if (fromID === toID || !state.countedChildIDs[fromID]) return false;
 
   const toAlreadyCounted = Boolean(state.countedChildIDs[toID]);
@@ -202,7 +193,7 @@ function rekeyCountedExecution(state: SubagentState, fromID: string, toID: strin
   return true;
 }
 
-function resolveExecutionCountIdentity(
+export function resolveExecutionCountIdentity(
   state: SubagentState,
   child: Pick<SubagentChild, 'id' | 'title' | 'parentID'> &
     Partial<Pick<SubagentChild, 'messageID' | 'source' | 'targetSessionID'>>,
@@ -252,7 +243,7 @@ function reconcileSubtaskTargetCount(
   return rekeyCountedExecution(state, child.id, child.targetSessionID);
 }
 
-function normalizeChild(child: SubagentChild, nowMs = Date.now()): SubagentChild {
+export function normalizeChild(child: SubagentChild, nowMs = Date.now()): SubagentChild {
   const now = new Date(nowMs).toISOString();
   const status =
     child.status === 'done' || child.status === 'error' || child.status === 'running' ? child.status : 'running';
@@ -275,28 +266,6 @@ function normalizeChild(child: SubagentChild, nowMs = Date.now()): SubagentChild
     elapsedMs: resolveElapsedMs({ startedAt, updatedAt, endedAt, status }, nowMs),
     tokens: sanitizeTokens(child.tokens),
   };
-}
-
-function safeReadJSON(value: string): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return undefined;
-  }
-}
-
-async function writeLocalFile(path: string, contents: string): Promise<void> {
-  const directory = dirname(path);
-  await mkdir(directory, { recursive: true, mode: STATUS_DIR_MODE });
-
-  const tempPath = join(directory, `.${basename(path)}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`);
-  try {
-    await writeFile(tempPath, contents, { encoding: 'utf8', mode: STATUS_FILE_MODE });
-    await rename(tempPath, path);
-  } catch (error) {
-    await rm(tempPath, { force: true }).catch(() => undefined);
-    throw error;
-  }
 }
 
 function terminalChildTimestamp(child: SubagentChild): number {
@@ -325,29 +294,6 @@ export function createEmptyState(): SubagentState {
   };
 }
 
-export function resolveStatePath(workspaceDirectory = process.cwd()): string {
-  const fromEnv = process.env.MRJMPL3_SUBAGENT_STATUS_STATE;
-  if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) return fromEnv;
-
-  const runtimeDir = process.env.XDG_RUNTIME_DIR ?? os.tmpdir();
-  const resolvedWorkspaceDirectory = resolve(workspaceDirectory);
-  const workspaceHash = createHash('sha256').update(resolvedWorkspaceDirectory).digest('hex').slice(0, 16);
-
-  return join(runtimeDir, STATUS_DIRNAME, `workspace-${workspaceHash}`, STATUS_FILENAME);
-}
-
-export function resolveTextPath(statePath: string): string {
-  return join(dirname(statePath), 'status.txt');
-}
-
-export function resolveDebugPath(statePath: string): string {
-  return join(dirname(statePath), 'debug.json');
-}
-
-export function shouldPreserveStateOnStartup(): boolean {
-  return process.env.MRJMPL3_SUBAGENT_STATUS_PRESERVE_STATE === '1';
-}
-
 export function pruneTerminalChildren(state: SubagentState, now = Date.now()): boolean {
   const terminalChildren = Object.values(state.children)
     .filter((child) => child.status !== 'running')
@@ -374,18 +320,24 @@ export function pruneTerminalChildren(state: SubagentState, now = Date.now()): b
   return changed;
 }
 
-export function pruneOrphanedSyntheticRunningChildren(state: SubagentState): boolean {
+export function pruneOrphanedSyntheticRunningChildren(
+  state: SubagentState,
+  options: { pruneWhenNoRealSessionChildren?: boolean } = {},
+): boolean {
   const realSessionChildren = Object.values(state.children).filter((child) => isRealSessionChild(child));
-  if (realSessionChildren.length === 0) return false;
+  if (realSessionChildren.length === 0 && !options.pruneWhenNoRealSessionChildren) return false;
 
-  const activeSessionIDs = new Set(realSessionChildren.filter((child) => child.status === 'running').map((child) => child.id));
+  const activeSessionIDs = new Set(
+    realSessionChildren.filter((child) => child.status === 'running').map((child) => child.id),
+  );
 
   let changed = false;
   for (const child of Object.values(state.children)) {
     if (child.status !== 'running') continue;
     if (!isSyntheticToolWrapper(child) && !isSubtaskFallback(child)) continue;
 
-    const anchoredToActiveSession = activeSessionIDs.has(child.parentID) || activeSessionIDs.has(child.targetSessionID ?? '');
+    const anchoredToActiveSession =
+      activeSessionIDs.has(child.parentID) || activeSessionIDs.has(child.targetSessionID ?? '');
     if (anchoredToActiveSession) continue;
 
     delete state.children[child.id];
@@ -395,92 +347,6 @@ export function pruneOrphanedSyntheticRunningChildren(state: SubagentState): boo
   changed = pruneStaleCountedChildIDs(state) || changed;
 
   return changed;
-}
-
-export async function loadState(statePath: string): Promise<SubagentState> {
-  try {
-    const raw = await readFile(statePath, 'utf8');
-    const parsed = safeReadJSON(raw);
-    if (!isRecord(parsed)) return createEmptyState();
-
-    const state = createEmptyState();
-    state.updatedAt = typeof parsed.updatedAt === 'string' ? parsed.updatedAt : state.updatedAt;
-
-    if (isRecord(parsed.countedChildIDs)) {
-      for (const [id, value] of Object.entries(parsed.countedChildIDs)) {
-        if (value === true && id) state.countedChildIDs[id] = true;
-      }
-    }
-    state.totalExecuted = Math.max(
-      toNonNegativeInteger(parsed.totalExecuted) ?? 0,
-      Object.keys(state.countedChildIDs).length,
-    );
-
-    const rawChildren = isRecord(parsed.children) ? parsed.children : {};
-    for (const [id, value] of Object.entries(rawChildren)) {
-      if (!isRecord(value)) continue;
-      if (typeof value.parentID !== 'string') continue;
-
-      const child = normalizeChild(
-        {
-          id: typeof value.id === 'string' ? value.id : id,
-          title: typeof value.title === 'string' ? value.title : id,
-          summary: typeof value.summary === 'string' ? value.summary : undefined,
-          agentName: typeof value.agentName === 'string' ? value.agentName : undefined,
-          parentID: value.parentID,
-          messageID: typeof value.messageID === 'string' ? value.messageID : undefined,
-          source:
-            value.source === 'session' || value.source === 'subtask' || value.source === 'tool'
-              ? value.source
-              : undefined,
-          targetSessionID: typeof value.targetSessionID === 'string' ? value.targetSessionID : undefined,
-          status: value.status === 'done' || value.status === 'error' ? value.status : 'running',
-          color: value.color === 'green' || value.color === 'red' || value.color === 'yellow' ? value.color : undefined,
-          startedAt: typeof value.startedAt === 'string' ? value.startedAt : state.updatedAt,
-          updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : state.updatedAt,
-          endedAt: typeof value.endedAt === 'string' ? value.endedAt : undefined,
-          elapsedMs: toFiniteNumber(value.elapsedMs),
-          tokens: sanitizeTokens(value.tokens),
-        },
-        Date.parse(state.updatedAt),
-      );
-      state.children[child.id] = child;
-    }
-
-    for (const child of Object.values(state.children)) {
-      if (child.source === 'subtask' && child.targetSessionID && state.countedChildIDs[child.id]) {
-        rekeyCountedExecution(state, child.id, child.targetSessionID);
-      }
-
-      const countIdentity = resolveExecutionCountIdentity(state, child);
-      if (countIdentity && !state.countedChildIDs[countIdentity] && !isSyntheticToolWrapper(child)) {
-        state.countedChildIDs[countIdentity] = true;
-      }
-    }
-
-    normalizeExecutionCounters(state);
-    const prunedTerminalChildren = pruneTerminalChildren(state, Date.now());
-    const prunedOrphanedSyntheticChildren = pruneOrphanedSyntheticRunningChildren(state);
-    if (prunedTerminalChildren || prunedOrphanedSyntheticChildren) {
-      state.updatedAt = new Date().toISOString();
-    }
-
-    return state;
-  } catch {
-    return createEmptyState();
-  }
-}
-
-export async function saveStatusText(textPath: string, contents: string): Promise<void> {
-  await writeLocalFile(textPath, contents);
-}
-
-export async function saveDebugSnapshot(debugPath: string, contents: string): Promise<void> {
-  await writeLocalFile(debugPath, contents);
-}
-
-export async function saveState(statePath: string, state: SubagentState): Promise<void> {
-  await writeLocalFile(statePath, JSON.stringify(state, null, 2));
 }
 
 export function getCounts(state: SubagentState): SubagentCounts {

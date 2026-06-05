@@ -2,88 +2,18 @@
 import type { TuiPluginApi, TuiPluginModule, TuiThemeCurrent } from '@opencode-ai/plugin/tui';
 import { For, Show, createMemo, createRoot, createSignal } from 'solid-js';
 
-import { applySubagentEvent, extractSessionID, installEventBridge } from './events.ts';
-import { hydrateDoneChildTokens } from './logs.ts';
-import { reconcileChildrenState } from './reconcile.ts';
-import {
-  buildSubagentSnapshotView,
-  byPriority,
-  formatContextCompact,
-  formatDuration,
-  renderStatusLine,
-  renderStatusSnapshotLine,
-  statusColor as resolveRenderStatusColor,
-} from './render.ts';
-import {
-  createEmptyState,
-  resolveDebugPath,
-  loadState,
-  mergeChildDetails,
-  pruneTerminalChildren,
-  resolveStatePath,
-  resolveTextPath,
-  saveState,
-  saveStatusText,
-  saveDebugSnapshot,
-  shouldPreserveStateOnStartup,
-} from './state.ts';
-import type { SubagentChild, SubagentCounts, SubagentState } from './types.ts';
+import { formatContextCompact, formatDuration, statusColor as resolveRenderStatusColor } from './render.ts';
+import { createTuiRuntime } from './refresh.ts';
+import { buildTuiSnapshot } from './snapshot.ts';
+import { createEmptyState } from './state.ts';
+import { navigateToChildSession, resolveNavigationSessionID } from './session.ts';
+import type { SubagentChild, SubagentState } from './types.ts';
+
 const PLUGIN_ID = 'mrjmpl3-subagent-status';
 const CLOCK_ICON = '';
 const TOKEN_ICON = '';
 const SIDEBAR_ARROW_EXPANDED = '▼';
 const SIDEBAR_ARROW_COLLAPSED = '▶';
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function slotSessionId(slotInput: unknown, fallback = ''): string {
-  if (!isRecord(slotInput)) return fallback;
-  return typeof slotInput.session_id === 'string' ? slotInput.session_id : fallback;
-}
-
-export function resolveSessionSlotTransition(
-  currentSessionID: string,
-  slotInput: unknown,
-  hasTrackedChildren: boolean,
-): { nextSessionID: string; resetState: boolean; shouldRefresh: boolean } {
-  const nextSessionID = slotSessionId(slotInput);
-  if (!nextSessionID) {
-    return {
-      nextSessionID: '',
-      resetState: currentSessionID !== '' || hasTrackedChildren,
-      shouldRefresh: false,
-    };
-  }
-
-  if (nextSessionID !== currentSessionID) {
-    return {
-      nextSessionID,
-      resetState: true,
-      shouldRefresh: true,
-    };
-  }
-
-  return {
-    nextSessionID,
-    resetState: false,
-    shouldRefresh: !hasTrackedChildren,
-  };
-}
-
-export function elapsedMs(child: SubagentChild, now: number): number {
-  const startedAt = Date.parse(child.startedAt);
-  if (Number.isNaN(startedAt)) return 0;
-
-  if (child.status === 'running') {
-    return Math.max(0, now - startedAt);
-  }
-
-  const endedAt = Date.parse(child.endedAt ?? child.updatedAt);
-  if (Number.isNaN(endedAt)) return 0;
-  return Math.max(0, endedAt - startedAt);
-}
 
 function taskStatusMarker(status: SubagentChild['status']): string {
   if (status === 'done') return '[✓]';
@@ -100,462 +30,9 @@ function themeStatusColor(
   return theme.warning;
 }
 
-export function isSessionTarget(value: unknown): value is string {
-  return typeof value === 'string' && value.startsWith('ses_');
-}
-
-export function resolveNavigationSessionID(
-  child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'targetSessionID'>>,
-): string | undefined {
-  if (isSessionTarget(child.targetSessionID)) return child.targetSessionID;
-  if (isSessionTarget(child.id)) return child.id;
-  return undefined;
-}
-
-export function navigateToChildSession(
-  api: Pick<TuiPluginApi, 'route'>,
-  child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'targetSessionID'>>,
-): boolean {
-  const sessionID = resolveNavigationSessionID(child);
-  if (!sessionID) return false;
-  api.route.navigate('session', { sessionID });
-  return true;
-}
-
-export function buildTuiSnapshot(
-  state: SubagentState,
-  nowMs = Date.now(),
-): {
-  counts: SubagentCounts;
-  visibleCounts: SubagentCounts;
-  statusLine: string;
-  statusSnapshotLine: string;
-  visibleChildren: SubagentChild[];
-  debug: {
-    snapshotSemantics: 'snapshot';
-    trackedChildren: number;
-    visibleChildren: number;
-    hiddenChildren: number;
-    trackedCounts: SubagentCounts;
-    visibleCounts: SubagentCounts;
-  };
-} {
-  const hydratedChildren = Object.values(state.children).map((child) => ({
-    ...child,
-    color: child.color ?? resolveRenderStatusColor(child.status),
-    elapsedMs: elapsedMs(child, nowMs),
-  }));
-  const snapshotView = buildSubagentSnapshotView(hydratedChildren, nowMs);
-
-  return {
-    counts: snapshotView.trackedCounts,
-    visibleCounts: snapshotView.visibleCounts,
-    statusLine: renderStatusLine(state, nowMs),
-    statusSnapshotLine: renderStatusSnapshotLine(state, nowMs),
-    visibleChildren: snapshotView.visibleChildren,
-    debug: {
-      snapshotSemantics: 'snapshot',
-      trackedChildren: snapshotView.trackedChildren.length,
-      visibleChildren: snapshotView.visibleChildren.length,
-      hiddenChildren: Math.max(0, snapshotView.trackedChildren.length - snapshotView.visibleChildren.length),
-      trackedCounts: snapshotView.trackedCounts,
-      visibleCounts: snapshotView.visibleCounts,
-    },
-  };
-}
-
-function timestampFromUnknown(value: unknown): string | undefined {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-    const millis = value < 10_000_000_000 ? value * 1000 : value;
-    const parsed = new Date(millis);
-    return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
-  }
-
-  if (typeof value === 'string' && value.trim().length > 0) {
-    const parsed = Date.parse(value);
-    return Number.isNaN(parsed) ? undefined : new Date(parsed).toISOString();
-  }
-
-  return undefined;
-}
-
-function messageActivityAt(message: unknown): string | undefined {
-  const record = isRecord(message) ? message : undefined;
-  const info = isRecord(record?.info) ? record.info : record;
-  const time = isRecord(info?.time) ? info.time : undefined;
-
-  return (
-    timestampFromUnknown(time?.completed) ?? timestampFromUnknown(time?.updated) ?? timestampFromUnknown(time?.created)
-  );
-}
-
-function messageInfo(message: unknown): Record<string, unknown> | undefined {
-  const record = isRecord(message) ? message : undefined;
-  return isRecord(record?.info) ? record.info : record;
-}
-
-function latestSessionActivityAt(api: TuiPluginApi, sessionID: string): string | undefined {
-  try {
-    let latestMs = 0;
-    for (const message of api.state.session.messages(sessionID)) {
-      const timestamp = messageActivityAt(message);
-      if (!timestamp) continue;
-      latestMs = Math.max(latestMs, Date.parse(timestamp));
-    }
-
-    return latestMs > 0 ? new Date(latestMs).toISOString() : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function completedSessionActivityAt(api: TuiPluginApi, sessionID: string): string | undefined {
-  try {
-    let latestMs = 0;
-    for (const message of api.state.session.messages(sessionID)) {
-      const info = messageInfo(message);
-      const time = isRecord(info?.time) ? info.time : undefined;
-      const completedAt = timestampFromUnknown(time?.completed);
-      if (!completedAt) continue;
-      latestMs = Math.max(latestMs, Date.parse(completedAt));
-    }
-
-    return latestMs > 0 ? new Date(latestMs).toISOString() : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-type SessionClient = {
-  status?: (input: { directory: string }) => Promise<{ data?: Record<string, unknown> } | undefined>;
-  messages?: (input: { sessionID: string; directory: string }) => Promise<{ data?: unknown[] } | undefined>;
-};
-
-function deriveClientSessionStatus(value: unknown): SubagentChild['status'] | undefined {
-  const source = isRecord(value) ? (value.type ?? value.status ?? value.state) : value;
-  if (typeof source !== 'string') return undefined;
-
-  const status = source.trim().toLowerCase();
-  if (status === 'busy' || status === 'retry' || status === 'running' || status === 'pending') return 'running';
-  if (status === 'idle' || status === 'done' || status === 'completed' || status === 'complete' || status === 'success')
-    return 'done';
-  if (
-    status === 'error' ||
-    status === 'failed' ||
-    status === 'failure' ||
-    status === 'cancelled' ||
-    status === 'canceled'
-  )
-    return 'error';
-
-  return undefined;
-}
-
-function summarizeMessages(messages: unknown[]): { status?: 'done' | 'error'; endedAt?: string } {
-  let completedAtMs = 0;
-  let errorAtMs = 0;
-
-  for (const message of messages) {
-    const info = messageInfo(message);
-    const time = isRecord(info?.time) ? info.time : undefined;
-    const completedAt = timestampFromUnknown(time?.completed);
-    const updatedAt = timestampFromUnknown(time?.updated) ?? timestampFromUnknown(time?.created);
-
-    if (completedAt) completedAtMs = Math.max(completedAtMs, Date.parse(completedAt));
-    if (info?.error && updatedAt) errorAtMs = Math.max(errorAtMs, Date.parse(updatedAt));
-  }
-
-  if (errorAtMs > completedAtMs) return { status: 'error', endedAt: new Date(errorAtMs).toISOString() };
-  if (completedAtMs > 0) return { status: 'done', endedAt: new Date(completedAtMs).toISOString() };
-
-  return {};
-}
-
-function sessionIDForChild(child: SubagentChild): string | undefined {
-  return resolveNavigationSessionID(child);
-}
-
-async function hydrateChildStatusesFromClient(api: TuiPluginApi, state: SubagentState): Promise<boolean> {
-  const sessionClient = api.client.session as unknown as SessionClient | undefined;
-  if (!sessionClient) return false;
-
-  const directory = api.state.path.directory;
-  let statusBySessionID: Record<string, unknown> = {};
-
-  try {
-    statusBySessionID = (await sessionClient.status?.({ directory }))?.data ?? {};
-  } catch {
-    statusBySessionID = {};
-  }
-
-  let changed = false;
-
-  await Promise.all(
-    Object.values(state.children).map(async (child) => {
-      const sessionID = sessionIDForChild(child);
-      if (!sessionID) return;
-
-      const clientStatus = deriveClientSessionStatus(statusBySessionID[sessionID]);
-      let messageSummary: { status?: 'done' | 'error'; endedAt?: string } = {};
-
-      try {
-        const messages = (await sessionClient.messages?.({ sessionID, directory }))?.data ?? [];
-        messageSummary = summarizeMessages(messages);
-      } catch {
-        messageSummary = {};
-      }
-
-      const nextStatus = messageSummary.status ?? clientStatus;
-      if (!nextStatus) return;
-
-      if (nextStatus === 'running') {
-        if (child.status !== 'running' || child.endedAt !== undefined) {
-          child.status = 'running';
-          child.endedAt = undefined;
-          child.updatedAt = latestSessionActivityAt(api, sessionID) ?? child.updatedAt;
-          changed = true;
-        }
-
-        return;
-      }
-
-      const endedAt =
-        messageSummary.endedAt ?? latestSessionActivityAt(api, sessionID) ?? child.endedAt ?? child.updatedAt;
-      if (child.status !== nextStatus || child.endedAt !== endedAt || child.updatedAt !== endedAt) {
-        child.status = nextStatus;
-        child.endedAt = endedAt;
-        child.updatedAt = endedAt;
-        changed = true;
-      }
-    }),
-  );
-
-  if (changed) state.updatedAt = new Date().toISOString();
-
-  return changed;
-}
-
 function formatChildTitle(child: SubagentChild): string {
   const base = child.summary?.trim() || child.title?.trim() || child.id || 'Subagent';
   return child.agentName ? `${base} (${child.agentName})` : base;
-}
-
-function hydrateChildStatusesFromTuiState(api: TuiPluginApi, state: SubagentState): boolean {
-  let changed = false;
-
-  for (const child of Object.values(state.children)) {
-    const sessionID = child.targetSessionID ?? child.id;
-    if (!isSessionTarget(sessionID)) continue;
-
-    const completedAt = completedSessionActivityAt(api, sessionID);
-    const latestActivityAt = latestSessionActivityAt(api, sessionID);
-    const status = api.state.session.status(sessionID)?.type;
-
-    if (status === 'busy' || status === 'retry') {
-      if (child.status !== 'running' || child.endedAt !== undefined) {
-        child.status = 'running';
-        child.endedAt = undefined;
-        child.updatedAt = latestActivityAt ?? child.updatedAt;
-        changed = true;
-      }
-      continue;
-    }
-
-    if (status === 'idle' || completedAt) {
-      const endedAt = completedAt ?? latestActivityAt ?? child.endedAt ?? child.updatedAt;
-      if (child.status !== 'done' || child.endedAt !== endedAt) {
-        child.status = 'done';
-        child.endedAt = endedAt;
-        child.updatedAt = endedAt;
-        changed = true;
-      }
-    }
-  }
-
-  if (changed) state.updatedAt = new Date().toISOString();
-
-  return changed;
-}
-
-export function hydrateChildTokensFromLogs(state: SubagentState): boolean {
-  let changed = false;
-
-  for (const child of Object.values(state.children)) {
-    if (child.status !== 'done') continue;
-    if (child.tokens?.total !== undefined || child.tokens?.input !== undefined || child.tokens?.output !== undefined)
-      continue;
-
-    const sessionID = resolveNavigationSessionID(child);
-    if (!sessionID) continue;
-
-    const tokens = hydrateDoneChildTokens(sessionID);
-    if (!tokens) continue;
-
-    changed = mergeChildDetails(state, child.id, { tokens }) || changed;
-  }
-
-  return changed;
-}
-
-export function createSerializedTaskQueue<T>(task: (value: T) => Promise<void>): (value: T) => Promise<void> {
-  let chain = Promise.resolve();
-
-  return (value: T): Promise<void> => {
-    chain = chain.then(() => task(value)).catch(() => undefined);
-    return chain;
-  };
-}
-
-export function createCoalescedTaskRunner<T>(task: (value: T) => Promise<void>): (value: T) => Promise<void> {
-  let inFlight = false;
-  let hasPending = false;
-  let pendingValue: T;
-  let currentBatch: Promise<void> | undefined;
-
-  const schedule = async (value: T): Promise<void> => {
-    pendingValue = value;
-    hasPending = true;
-    if (inFlight) return currentBatch ?? Promise.resolve();
-
-    inFlight = true;
-    currentBatch = (async () => {
-      try {
-        while (hasPending) {
-          const current = pendingValue;
-          hasPending = false;
-          await task(current);
-        }
-      } finally {
-        inFlight = false;
-        if (hasPending) {
-          const next = pendingValue;
-          hasPending = false;
-          await schedule(next);
-        }
-        currentBatch = undefined;
-      }
-    })();
-
-    return currentBatch;
-  };
-
-  return schedule;
-}
-
-type BufferedTaskQueueOptions = {
-  maxSize?: number;
-  maxAgeMs?: number;
-};
-
-export function createBufferedTaskQueue<T>(task: (value: T) => Promise<void>, options: BufferedTaskQueueOptions = {}) {
-  const maxSize = options.maxSize ?? 512;
-  const maxAgeMs = options.maxAgeMs ?? 15_000;
-  const queue: Array<{ value: T; enqueuedAt: number }> = [];
-  let ready = false;
-  let draining = false;
-  let truncated = false;
-
-  const compactIfStale = (now: number): void => {
-    if (queue.length === 0) return;
-    if (now - queue[0].enqueuedAt < maxAgeMs) return;
-
-    queue.length = 0;
-    truncated = true;
-  };
-
-  const drain = async (): Promise<void> => {
-    if (!ready || draining) return;
-
-    draining = true;
-    try {
-      while (queue.length > 0) {
-        const entry = queue.shift();
-        if (!entry) continue;
-
-        await task(entry.value);
-      }
-    } finally {
-      draining = false;
-    }
-  };
-
-  return {
-    push(value: T): void {
-      const now = Date.now();
-      compactIfStale(now);
-      queue.push({ value, enqueuedAt: now });
-
-      if (queue.length > maxSize) {
-        queue.splice(0, queue.length - maxSize);
-        truncated = true;
-      }
-
-      if (ready) void drain();
-    },
-    size(): number {
-      return queue.length;
-    },
-    wasTruncated(): boolean {
-      return truncated;
-    },
-    markReady(): Promise<void> {
-      ready = true;
-      return drain();
-    },
-  };
-}
-
-type SnapshotPersistenceSource = 'startup' | 'event' | 'load' | 'refresh';
-
-type PersistSnapshotMeta = {
-  source: SnapshotPersistenceSource;
-  lastEventType?: string;
-  bufferedEventCount?: number;
-};
-
-function serializeDebugSnapshot(
-  state: SubagentState,
-  snapshot: ReturnType<typeof buildTuiSnapshot>,
-  meta: PersistSnapshotMeta,
-): string {
-  return JSON.stringify(
-    {
-      persistedAt: new Date().toISOString(),
-      source: meta.source,
-      lastEventType: meta.lastEventType,
-      bufferedEventCount: meta.bufferedEventCount ?? 0,
-      stateUpdatedAt: state.updatedAt,
-      totalExecuted: state.totalExecuted,
-      ...snapshot.debug,
-    },
-    null,
-    2,
-  );
-}
-
-export async function persistSnapshot(
-  statePath: string,
-  textPath: string,
-  state: SubagentState,
-  meta: PersistSnapshotMeta = { source: 'load' },
-): Promise<void> {
-  try {
-    const snapshot = buildTuiSnapshot(state);
-    await saveState(statePath, state);
-    await saveStatusText(textPath, snapshot.statusSnapshotLine);
-    await saveDebugSnapshot(resolveDebugPath(statePath), serializeDebugSnapshot(state, snapshot, meta));
-  } catch {
-    // Persistence is best-effort.
-  }
-}
-
-function createPersistQueue(statePath: string, textPath: string) {
-  const enqueue = createSerializedTaskQueue(async (payload: { state: SubagentState; meta: PersistSnapshotMeta }) => {
-    await persistSnapshot(statePath, textPath, payload.state, payload.meta);
-  });
-
-  return (state: SubagentState, meta: PersistSnapshotMeta): Promise<void> =>
-    enqueue({ state: structuredClone(state) as SubagentState, meta });
 }
 
 const plugin: TuiPluginModule & { id: string } = {
@@ -568,137 +45,18 @@ const plugin: TuiPluginModule & { id: string } = {
       const [expanded, setExpanded] = createSignal(true);
       const [nowMs, setNowMs] = createSignal(Date.now());
       const snapshot = createMemo(() => buildTuiSnapshot(state(), nowMs()));
-
-      const statePath = resolveStatePath(api.state.path.directory);
-      const textPath = resolveTextPath(statePath);
-      const persistQueuedSnapshot = createPersistQueue(statePath, textPath);
-      const bufferedEvents = createBufferedTaskQueue(async (event: unknown) => {
-        await mergeEventState(event);
+      const runtime = createTuiRuntime(api, {
+        getState: state,
+        setState,
+        getSessionId: sessionId,
+        setSessionId,
+        setNowMs,
       });
-
-      let disposed = false;
-      let tickTimer: ReturnType<typeof setInterval> | undefined;
-      let reconcileTimer: ReturnType<typeof setInterval> | undefined;
-      let lastEventType: string | undefined;
-      let activeSessionToken = 0;
-
-      const invalidateSessionScope = (): number => {
-        activeSessionToken += 1;
-        return activeSessionToken;
-      };
-
-      const resetSessionScope = (): void => {
-        invalidateSessionScope();
-        setSessionId('');
-        setState(createEmptyState());
-      };
-
-      const beginSessionScope = (sid: string): number => {
-        const token = invalidateSessionScope();
-        setSessionId(sid);
-        setState(createEmptyState());
-        return token;
-      };
-
-      const syncState = async (nextState: SubagentState, meta: PersistSnapshotMeta): Promise<void> => {
-        if (disposed) return;
-        setState(nextState);
-        await persistQueuedSnapshot(nextState, meta);
-      };
-
-      const mergeEventState = async (event: unknown): Promise<void> => {
-        if (disposed) return;
-
-        const eventSessionID = extractSessionID(event as Parameters<typeof extractSessionID>[0]);
-        if (sessionId() && eventSessionID && eventSessionID !== sessionId()) return;
-        if (!sessionId() && eventSessionID) return;
-
-        const nextState = structuredClone(state()) as SubagentState;
-        const changed = applySubagentEvent(nextState, event);
-        if (!changed) return;
-
-        pruneTerminalChildren(nextState);
-        await syncState(nextState, { source: 'event', lastEventType, bufferedEventCount: bufferedEvents.size() });
-      };
-
-      const refreshRunner = createCoalescedTaskRunner(async (request: { sessionID: string; sessionToken: number }): Promise<void> => {
-        const { sessionID: sid, sessionToken } = request;
-        if (disposed || sessionToken !== activeSessionToken) return;
-
-        try {
-          if (!sid) {
-            if (sessionToken !== activeSessionToken) return;
-            const emptyState = createEmptyState();
-            await syncState(emptyState, { source: 'startup', bufferedEventCount: bufferedEvents.size() });
-            return;
-          }
-
-          const directory = api.state.path.directory;
-          const response = await api.client.session?.children?.({ sessionID: sid, directory });
-          if (disposed || sessionToken !== activeSessionToken) return;
-
-          const { changed, nextState } = reconcileChildrenState(state(), response);
-          const tuiStatusHydrated = hydrateChildStatusesFromTuiState(api, nextState);
-          const clientStatusHydrated = await hydrateChildStatusesFromClient(api, nextState);
-          const hydrated = hydrateChildTokensFromLogs(nextState);
-          const pruned = pruneTerminalChildren(nextState);
-          if (disposed || sessionToken !== activeSessionToken) return;
-          if (!changed && !tuiStatusHydrated && !clientStatusHydrated && !hydrated && !pruned) return;
-
-          await syncState(nextState, { source: 'refresh', lastEventType, bufferedEventCount: bufferedEvents.size() });
-        } catch {
-          // Refresh is best-effort.
-        }
-      });
-
-      const refresh = (sid = sessionId()): Promise<void> => refreshRunner({ sessionID: sid, sessionToken: activeSessionToken });
-
-      installEventBridge(api, refresh, (event) => {
-        lastEventType = isRecord(event) && typeof event.type === 'string' ? event.type : undefined;
-        bufferedEvents.push(event);
-      });
-
-      tickTimer = setInterval(() => {
-        if (!disposed) setNowMs(Date.now());
-      }, 1000);
-
-      reconcileTimer = setInterval(() => {
-        if (!disposed && sessionId()) {
-          void refresh();
-        }
-      }, 60_000);
 
       api.lifecycle.onDispose(() => {
-        disposed = true;
-        if (tickTimer) clearInterval(tickTimer);
-        if (reconcileTimer) clearInterval(reconcileTimer);
+        runtime.dispose();
         disposeRoot();
       });
-
-      const refreshFromSlot = (slotInput: unknown): void => {
-        const transition = resolveSessionSlotTransition(
-          sessionId(),
-          slotInput,
-          Object.keys(state().children).length > 0,
-        );
-
-        if (!transition.nextSessionID) {
-          if (transition.resetState) {
-            resetSessionScope();
-          }
-          return;
-        }
-
-        if (transition.resetState) {
-          beginSessionScope(transition.nextSessionID);
-          void refresh(transition.nextSessionID);
-          return;
-        }
-
-        if (transition.shouldRefresh) {
-          void refresh(transition.nextSessionID);
-        }
-      };
 
       const ChildRow = (props: { child: SubagentChild }) => {
         const clickable = createMemo(() => resolveNavigationSessionID(props.child) !== undefined);
@@ -711,7 +69,7 @@ const plugin: TuiPluginModule & { id: string } = {
           <box
             flexDirection="column"
             opacity={opacity()}
-            onMouseDown={
+            onMouseUp={
               clickable()
                 ? () => {
                     navigateToChildSession(api, props.child);
@@ -752,7 +110,7 @@ const plugin: TuiPluginModule & { id: string } = {
         order: 120,
         slots: {
           sidebar_content: (_ctx: unknown, slotInput: unknown) => {
-            refreshFromSlot(slotInput);
+            runtime.refreshFromSlot(slotInput);
             const currentSnapshot = snapshot();
             const counts = currentSnapshot.counts;
 
@@ -811,24 +169,11 @@ const plugin: TuiPluginModule & { id: string } = {
         },
       });
 
-      void (async () => {
-        try {
-          if (!shouldPreserveStateOnStartup()) {
-            await syncState(createEmptyState(), { source: 'startup', bufferedEventCount: bufferedEvents.size() });
-          } else {
-            await syncState(await loadState(statePath), { source: 'load', bufferedEventCount: bufferedEvents.size() });
-          }
-
-          await refresh(sessionId());
-        } finally {
-          await bufferedEvents.markReady();
-          if (bufferedEvents.wasTruncated()) {
-            void refresh();
-          }
-        }
-      })();
+      void runtime.bootstrap();
     });
   },
 };
 
 export default plugin;
+
+export { buildTuiSnapshot, elapsedMs } from './snapshot.ts';
