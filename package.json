@@ -2,6 +2,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@opencode-ai/plugin": "1.15.13"
+    "@opencode-ai/plugin": "1.15.13",
+    "unique-names-generator": "^4.7.1"
   }
 }
