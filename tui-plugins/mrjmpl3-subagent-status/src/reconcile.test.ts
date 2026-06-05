@@ -24,7 +24,7 @@ describe('reconcile', () => {
     expect(children[0]?.tokens?.total).toBe(123);
   });
 
-  it('uses session time fields for normalized timestamps', () => {
+  it('uses session time fields without terminalizing idle snapshots', () => {
     const children = normalizeChildrenResponse({
       data: [
         {
@@ -42,8 +42,8 @@ describe('reconcile', () => {
 
     expect(children[0]?.startedAt).toBe('2024-06-04T12:00:00.000Z');
     expect(children[0]?.updatedAt).toBe('2024-06-04T12:01:00.000Z');
-    expect(children[0]?.endedAt).toBe('2024-06-04T12:01:00.000Z');
-    expect(children[0]?.status).toBe('done');
+    expect(children[0]?.endedAt).toBeUndefined();
+    expect(children[0]?.status).toBe('running');
   });
 
   it('reconciles child snapshots without rewriting identical state', () => {
@@ -163,7 +163,7 @@ describe('reconcile', () => {
           id: 'ses_parent',
           parentID: 'ses_parent',
           title: 'Parent session',
-          status: 'idle',
+          status: 'done',
           startedAt: '2026-06-04T11:50:00.000Z',
           updatedAt: '2026-06-04T12:00:00.000Z',
         },
@@ -210,5 +210,68 @@ describe('reconcile', () => {
     expect(result.nextState.children['tool:delegate_1']).toBeUndefined();
     expect(result.nextState.countedChildIDs).toEqual({});
     expect(result.nextState.totalExecuted).toBe(1);
+  });
+
+  it('keeps a terminal child closed when a later snapshot reports it as running', () => {
+    const initial = createEmptyState();
+    initial.children.ses_child = {
+      id: 'ses_child',
+      title: 'Recovered child',
+      parentID: 'ses_parent',
+      source: 'session',
+      status: 'done',
+      startedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T11:56:00.000Z',
+      endedAt: '2026-06-04T11:56:00.000Z',
+      elapsedMs: 60_000,
+    };
+
+    const result = reconcileChildrenState(initial, {
+      data: [
+        {
+          id: 'ses_child',
+          parentID: 'ses_parent',
+          title: 'Recovered child',
+          source: 'session',
+          status: 'running',
+          startedAt: '2026-06-04T11:55:00.000Z',
+          updatedAt: '2026-06-04T12:00:00.000Z',
+        },
+      ],
+    });
+
+    expect(result.nextState.children.ses_child).toMatchObject({
+      status: 'done',
+      endedAt: '2026-06-04T11:56:00.000Z',
+    });
+  });
+
+  it('excludes delegation-style rows from execution totals', () => {
+    const result = reconcileChildrenState(createEmptyState(), {
+      data: [
+        {
+          id: 'ses_delegate',
+          parentID: 'ses_parent',
+          title: 'Delegation: faint-magenta-flea',
+          source: 'session',
+          status: 'running',
+          startedAt: '2026-06-04T11:55:00.000Z',
+          updatedAt: '2026-06-04T11:55:00.000Z',
+        },
+        {
+          id: 'ses_task',
+          parentID: 'ses_parent',
+          title: 'Task row',
+          source: 'session',
+          status: 'running',
+          startedAt: '2026-06-04T11:56:00.000Z',
+          updatedAt: '2026-06-04T11:56:00.000Z',
+        },
+      ],
+    });
+
+    expect(result.nextState.totalExecuted).toBe(1);
+    expect(result.nextState.countedChildIDs.ses_task).toBe(true);
+    expect(result.nextState.countedChildIDs.ses_delegate).toBeUndefined();
   });
 });

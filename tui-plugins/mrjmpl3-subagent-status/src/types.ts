@@ -34,6 +34,7 @@ export interface SubagentCounts {
 export interface SubagentState {
   children: Record<string, SubagentChild>;
   countedChildIDs: Record<string, true>;
+  purgedSessionIDs: Record<string, true>;
   totalExecuted: number;
   updatedAt: string;
 }

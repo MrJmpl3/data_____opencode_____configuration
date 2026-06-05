@@ -103,6 +103,7 @@ describe('render', () => {
         ses_running: runningChild,
       },
       countedChildIDs: { ses_done: true, ses_running: true },
+      purgedSessionIDs: {},
       totalExecuted: 2,
       updatedAt: '2026-06-04T10:02:00.000Z',
     };
@@ -137,6 +138,7 @@ describe('render', () => {
         {
           children: { done_recent: recentDone, done_old: staleDone },
           countedChildIDs: {},
+          purgedSessionIDs: {},
           totalExecuted: 2,
           updatedAt: '2026-06-04T10:20:00.000Z',
         },

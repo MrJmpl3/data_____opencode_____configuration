@@ -1,4 +1,5 @@
 import {
+  clearPurgedSession,
   markChildStatus,
   pruneOrphanedSyntheticRunningChildren,
   pruneTerminalChildren,
@@ -70,7 +71,7 @@ const RUNNING_SESSION_STATUS_VALUES = new Set([
   'compacting',
   'retry',
 ]);
-const DONE_SESSION_STATUS_VALUES = new Set(['idle', 'done', 'completed', 'complete', 'success', 'succeeded']);
+const DONE_SESSION_STATUS_VALUES = new Set(['done', 'completed', 'complete', 'success', 'succeeded']);
 const ERROR_SESSION_STATUS_VALUES = new Set(['error', 'failed', 'failure', 'cancelled', 'canceled', 'aborted']);
 
 function normalizeTokens(value: unknown): SubagentTokens | undefined {
@@ -184,6 +185,7 @@ export function reconcileChildrenState(
   for (const existing of Object.values(state.children)) {
     if (!isRealSessionChild(existing)) continue;
     if (incomingIDs.has(existing.id)) continue;
+    nextState.purgedSessionIDs[existing.id] = true;
     delete nextState.children[existing.id];
     changed = true;
   }

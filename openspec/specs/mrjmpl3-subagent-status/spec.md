@@ -2,13 +2,13 @@
 
 ## Purpose
 
-Provide a mouse-only subagent status panel that keeps child sessions in sync, enriches finished rows with token/context data when available, and renders clickable status rows without keyboard or focus controls.
+Provide a mouse-only subagent status panel that keeps child sessions in sync, preserves terminal rows through out-of-order updates, enriches finished rows with token/context data when available, and renders clickable status rows without keyboard or focus controls.
 
 ## Requirements
 
 ### Requirement: Accurate child-session reconciliation
 
-The system MUST normalize incoming child snapshots into stable rows, count each execution once, and resolve fallback/session duplicates to a single execution. It MUST update stale running rows to their latest terminal status when newer child-session information indicates completion or failure.
+The system MUST normalize incoming child snapshots into stable rows, count each execution once, and resolve fallback/session duplicates to a single execution. It MUST preserve terminal rows once completed or errored, and newer running evidence MUST NOT regress a terminal row or resume elapsed time.
 
 #### Scenario: Duplicate fallback row is rekeyed once
 
@@ -19,7 +19,7 @@ The system MUST normalize incoming child snapshots into stable rows, count each 
 
 #### Scenario: Stale running row becomes terminal
 
-- GIVEN a row is still marked running but newer child-session information indicates idle, done, or error
+- GIVEN a row is still marked running but newer child-session information indicates completion or failure
 - WHEN the plugin refreshes
 - THEN the row MUST update to the terminal status
 - AND its elapsed time MUST stop advancing
@@ -48,6 +48,41 @@ The system MUST hydrate completed child rows with token totals or context percen
 - WHEN the plugin refreshes
 - THEN the row MUST still render
 - AND the token area MUST remain empty
+
+### Requirement: Recovery hydration prefers authoritative state
+
+The system MUST hydrate missing state and token metadata from the best available recovery source. When recovery data conflicts with stale local legacy rows, the recovery state MUST win and the stale row SHOULD be replaced or removed.
+
+#### Scenario: Recovery fills missing token metadata
+
+- GIVEN local state is missing token or session metadata
+- WHEN a recovery source provides that metadata
+- THEN the row MUST be hydrated with the recovered values
+- AND the row MUST remain visible
+
+#### Scenario: Recovery overrides stale local running state
+
+- GIVEN local state shows a row as running
+- WHEN recovery data shows the same row as terminal
+- THEN the terminal recovery state MUST win
+- AND the stale running state MUST NOT be restored
+
+### Requirement: Stale-row retention is bounded
+
+The system MUST bound retention of stale or incorrect legacy rows. If a row cannot be reconciled to an accurate state, the system MAY purge it instead of preserving incorrect visible state, and purged rows MUST NOT be resurrected by later stale snapshots.
+
+#### Scenario: Irreconcilable legacy row is purged
+
+- GIVEN a legacy row cannot be matched to a current authoritative state
+- WHEN state is loaded or refreshed
+- THEN the row MAY be removed from visible state
+- AND the incorrect row MUST NOT remain visible
+
+#### Scenario: Purged rows are not brought back by stale input
+
+- GIVEN a row has been purged as stale
+- WHEN a later stale snapshot repeats the same incorrect row
+- THEN the row MUST stay absent unless authoritative recovery recreates it
 
 ### Requirement: Mouse-only status rendering and navigation
 

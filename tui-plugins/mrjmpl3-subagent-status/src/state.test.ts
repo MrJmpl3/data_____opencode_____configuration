@@ -8,6 +8,7 @@ import {
   createEmptyState,
   getCounts,
   pruneOrphanedSyntheticRunningChildren,
+  pruneTerminalChildren,
   replaceChildren,
   upsertRunningChild,
 } from './state.ts';
@@ -301,6 +302,7 @@ describe('state', () => {
         'subtask:part_1': true,
         ses_child: true,
       },
+      purgedSessionIDs: {},
       totalExecuted: 2,
       updatedAt: '2026-06-04T11:55:00.000Z',
     });
@@ -335,5 +337,76 @@ describe('state', () => {
     expect(state.totalExecuted).toBe(1);
     expect(state.countedChildIDs.ses_child).toBe(true);
     expect(state.countedChildIDs['subtask:part_1']).toBeUndefined();
+  });
+
+  it('preserves a terminal child when later running evidence arrives', () => {
+    const state = createEmptyState();
+
+    upsertRunningChild(state, {
+      id: 'ses_child',
+      title: 'Recovered child',
+      parentID: 'ses_parent',
+      source: 'session',
+      status: 'done',
+      startedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T11:56:00.000Z',
+      endedAt: '2026-06-04T11:56:00.000Z',
+    });
+
+    const elapsedMs = state.children.ses_child?.elapsedMs;
+
+    vi.advanceTimersByTime(60_000);
+
+    expect(
+      upsertRunningChild(state, {
+        id: 'ses_child',
+        title: 'Recovered child',
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'running',
+        startedAt: '2026-06-04T11:55:00.000Z',
+        updatedAt: '2026-06-04T12:00:00.000Z',
+      }),
+    ).toBe(false);
+
+    expect(state.children.ses_child).toMatchObject({
+      status: 'done',
+      updatedAt: '2026-06-04T11:56:00.000Z',
+      endedAt: '2026-06-04T11:56:00.000Z',
+      elapsedMs,
+    });
+  });
+
+  it('does not resurrect a terminal session after retention pruning', () => {
+    const state = createEmptyState();
+
+    upsertRunningChild(state, {
+      id: 'ses_pruned',
+      title: 'Pruned child',
+      parentID: 'ses_parent',
+      source: 'session',
+      status: 'done',
+      startedAt: '2026-06-04T10:00:00.000Z',
+      updatedAt: '2026-06-04T10:05:00.000Z',
+      endedAt: '2026-06-04T10:05:00.000Z',
+    });
+
+    expect(pruneTerminalChildren(state, Date.parse('2026-06-04T12:00:00.000Z'))).toBe(true);
+    expect(state.children.ses_pruned).toBeUndefined();
+    expect(state.purgedSessionIDs.ses_pruned).toBe(true);
+
+    expect(
+      upsertRunningChild(state, {
+        id: 'ses_pruned',
+        title: 'Pruned child',
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'running',
+        startedAt: '2026-06-04T11:59:00.000Z',
+        updatedAt: '2026-06-04T12:00:00.000Z',
+      }),
+    ).toBe(false);
+
+    expect(state.children.ses_pruned).toBeUndefined();
   });
 });

@@ -3,6 +3,8 @@ import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
 import { applySubagentEvent, extractSessionID, installEventBridge } from './events.ts';
 import { hydrateDoneChildTokens } from './logs.ts';
 import { createBufferedTaskQueue, createCoalescedTaskRunner } from './queue.ts';
+import { hydrateStateFromRecoverySources } from './recovery.ts';
+import { createSQLiteRecoverySource } from './recovery/sqlite.ts';
 import { resolveNavigationSessionID, resolveSessionSlotTransition } from './session.ts';
 import { reconcileChildrenState } from './reconcile.ts';
 import { createEmptyState, mergeChildDetails, pruneTerminalChildren } from './state.ts';
@@ -43,6 +45,10 @@ function timestampFromUnknown(value: unknown): string | undefined {
 function messageInfo(message: unknown): Record<string, unknown> | undefined {
   const record = isRecord(message) ? message : undefined;
   return isRecord(record?.info) ? record.info : record;
+}
+
+function isTerminalStatus(status: SubagentChild['status']): boolean {
+  return status === 'done' || status === 'error';
 }
 
 function messageActivityAt(message: unknown): string | undefined {
@@ -92,7 +98,7 @@ function deriveClientSessionStatus(value: unknown): SubagentChild['status'] | un
 
   const status = source.trim().toLowerCase();
   if (status === 'busy' || status === 'retry' || status === 'running' || status === 'pending') return 'running';
-  if (status === 'idle' || status === 'done' || status === 'completed' || status === 'complete' || status === 'success')
+  if (status === 'done' || status === 'completed' || status === 'complete' || status === 'success')
     return 'done';
   if (
     status === 'error' ||
@@ -163,6 +169,10 @@ async function hydrateChildStatusesFromClient(api: TuiPluginApi, state: Subagent
       const nextStatus = messageSummary.status ?? clientStatus;
       if (!nextStatus) return;
 
+      if (nextStatus === 'running' && isTerminalStatus(child.status)) {
+        return;
+      }
+
       if (nextStatus === 'running') {
         if (child.status !== 'running' || child.endedAt !== undefined) {
           child.status = 'running';
@@ -199,9 +209,14 @@ function hydrateChildStatusesFromTuiState(api: TuiPluginApi, state: SubagentStat
 
     const completedAt = completedSessionActivityAt(api, sessionID);
     const latestActivityAt = latestSessionActivityAt(api, sessionID);
-    const status = api.state.session.status(sessionID)?.type;
+    const rawStatus = api.state.session.status(sessionID)?.type;
+    const status = typeof rawStatus === 'string' ? rawStatus.trim().toLowerCase() : undefined;
 
     if (status === 'busy' || status === 'retry') {
+      if (isTerminalStatus(child.status)) {
+        continue;
+      }
+
       if (child.status !== 'running' || child.endedAt !== undefined) {
         child.status = 'running';
         child.endedAt = undefined;
@@ -211,7 +226,7 @@ function hydrateChildStatusesFromTuiState(api: TuiPluginApi, state: SubagentStat
       continue;
     }
 
-    if (status === 'idle' || completedAt) {
+    if (status === 'done' || status === 'completed' || status === 'complete' || status === 'success' || completedAt) {
       const endedAt = completedAt ?? latestActivityAt ?? child.endedAt ?? child.updatedAt;
       if (child.status !== 'done' || child.endedAt !== endedAt) {
         child.status = 'done';
@@ -266,6 +281,7 @@ export function createTuiRuntime(
   const statePath = resolveStatePath(api.state.path.directory);
   const textPath = resolveTextPath(statePath);
   const persistQueuedSnapshot = createPersistQueue(statePath, textPath);
+  const recoverySources = [createSQLiteRecoverySource()];
   const bufferedEvents = createBufferedTaskQueue(async (event: unknown) => {
     await mergeEventState(event);
   });
@@ -364,12 +380,13 @@ export function createTuiRuntime(
         if (disposed || sessionToken !== activeSessionToken) return;
 
         const { changed, nextState } = reconcileChildrenState(input.getState(), response);
+        const recovered = await hydrateStateFromRecoverySources(nextState, { directory, parentSessionID: sid }, recoverySources);
         const tuiStatusHydrated = hydrateChildStatusesFromTuiState(api, nextState);
         const clientStatusHydrated = await hydrateChildStatusesFromClient(api, nextState);
         const hydrated = hydrateChildTokensFromLogs(nextState);
         const pruned = pruneTerminalChildren(nextState);
         if (disposed || sessionToken !== activeSessionToken) return;
-        if (!changed && !tuiStatusHydrated && !clientStatusHydrated && !hydrated && !pruned) return;
+        if (!changed && !recovered.changed && !tuiStatusHydrated && !clientStatusHydrated && !hydrated && !pruned) return;
 
         await syncState(nextState, { source: 'refresh', lastEventType, bufferedEventCount: bufferedEvents.size() });
       } catch {

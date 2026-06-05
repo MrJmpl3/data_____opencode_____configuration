@@ -3,6 +3,10 @@ import type { SubagentChild, SubagentCounts, SubagentState, SubagentTokens } fro
 const TERMINAL_CHILD_RETENTION_MS = 30 * 60 * 1000;
 const MAX_TERMINAL_CHILDREN = 50;
 
+function isTerminalStatus(status: SubagentChild['status']): status is Exclude<SubagentChild['status'], 'running'> {
+  return status === 'done' || status === 'error';
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -125,6 +129,10 @@ function isSyntheticToolWrapper(child: Partial<Pick<SubagentChild, 'source'>>): 
   return child.source === 'tool';
 }
 
+function isDelegationLikeChild(child: Pick<SubagentChild, 'title'>): boolean {
+  return child.title.trim().toLowerCase().startsWith('delegation:');
+}
+
 function isSubtaskFallback(child: Partial<Pick<SubagentChild, 'source'>>): boolean {
   return child.source === 'subtask';
 }
@@ -198,7 +206,7 @@ export function resolveExecutionCountIdentity(
   child: Pick<SubagentChild, 'id' | 'title' | 'parentID'> &
     Partial<Pick<SubagentChild, 'messageID' | 'source' | 'targetSessionID'>>,
 ): string | undefined {
-  if (isSyntheticToolWrapper(child)) return undefined;
+  if (isSyntheticToolWrapper(child) || isDelegationLikeChild(child)) return undefined;
 
   if (isRealSessionChild(child)) {
     const matchingSubtaskID = findMatchingCountedSubtaskID(state, child);
@@ -289,9 +297,32 @@ export function createEmptyState(): SubagentState {
   return {
     children: {},
     countedChildIDs: {},
+    purgedSessionIDs: {},
     totalExecuted: 0,
     updatedAt: new Date().toISOString(),
   };
+}
+
+function resolveSessionIdentity(
+  child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'targetSessionID'>>,
+): string | undefined {
+  if (child.id.startsWith('ses_')) return child.id;
+  return sanitizeTargetSessionID(child.targetSessionID);
+}
+
+function rememberPurgedSession(state: SubagentState, child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'targetSessionID'>>): void {
+  const sessionID = resolveSessionIdentity(child);
+  if (!sessionID) return;
+  state.purgedSessionIDs[sessionID] = true;
+}
+
+export function clearPurgedSession(state: SubagentState, sessionID: string): void {
+  delete state.purgedSessionIDs[sessionID];
+}
+
+export function syncExecutionState(state: SubagentState): void {
+  pruneStaleCountedChildIDs(state);
+  normalizeExecutionCounters(state);
 }
 
 export function pruneTerminalChildren(state: SubagentState, now = Date.now()): boolean {
@@ -311,11 +342,12 @@ export function pruneTerminalChildren(state: SubagentState, now = Date.now()): b
   let changed = false;
   for (const child of terminalChildren) {
     if (keepIDs.has(child.id)) continue;
+    rememberPurgedSession(state, child);
     delete state.children[child.id];
     changed = true;
   }
 
-  changed = pruneStaleCountedChildIDs(state) || changed;
+  syncExecutionState(state);
 
   return changed;
 }
@@ -340,11 +372,12 @@ export function pruneOrphanedSyntheticRunningChildren(
       activeSessionIDs.has(child.parentID) || activeSessionIDs.has(child.targetSessionID ?? '');
     if (anchoredToActiveSession) continue;
 
+    rememberPurgedSession(state, child);
     delete state.children[child.id];
     changed = true;
   }
 
-  changed = pruneStaleCountedChildIDs(state) || changed;
+  syncExecutionState(state);
 
   return changed;
 }
@@ -377,6 +410,7 @@ export function upsertRunningChild(
         | 'endedAt'
       >
     >,
+  options: { allowPurgedSessionRestore?: boolean } = {},
 ): boolean {
   const now = new Date().toISOString();
   const existing = state.children[input.id];
@@ -387,10 +421,27 @@ export function upsertRunningChild(
     input.targetSessionID ?? existing?.targetSessionID,
     input.id.startsWith('ses_') ? input.id : undefined,
   );
-  const status =
+  const incomingStatus =
     input.status === 'done' || input.status === 'error' || input.status === 'running'
       ? input.status
       : (existing?.status ?? 'running');
+  const sessionIdentity = resolveSessionIdentity({ id: input.id, targetSessionID });
+  if (!existing && sessionIdentity && state.purgedSessionIDs[sessionIdentity] && !options.allowPurgedSessionRestore) {
+    return false;
+  }
+
+  if (sessionIdentity && options.allowPurgedSessionRestore) {
+    clearPurgedSession(state, sessionIdentity);
+  }
+
+  const preserveTerminal = Boolean(existing && isTerminalStatus(existing.status) && incomingStatus === 'running');
+  const status = preserveTerminal ? existing!.status : incomingStatus;
+  const nextUpdatedAt = preserveTerminal ? existing!.updatedAt : observedUpdatedAt;
+  const nextEndedAt = preserveTerminal
+    ? existing!.endedAt
+    : status === 'running'
+      ? undefined
+      : (input.endedAt ?? existing?.endedAt ?? observedUpdatedAt);
 
   const counted = existing
     ? false
@@ -414,8 +465,8 @@ export function upsertRunningChild(
     targetSessionID,
     status,
     startedAt: observedStartedAt,
-    updatedAt: observedUpdatedAt,
-    endedAt: status === 'running' ? undefined : (input.endedAt ?? existing?.endedAt),
+    updatedAt: nextUpdatedAt,
+    endedAt: nextEndedAt,
     color: existing?.color,
     elapsedMs: existing?.elapsedMs,
     tokens: existing?.tokens,
@@ -453,12 +504,12 @@ export function replaceChildren(state: SubagentState, nextChildren: SubagentChil
 
   for (const child of nextChildren) {
     upsertRunningChild(nextState, child);
-    if (child.status === 'done' || child.status === 'error') {
+  if (child.status === 'done' || child.status === 'error') {
       markChildStatus(nextState, child.id, child.status, child.endedAt ?? child.updatedAt);
     }
   }
 
-  pruneStaleCountedChildIDs(nextState);
+  syncExecutionState(nextState);
 
   const changed =
     JSON.stringify(state.children) !== JSON.stringify(nextState.children) ||
@@ -553,6 +604,8 @@ export function markChildStatus(
     if (child.status === status && child.endedAt === resolvedEndedAt && child.updatedAt === resolvedEndedAt) {
       continue;
     }
+
+    clearPurgedSession(state, resolveSessionIdentity(child) ?? childID);
 
     state.children[child.id] = normalizeChild(
       {

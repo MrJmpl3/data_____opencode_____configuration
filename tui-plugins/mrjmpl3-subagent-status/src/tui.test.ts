@@ -39,6 +39,7 @@ function createState(children: SubagentChild[], totalExecuted = children.length)
   return {
     children: Object.fromEntries(children.map((child) => [child.id, child])),
     countedChildIDs: Object.fromEntries(children.map((child) => [child.id, true])),
+    purgedSessionIDs: {},
     totalExecuted,
     updatedAt: '2026-06-04T12:00:00.000Z',
   };

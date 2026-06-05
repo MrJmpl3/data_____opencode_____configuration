@@ -5,15 +5,18 @@ import os from 'node:os';
 
 import type { SubagentState } from './types.ts';
 
+import { hydrateStateFromRecoverySources, type RecoveryContext, type RecoverySource } from './recovery.ts';
 import { buildTuiSnapshot, type TuiSnapshot } from './snapshot.ts';
 import { createSerializedTaskQueue } from './queue.ts';
 import {
   createEmptyState,
+  clearPurgedSession,
   normalizeChild,
   pruneOrphanedSyntheticRunningChildren,
   pruneTerminalChildren,
   rekeyCountedExecution,
   resolveExecutionCountIdentity,
+  syncExecutionState,
 } from './state.ts';
 
 const STATUS_DIRNAME = 'mrjmpl3-subagent-status';
@@ -86,7 +89,13 @@ export function shouldPreserveStateOnStartup(): boolean {
   return process.env.MRJMPL3_SUBAGENT_STATUS_PRESERVE_STATE === '1';
 }
 
-export async function loadState(statePath: string): Promise<SubagentState> {
+export async function loadState(
+  statePath: string,
+  options: {
+    recoveryContext?: RecoveryContext;
+    recoverySources?: RecoverySource[];
+  } = {},
+): Promise<SubagentState> {
   try {
     const raw = await readFile(statePath, 'utf8');
     const parsed = safeReadJSON(raw);
@@ -98,6 +107,11 @@ export async function loadState(statePath: string): Promise<SubagentState> {
     if (isRecord(parsed.countedChildIDs)) {
       for (const [id, value] of Object.entries(parsed.countedChildIDs)) {
         if (value === true && id) state.countedChildIDs[id] = true;
+      }
+    }
+    if (isRecord(parsed.purgedSessionIDs)) {
+      for (const [id, value] of Object.entries(parsed.purgedSessionIDs)) {
+        if (value === true && id.startsWith('ses_')) state.purgedSessionIDs[id] = true;
       }
     }
     state.totalExecuted = Math.max(
@@ -148,6 +162,7 @@ export async function loadState(statePath: string): Promise<SubagentState> {
         },
         Date.parse(state.updatedAt),
       );
+      clearPurgedSession(state, child.id);
       state.children[child.id] = child;
     }
 
@@ -162,10 +177,18 @@ export async function loadState(statePath: string): Promise<SubagentState> {
       }
     }
 
-    state.totalExecuted = Math.max(
-      toNonNegativeInteger(state.totalExecuted) ?? 0,
-      Object.keys(state.countedChildIDs).length,
-    );
+    syncExecutionState(state);
+
+    if (options.recoverySources && options.recoverySources.length > 0) {
+      await hydrateStateFromRecoverySources(
+        state,
+        {
+          directory: options.recoveryContext?.directory ?? process.cwd(),
+          parentSessionID: options.recoveryContext?.parentSessionID,
+        },
+        options.recoverySources,
+      );
+    }
 
     const prunedTerminalChildren = pruneTerminalChildren(state, Date.now());
     const prunedOrphanedSyntheticChildren = pruneOrphanedSyntheticRunningChildren(state);
