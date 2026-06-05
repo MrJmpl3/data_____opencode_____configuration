@@ -447,23 +447,28 @@ export function applySubagentEvent(state: SubagentState, event: unknown): boolea
     });
   }
 
-  if (type === 'session.idle' || type === 'session.error' || type === 'session.status') {
+  if (type === 'session.idle') {
+    const sessionID = extractSessionID(candidate);
+    if (!sessionID) return false;
+
+    return upsertChildDetails(state, sessionID, extractChildDetails(candidate));
+  }
+
+  if (type === 'session.error' || type === 'session.status') {
     const sessionID = extractSessionID(candidate);
     if (!sessionID) return false;
 
     const status =
-      type === 'session.idle'
-        ? 'done'
-        : type === 'session.error'
-          ? 'error'
-          : deriveOpenCodeSessionStatus(
-              candidate.properties?.status ??
-                candidate.properties?.state ??
-                candidate.properties?.info?.status ??
-                candidate.status ??
-                candidate.state ??
-                candidate.properties,
-            );
+      type === 'session.error'
+        ? 'error'
+        : deriveOpenCodeSessionStatus(
+            candidate.properties?.status ??
+              candidate.properties?.state ??
+              candidate.properties?.info?.status ??
+              candidate.status ??
+              candidate.state ??
+              candidate.properties,
+          );
     if (!status) return false;
 
     let changed = false;

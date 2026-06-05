@@ -8,7 +8,7 @@ Provide a mouse-only subagent status panel that keeps child sessions in sync, pr
 
 ### Requirement: Accurate child-session reconciliation
 
-The system MUST normalize incoming child snapshots into stable rows, count each execution once, and resolve fallback/session duplicates to a single execution. It MUST preserve terminal rows once completed or errored, and newer running evidence MUST NOT regress a terminal row or resume elapsed time.
+The system MUST normalize incoming child snapshots into stable rows, count each execution once, and resolve fallback/session duplicates to a single execution. It MUST preserve terminal rows once completed or errored, and newer running evidence MUST NOT regress a terminal row or resume elapsed time. Event-path handling MUST treat `session.idle` as non-terminal unless separate authoritative completion or error evidence is present.
 
 #### Scenario: Duplicate fallback row is rekeyed once
 
@@ -30,6 +30,27 @@ The system MUST normalize incoming child snapshots into stable rows, count each 
 - WHEN state is loaded or refreshed
 - THEN those rows MUST be pruned from the visible list
 - AND recent terminal rows MUST remain visible
+
+#### Scenario: Idle-only event keeps the child non-terminal
+
+- GIVEN a child row exists for a delegated session
+- WHEN the event path receives only `session.idle` for that session
+- THEN the row MUST remain `running`
+- AND `endedAt` MUST remain unset
+
+#### Scenario: Later completion evidence terminalizes an idle child
+
+- GIVEN a child row previously saw `session.idle` without terminalizing
+- WHEN later `session.status` or recovery/message evidence explicitly indicates completion
+- THEN the row MUST update to `done`
+- AND the terminal timestamp MUST come from that later evidence
+
+#### Scenario: Later error evidence overrides prior idle-only state
+
+- GIVEN a child row previously saw `session.idle` without terminalizing
+- WHEN later `session.error` or equivalent authoritative error evidence arrives
+- THEN the row MUST update to `error`
+- AND the row MUST NOT remain stuck in a false done state
 
 ### Requirement: Token and context hydration
 
