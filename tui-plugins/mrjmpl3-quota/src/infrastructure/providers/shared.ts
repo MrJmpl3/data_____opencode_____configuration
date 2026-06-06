@@ -2,34 +2,34 @@ export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
 export const getNested = (obj: unknown, path: readonly string[]): unknown => {
-  let v: unknown = obj;
-  for (const k of path) {
-    if (!isRecord(v)) return undefined;
-    v = v[k];
+  let value: unknown = obj;
+  for (const key of path) {
+    if (!isRecord(value)) return undefined;
+    value = value[key];
   }
-  return v;
+  return value;
 };
 
 export const findNumber = (data: unknown, paths: readonly (readonly string[])[]): number | undefined => {
-  for (const p of paths) {
-    const v = getNested(data, p);
-    if (typeof v === 'number' && Number.isFinite(v)) return v;
+  for (const path of paths) {
+    const value = getNested(data, path);
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
   }
   return undefined;
 };
 
 export const findBoolean = (data: unknown, paths: readonly (readonly string[])[]): boolean | undefined => {
-  for (const p of paths) {
-    const v = getNested(data, p);
-    if (typeof v === 'boolean') return v;
+  for (const path of paths) {
+    const value = getNested(data, path);
+    if (typeof value === 'boolean') return value;
   }
   return undefined;
 };
 
 export const findString = (data: unknown, paths: readonly (readonly string[])[]): string | undefined => {
-  for (const p of paths) {
-    const v = getNested(data, p);
-    if (typeof v === 'string') return v;
+  for (const path of paths) {
+    const value = getNested(data, path);
+    if (typeof value === 'string') return value;
   }
   return undefined;
 };

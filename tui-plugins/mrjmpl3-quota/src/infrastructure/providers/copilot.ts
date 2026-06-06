@@ -1,14 +1,13 @@
+import type { CopilotResult } from '../../domain/types.ts';
+import { readOauthAccessToken } from './auth.ts';
 import { GITHUB_API, USER_AGENT } from './constants.ts';
 import { fetchWithTimeout, httpErrorMessage, readJsonResponse } from './http.ts';
-import { readOauthAccessToken } from './auth.ts';
 import { findBoolean, findNumber, findString } from './shared.ts';
-import type { CopilotResult } from './types.ts';
 
 export const readCopilotToken = (): string | null => {
   return readOauthAccessToken(['github-copilot', 'copilot', 'copilot-chat', 'github-copilot-chat']);
 };
 
-// The Copilot API returns different response shapes depending on plan, API version, and region.
 const COPILOT_TOTAL_PATHS = [
   ['quota', 'limit'],
   ['quota', 'total'],

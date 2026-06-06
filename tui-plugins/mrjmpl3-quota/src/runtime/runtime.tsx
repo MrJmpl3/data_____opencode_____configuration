@@ -1,14 +1,16 @@
 /** @jsxImportSource @opentui/solid */
-import { createSignal } from 'solid-js';
 import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
+import { createSignal } from 'solid-js';
 
-import { readGoConfig } from '../providers.ts';
+import type { QuotaLine } from '../domain/lines.ts';
+import { detailTextLine, headingLine } from '../domain/lines.ts';
+import { fetchProviderLines } from '../domain/provider-results.ts';
+import type { GoConfig, ProviderFetchResult, ProviderResult } from '../domain/provider-results.ts';
+import type { QuotaProviderId } from '../domain/types.ts';
+import { createQuotaProviderCache } from '../infrastructure/cache.ts';
+import { readGoConfig } from '../infrastructure/providers/go.ts';
+import { View } from '../ui/view.tsx';
 import { createRefreshScheduler } from './refresh-scheduler.ts';
-import { createQuotaProviderCache } from './cache.ts';
-import { fetchProviderLines } from './provider-results.ts';
-import type { GoConfig, ProviderFetchResult, ProviderResult } from './provider-results.ts';
-import { detailTextLine, headingLine } from './lines.ts';
-import type { QuotaLine } from './lines.ts';
 import {
   DEFAULT_MIN_REFRESH_INTERVAL_MS,
   DEFAULT_POLL_INTERVAL_MS,
@@ -20,9 +22,8 @@ import {
   MIN_SAFE_CACHE_TTL_MS,
   MIN_SAFE_REFRESH_INTERVAL_MS,
 } from './options.ts';
-import type { ProviderSpec, QuotaProviderId } from './options.ts';
-import { slotSessionId } from './tui.ts';
-import { View } from './view.tsx';
+import type { ProviderSpec } from '../domain/types.ts';
+import { slotSessionId } from './session.ts';
 
 const IMMEDIATE_REFRESH_EVENTS = ['tui.session.select'];
 const COMPLETION_REFRESH_EVENTS = ['session.idle'];
@@ -78,20 +79,6 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
   let inFlightVersion = 0;
   let disposed = false;
   let clockTimer: ReturnType<typeof setTimeout> | undefined;
-  const scheduleClockTick = () => {
-    const delayMs = 1000 - (Date.now() % 1000);
-    clockTimer = setTimeout(() => {
-      if (disposed) return;
-      const tickNowMs = Date.now();
-      setNowMs(tickNowMs);
-      if (hasExpiredQuotaLine(lines(), tickNowMs) && tickNowMs - lastExpiryRefreshAtMs >= expiryRefreshIntervalMs) {
-        lastExpiryRefreshAtMs = tickNowMs;
-        providerCache.clear();
-        requestRefresh('quota-window-expired', true);
-      }
-      scheduleClockTick();
-    }, delayMs);
-  };
 
   const displayMode = getDisplayModeSetting(options);
   const visibleProviders = getVisibleProviders(options);
@@ -126,65 +113,29 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
     providerErrorBackoffMs,
     fetchProviderLines: (providerId, goConfig) => fetchProviderLines(providerId, goConfig, displayMode, setNowMs),
   });
-  scheduleClockTick();
   let refreshPromise: Promise<void> | undefined;
   let pendingRefreshSource: string | undefined;
   let deferredRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   let lastRefreshStartedAtMs = 0;
   let lastExpiryRefreshAtMs = 0;
 
-  const refresh = async (_source?: string) => {
-    if (disposed) return;
-    const currentVersion = ++inFlightVersion;
-    const results = new Map<QuotaProviderId, ProviderResult>();
-    const goConfig = readGoConfig();
-
+  const buildLines = (results: Map<QuotaProviderId, ProviderResult>): QuotaLine[] => {
+    const items: QuotaLine[] = [];
     for (const provider of visibleProviders) {
-      if (provider.id === 'go' && !goConfig) continue;
-      results.set(provider.id, providerCache.get(provider.id)?.value ?? null);
-    }
-
-    const buildLines = () => {
-      const items: QuotaLine[] = [];
-      for (const provider of visibleProviders) {
-        const result = results.get(provider.id);
-        if (result === undefined) continue;
-        if (result === null) {
-          items.push(headingLine(provider.label));
-          items.push(detailTextLine('Refreshing…'));
-        } else if (typeof result === 'string') {
-          items.push(headingLine(provider.label));
-          items.push(detailTextLine(`Unavailable · ${result}`));
-        } else {
-          if (result[0]?.kind !== 'heading') items.push(headingLine(provider.label));
-          items.push(...result);
-        }
+      const result = results.get(provider.id);
+      if (result === undefined) continue;
+      if (result === null) {
+        items.push(headingLine(provider.label));
+        items.push(detailTextLine('Refreshing…'));
+      } else if (typeof result === 'string') {
+        items.push(headingLine(provider.label));
+        items.push(detailTextLine(`Unavailable · ${result}`));
+      } else {
+        if (result[0]?.kind !== 'heading') items.push(headingLine(provider.label));
+        items.push(...result);
       }
-      return items;
-    };
-
-    setNowMs(Date.now());
-    setLines(buildLines());
-
-    await refreshQuotaProviders({
-      visibleProviders,
-      results,
-      goConfig,
-      getCachedProviderLines,
-      shouldContinue: () => !disposed && currentVersion === inFlightVersion,
-      onUpdate: () => setLines(buildLines()),
-    });
-  };
-
-  const scheduleDeferredRefresh = (source?: string, delayMs: number = minRefreshIntervalMs) => {
-    pendingRefreshSource = source ?? pendingRefreshSource;
-    if (deferredRefreshTimer) return;
-    deferredRefreshTimer = setTimeout(() => {
-      deferredRefreshTimer = undefined;
-      const queuedSource = pendingRefreshSource;
-      pendingRefreshSource = undefined;
-      requestRefresh(queuedSource);
-    }, delayMs);
+    }
+    return items;
   };
 
   const requestRefresh = (source?: string, force = false) => {
@@ -217,6 +168,58 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
       });
   };
 
+  const scheduleClockTick = () => {
+    const delayMs = 1000 - (Date.now() % 1000);
+    clockTimer = setTimeout(() => {
+      if (disposed) return;
+      const tickNowMs = Date.now();
+      setNowMs(tickNowMs);
+      if (hasExpiredQuotaLine(lines(), tickNowMs) && tickNowMs - lastExpiryRefreshAtMs >= expiryRefreshIntervalMs) {
+        lastExpiryRefreshAtMs = tickNowMs;
+        providerCache.clear();
+        requestRefresh('quota-window-expired', true);
+      }
+      scheduleClockTick();
+    }, delayMs);
+  };
+
+  const refresh = async (_source?: string) => {
+    if (disposed) return;
+    const currentVersion = ++inFlightVersion;
+    const results = new Map<QuotaProviderId, ProviderResult>();
+    const goConfig = readGoConfig();
+
+    for (const provider of visibleProviders) {
+      if (provider.id === 'go' && !goConfig) continue;
+      results.set(provider.id, providerCache.get(provider.id)?.value ?? null);
+    }
+
+    setNowMs(Date.now());
+    setLines(buildLines(results));
+
+    await refreshQuotaProviders({
+      visibleProviders,
+      results,
+      goConfig,
+      getCachedProviderLines,
+      shouldContinue: () => !disposed && currentVersion === inFlightVersion,
+      onUpdate: () => setLines(buildLines(results)),
+    });
+  };
+
+  const scheduleDeferredRefresh = (source?: string, delayMs: number = minRefreshIntervalMs) => {
+    pendingRefreshSource = source ?? pendingRefreshSource;
+    if (deferredRefreshTimer) return;
+    deferredRefreshTimer = setTimeout(() => {
+      deferredRefreshTimer = undefined;
+      const queuedSource = pendingRefreshSource;
+      pendingRefreshSource = undefined;
+      requestRefresh(queuedSource);
+    }, delayMs);
+  };
+
+  scheduleClockTick();
+
   const scheduler = createRefreshScheduler({
     subscribe: (eventName, handler) => {
       if (eventName === 'tui.session.select') return evt.on('tui.session.select', handler);
@@ -242,10 +245,10 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
     order: 180,
     slots: {
       sidebar_content: (_ctx, slotInput) => {
-        const sid = slotSessionId(slotInput);
-        if (sid && sid !== currentSessionId) {
-          currentSessionId = sid;
-          requestRefresh(`session:${sid}`);
+        const sessionId = slotSessionId(slotInput);
+        if (sessionId && sessionId !== currentSessionId) {
+          currentSessionId = sessionId;
+          requestRefresh(`session:${sessionId}`);
         }
         return <View getLines={lines} getNowMs={nowMs} api={api} />;
       },

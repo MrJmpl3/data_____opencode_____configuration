@@ -1,8 +1,8 @@
+import type { OpenAIAdditionalRateLimit, OpenAIResult, OpenAIWindow } from '../../domain/types.ts';
 import { OPENAI_USAGE_URL } from './constants.ts';
 import { readOauthAccessToken, readOpenAIAccountId } from './auth.ts';
 import { fetchWithTimeout, httpErrorMessage, readJsonResponse } from './http.ts';
 import { firstDefined, isRecord, readBooleanField, readNumericField, readStringField } from './shared.ts';
-import type { OpenAIAdditionalRateLimit, OpenAIResult, OpenAIWindow } from './types.ts';
 
 export const readOpenAIToken = (): string | null => {
   return readOauthAccessToken(['openai', 'chatgpt', 'codex', 'opencode']);
@@ -51,90 +51,6 @@ const cleanLimitLabel = (rawLabel: string): string => {
   const normalized = rawLabel.trim().replace(/\s+/g, ' ');
   if (normalized.toLowerCase().includes('codex-spark')) return 'Codex Spark';
   return normalized || 'Additional limit';
-};
-
-const firstWindow = (record: Record<string, unknown>): { primary?: OpenAIWindow; secondary?: OpenAIWindow } => {
-  const primary =
-    parseOpenAIWindow(record['primary_window']) ||
-    parseOpenAIWindow(record['primary']) ||
-    parseOpenAIWindow(record['window']) ||
-    parseOpenAIWindow(record['window_primary']) ||
-    undefined;
-
-  const secondary =
-    parseOpenAIWindow(record['secondary_window']) ||
-    parseOpenAIWindow(record['secondary']) ||
-    parseOpenAIWindow(record['window_secondary']) ||
-    undefined;
-
-  if (primary || secondary) {
-    return { primary, secondary };
-  }
-
-  const directWindow = parseOpenAIWindow(record);
-  return directWindow ? { primary: directWindow } : {};
-};
-
-const parseWindowFromAliases = (
-  value: Record<string, unknown> | undefined,
-  aliases: readonly string[],
-): OpenAIWindow | undefined => {
-  if (!value) return undefined;
-  for (const alias of aliases) {
-    const window = parseOpenAIWindow(value[alias]);
-    if (window) return window;
-  }
-  return parseOpenAIWindow(value);
-};
-
-export const parseAdditionalRateLimits = (value: unknown): OpenAIAdditionalRateLimit[] => {
-  if (!isRecord(value) && !Array.isArray(value)) return [];
-
-  const parseEntry = (key: string, item: unknown): OpenAIAdditionalRateLimit | null => {
-    if (!isRecord(item)) return null;
-    const record = item;
-    const rateLimitRecord = isRecord(record.rate_limit) ? record.rate_limit : undefined;
-
-    const label = cleanLimitLabel(
-      findFirstString(record, [
-        'limit_name',
-        'limitName',
-        'name',
-        'metered_feature',
-        'meteredFeature',
-        'bucket',
-        'id',
-        'window_name',
-      ]) || key,
-    );
-
-    const nestedWindows = rateLimitRecord ? firstWindow(rateLimitRecord) : {};
-    const windows = nestedWindows.primary || nestedWindows.secondary ? nestedWindows : firstWindow(record);
-    if (!windows.primary && !windows.secondary) return null;
-    const stateRecord = rateLimitRecord ?? record;
-
-    return {
-      label,
-      limitName: findFirstString(record, ['limit_name', 'limitName']),
-      meteredFeature: findFirstString(record, ['metered_feature', 'meteredFeature']),
-      allowed: readBooleanField(stateRecord, 'allowed'),
-      limitReached: readBooleanField(stateRecord, 'limit_reached'),
-      primary: windows.primary,
-      secondary: windows.secondary,
-    };
-  };
-
-  if (Array.isArray(value)) {
-    return value
-      .map((item, index) => parseEntry(`additional-${index}`, item))
-      .filter((entry): entry is OpenAIAdditionalRateLimit => Boolean(entry));
-  }
-
-  if (!isRecord(value)) return [];
-
-  return Object.entries(value)
-    .map(([key, item]) => parseEntry(key, item))
-    .filter((entry): entry is OpenAIAdditionalRateLimit => Boolean(entry));
 };
 
 const parseOpenAIWindow = (value: unknown): OpenAIWindow | undefined => {
@@ -192,6 +108,89 @@ const parseOpenAIWindow = (value: unknown): OpenAIWindow | undefined => {
   };
 };
 
+const firstWindow = (record: Record<string, unknown>): { primary?: OpenAIWindow; secondary?: OpenAIWindow } => {
+  const primary =
+    parseOpenAIWindow(record['primary_window']) ||
+    parseOpenAIWindow(record['primary']) ||
+    parseOpenAIWindow(record['window']) ||
+    parseOpenAIWindow(record['window_primary']) ||
+    undefined;
+
+  const secondary =
+    parseOpenAIWindow(record['secondary_window']) ||
+    parseOpenAIWindow(record['secondary']) ||
+    parseOpenAIWindow(record['window_secondary']) ||
+    undefined;
+
+  if (primary || secondary) {
+    return { primary, secondary };
+  }
+
+  const directWindow = parseOpenAIWindow(record);
+  return directWindow ? { primary: directWindow } : {};
+};
+
+const parseWindowFromAliases = (
+  value: Record<string, unknown> | undefined,
+  aliases: readonly string[],
+): OpenAIWindow | undefined => {
+  if (!value) return undefined;
+  for (const alias of aliases) {
+    const window = parseOpenAIWindow(value[alias]);
+    if (window) return window;
+  }
+  return parseOpenAIWindow(value);
+};
+
+export const parseAdditionalRateLimits = (value: unknown): OpenAIAdditionalRateLimit[] => {
+  if (!isRecord(value) && !Array.isArray(value)) return [];
+
+  const parseEntry = (key: string, item: unknown): OpenAIAdditionalRateLimit | null => {
+    if (!isRecord(item)) return null;
+    const rateLimitRecord = isRecord(item.rate_limit) ? item.rate_limit : undefined;
+
+    const label = cleanLimitLabel(
+      findFirstString(item, [
+        'limit_name',
+        'limitName',
+        'name',
+        'metered_feature',
+        'meteredFeature',
+        'bucket',
+        'id',
+        'window_name',
+      ]) || key,
+    );
+
+    const nestedWindows = rateLimitRecord ? firstWindow(rateLimitRecord) : {};
+    const windows = nestedWindows.primary || nestedWindows.secondary ? nestedWindows : firstWindow(item);
+    if (!windows.primary && !windows.secondary) return null;
+    const stateRecord = rateLimitRecord ?? item;
+
+    return {
+      label,
+      limitName: findFirstString(item, ['limit_name', 'limitName']),
+      meteredFeature: findFirstString(item, ['metered_feature', 'meteredFeature']),
+      allowed: readBooleanField(stateRecord, 'allowed'),
+      limitReached: readBooleanField(stateRecord, 'limit_reached'),
+      primary: windows.primary,
+      secondary: windows.secondary,
+    };
+  };
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item, index) => parseEntry(`additional-${index}`, item))
+      .filter((entry): entry is OpenAIAdditionalRateLimit => Boolean(entry));
+  }
+
+  if (!isRecord(value)) return [];
+
+  return Object.entries(value)
+    .map(([key, item]) => parseEntry(key, item))
+    .filter((entry): entry is OpenAIAdditionalRateLimit => Boolean(entry));
+};
+
 export const fetchOpenAIQuota = async (): Promise<OpenAIResult | null | { error: string }> => {
   const token = readOpenAIToken();
   if (!token) return null;
@@ -221,14 +220,13 @@ export const fetchOpenAIQuota = async (): Promise<OpenAIResult | null | { error:
     return { error: 'OpenAI did not return a valid usage payload' };
   }
 
-  const data = body;
-  const rateLimit = isRecord(data.rate_limit) ? data.rate_limit : undefined;
-  const additionalRateLimits = parseAdditionalRateLimits(data.additional_rate_limits);
-  const codeReviewRateLimit = isRecord(data.code_review_rate_limit) ? data.code_review_rate_limit : undefined;
-  const credits = isRecord(data.credits) ? data.credits : undefined;
+  const rateLimit = isRecord(body.rate_limit) ? body.rate_limit : undefined;
+  const additionalRateLimits = parseAdditionalRateLimits(body.additional_rate_limits);
+  const codeReviewRateLimit = isRecord(body.code_review_rate_limit) ? body.code_review_rate_limit : undefined;
+  const credits = isRecord(body.credits) ? body.credits : undefined;
 
   const result: OpenAIResult = {
-    planType: readStringField(data, 'plan_type') || readStringField(data, 'planType'),
+    planType: readStringField(body, 'plan_type') || readStringField(body, 'planType'),
     hourly: parseWindowFromAliases(rateLimit, ['primary_window', 'primary', 'window', 'window_primary', 'hourly']),
     weekly: parseWindowFromAliases(rateLimit, ['secondary_window', 'secondary', 'window_secondary', 'weekly']),
     codeReview: parseWindowFromAliases(codeReviewRateLimit, ['primary_window', 'primary', 'window', 'window_primary']),

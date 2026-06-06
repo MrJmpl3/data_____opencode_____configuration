@@ -1,11 +1,11 @@
 import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
 import os from 'os';
+import { join } from 'path';
 
+import type { OpenRouterResult } from '../../domain/types.ts';
 import { OPENROUTER_CREDITS_URL } from './constants.ts';
 import { fetchWithTimeout, httpErrorMessage, readJsonResponse } from './http.ts';
 import { isRecord } from './shared.ts';
-import type { OpenRouterResult } from './types.ts';
 
 export const readOpenRouterKey = (): string | null => {
   const key = process.env.OPENROUTER_API_KEY?.trim();
@@ -16,8 +16,8 @@ export const readOpenRouterKey = (): string | null => {
     if (existsSync(path)) {
       const parsed: unknown = JSON.parse(readFileSync(path, 'utf-8'));
       if (!isRecord(parsed)) return null;
-      for (const k of ['apiKey', 'api_key', 'token', 'openrouterApiKey'] as const) {
-        const value = parsed[k];
+      for (const keyField of ['apiKey', 'api_key', 'token', 'openrouterApiKey'] as const) {
+        const value = parsed[keyField];
         if (value && typeof value === 'string') return value.trim();
       }
     }

@@ -1,12 +1,6 @@
-import { fmtDuration } from '../providers.ts';
+import { fmtDuration } from '../infrastructure/providers/format.ts';
 import { formatResponsibleUsagePace } from './format.ts';
-import { detailLine } from './tui.ts';
-
-export type PercentWindow = {
-  usedPct: number;
-  resetSec: number;
-  limitWindowSec?: number;
-};
+import type { PercentWindow } from './types.ts';
 
 export type QuotaLine =
   | { kind: 'heading'; text: string }
@@ -16,6 +10,8 @@ export type QuotaLine =
 
 const resetAtMsFromSeconds = (resetSec: number, capturedAtMs: number): number =>
   capturedAtMs + Math.max(0, Math.floor(resetSec)) * 1000;
+
+const indentQuotaLine = (text: string): string => `  ${text}`;
 
 export const remainingSeconds = (resetAtMs: number, nowMs: number): number =>
   Math.max(0, Math.ceil((resetAtMs - nowMs) / 1000));
@@ -42,11 +38,11 @@ export const renderQuotaLine = (line: QuotaLine, nowMs: number): string => {
     case 'heading':
       return line.text;
     case 'detail':
-      return detailLine(line.text);
+      return indentQuotaLine(line.text);
     case 'window':
-      return detailLine(`${line.label} · ${line.value} · ${fmtDuration(remainingSeconds(line.resetAtMs, nowMs))} left`);
+      return indentQuotaLine(`${line.label} · ${line.value} · ${fmtDuration(remainingSeconds(line.resetAtMs, nowMs))} left`);
     case 'pace':
-      return detailLine(
+      return indentQuotaLine(
         `Usage pace · ${formatResponsibleUsagePace(
           {
             usedPct: line.usedPct,

@@ -1,19 +1,4 @@
-export type QuotaProviderId = 'go' | 'copilot' | 'openrouter' | 'openai';
-export type QuotaDisplayMode = 'remaining' | 'used';
-
-export type QuotaPluginOptions = {
-  displayMode?: QuotaDisplayMode;
-  visibleProviders?: readonly string[];
-  pollIntervalMs?: number;
-  minRefreshIntervalMs?: number;
-  providerCacheTtlMs?: number;
-  providerErrorBackoffMs?: number;
-};
-
-export type ProviderSpec = {
-  id: QuotaProviderId;
-  label: string;
-};
+import type { ProviderSpec, QuotaDisplayMode, QuotaPluginOptions, QuotaProviderId } from '../domain/types.ts';
 
 export const PROVIDER_SPECS: readonly ProviderSpec[] = [
   { id: 'go', label: 'OpenCode Go' },
@@ -29,7 +14,6 @@ export const DEFAULT_PROVIDER_CACHE_TTL_MS = 5 * 60_000;
 export const DEFAULT_PROVIDER_ERROR_BACKOFF_MS = 15 * 60_000;
 export const MIN_SAFE_REFRESH_INTERVAL_MS = 60_000;
 export const MIN_SAFE_CACHE_TTL_MS = 60_000;
-export const MAX_PROVIDER_BACKOFF_MS = 60 * 60_000;
 
 const normalizeProviderId = (value: string): QuotaProviderId | undefined => {
   const normalized = value.trim().toLowerCase();

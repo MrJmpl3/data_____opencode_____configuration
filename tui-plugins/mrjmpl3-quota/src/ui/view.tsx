@@ -1,9 +1,9 @@
 /** @jsxImportSource @opentui/solid */
-import { Show } from 'solid-js';
 import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
+import { Show } from 'solid-js';
 
-import { renderQuotaLine } from './lines.ts';
-import type { QuotaLine } from './lines.ts';
+import { renderQuotaLine } from '../domain/lines.ts';
+import type { QuotaLine } from '../domain/lines.ts';
 
 export const View = (props: { getLines: () => QuotaLine[]; getNowMs: () => number; api: TuiPluginApi }) => {
   const theme = () => props.api.theme.current;

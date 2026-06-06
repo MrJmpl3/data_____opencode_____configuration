@@ -1,22 +1,11 @@
-import {
-  fetchCopilotQuota,
-  fetchGoDashboard,
-  fetchOpenAIQuota,
-  fetchOpenRouterQuota,
-  readGoConfig,
-} from '../providers.ts';
-import {
-  formatCountQuota,
-  formatCreditQuota,
-  formatOpenAIRateLimitStatus,
-  formatPercentQuota,
-  formatUsedPercentQuota,
-  isOpenAISparkRateLimit,
-  WEEK_SECONDS,
-} from './format.ts';
+import { formatCountQuota, formatCreditQuota, formatOpenAIRateLimitStatus, formatPercentQuota, formatUsedPercentQuota, isOpenAISparkRateLimit, WEEK_SECONDS } from './format.ts';
 import { detailTextLine, headingLine, paceLine, windowLine } from './lines.ts';
-import type { PercentWindow, QuotaLine } from './lines.ts';
-import type { QuotaDisplayMode, QuotaProviderId } from './options.ts';
+import type { QuotaLine } from './lines.ts';
+import type { PercentWindow, QuotaDisplayMode, QuotaProviderId } from './types.ts';
+import { fetchCopilotQuota } from '../infrastructure/providers/copilot.ts';
+import { fetchGoDashboard, readGoConfig } from '../infrastructure/providers/go.ts';
+import { fetchOpenAIQuota } from '../infrastructure/providers/openai.ts';
+import { fetchOpenRouterQuota } from '../infrastructure/providers/openrouter.ts';
 
 export type GoConfig = ReturnType<typeof readGoConfig>;
 export type CachedProviderValue = QuotaLine[] | string;
@@ -84,6 +73,7 @@ export const fetchProviderLines = async (
   setNowMs(fetchedAtMs);
   const openAILines: QuotaLine[] = [];
   const sparkLines: QuotaLine[] = [];
+
   const addWindow = (
     targetLines: QuotaLine[],
     label: string,

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
 import os from 'os';
+import { join } from 'path';
 
 import { isRecord } from './shared.ts';
 
@@ -32,9 +32,8 @@ export const readOauthAccessToken = (keys: readonly string[]): string | null => 
   for (const key of keys) {
     const entry = auth[key];
     if (!isRecord(entry)) continue;
-    const oauthEntry = entry;
-    if (oauthEntry.type !== 'oauth') continue;
-    const access = oauthEntry.access;
+    if (entry.type !== 'oauth') continue;
+    const access = entry.access;
     if (typeof access === 'string' && access.trim()) return access.trim();
   }
   return null;
@@ -46,9 +45,8 @@ const readOauthAccountId = (keys: readonly string[]): string | null => {
   for (const key of keys) {
     const entry = auth[key];
     if (!isRecord(entry)) continue;
-    const oauthEntry = entry;
-    if (oauthEntry.type !== 'oauth') continue;
-    const accountId = oauthEntry.account_id ?? oauthEntry.accountId;
+    if (entry.type !== 'oauth') continue;
+    const accountId = entry.account_id ?? entry.accountId;
     if (typeof accountId === 'string' && accountId.trim()) return accountId.trim();
   }
   return null;

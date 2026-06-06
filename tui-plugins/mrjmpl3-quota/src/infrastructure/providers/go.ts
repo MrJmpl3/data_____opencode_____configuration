@@ -1,14 +1,14 @@
+import type { GoWindow } from '../../domain/types.ts';
 import { DASHBOARD_URL, USER_AGENT } from './constants.ts';
 import { fetchWithTimeout, httpErrorMessage } from './http.ts';
-import type { GoWindow } from './types.ts';
 
 export const readGoConfig = (): {
   workspaceId: string;
   authCookie: string;
 } | null => {
-  const ws = process.env.OPENCODE_GO_WORKSPACE_ID?.trim();
-  const auth = process.env.OPENCODE_GO_AUTH_COOKIE?.trim();
-  if (ws && auth) return { workspaceId: ws, authCookie: auth };
+  const workspaceId = process.env.OPENCODE_GO_WORKSPACE_ID?.trim();
+  const authCookie = process.env.OPENCODE_GO_AUTH_COOKIE?.trim();
+  if (workspaceId && authCookie) return { workspaceId, authCookie };
   return null;
 };
 
@@ -24,15 +24,14 @@ const windowRegexes = (key: string): { pctFirst: RegExp; resetFirst: RegExp } =>
   return { pctFirst, resetFirst };
 };
 
-// OpenCode Go has no public API, so the dashboard HTML is parsed from inlined $R[] objects.
 const parseGoWindow = (html: string, key: string): GoWindow | null => {
   const { pctFirst, resetFirst } = windowRegexes(key);
 
-  const tryMatch = (re: RegExp, pctIdx: number, resetIdx: number): GoWindow | null => {
-    const m = html.match(re);
-    if (!m) return null;
-    const usagePercent = Number(m[pctIdx]);
-    const resetInSec = Number(m[resetIdx]);
+  const tryMatch = (pattern: RegExp, pctIndex: number, resetIndex: number): GoWindow | null => {
+    const match = html.match(pattern);
+    if (!match) return null;
+    const usagePercent = Number(match[pctIndex]);
+    const resetInSec = Number(match[resetIndex]);
     if (!Number.isFinite(usagePercent) || !Number.isFinite(resetInSec)) return null;
     const used = Math.max(0, usagePercent);
     return {

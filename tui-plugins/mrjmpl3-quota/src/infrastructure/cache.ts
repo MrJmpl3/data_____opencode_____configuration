@@ -1,23 +1,23 @@
-import { fmtDuration } from '../providers.ts';
-import { isQuotaRateLimitError, retryAfterMsFromMessage } from './format.ts';
-import { MAX_PROVIDER_BACKOFF_MS } from './options.ts';
-import type { QuotaProviderId } from './options.ts';
-import type { GoConfig, ProviderFetchResult } from './provider-results.ts';
-import type { CachedProviderValue } from './provider-results.ts';
+import { fmtDuration } from './providers/format.ts';
+import { isQuotaRateLimitError, retryAfterMsFromMessage } from './retry-policy.ts';
+import type { GoConfig, ProviderFetchResult } from '../domain/provider-results.ts';
+import type { QuotaProviderId } from '../domain/types.ts';
 
-export type ProviderCacheEntry = {
-  value?: CachedProviderValue;
+const MAX_PROVIDER_BACKOFF_MS = 60 * 60_000;
+
+export interface ProviderCacheEntry {
+  value?: ProviderFetchResult;
   fetchedAtMs: number;
   cooldownUntilMs?: number;
   consecutiveErrors: number;
   inFlight?: Promise<ProviderFetchResult>;
-};
+}
 
-type QuotaProviderCacheConfig = {
+interface QuotaProviderCacheConfig {
   providerCacheTtlMs: number;
   providerErrorBackoffMs: number;
   fetchProviderLines: (providerId: QuotaProviderId, goConfig: GoConfig) => Promise<ProviderFetchResult>;
-};
+}
 
 export const createQuotaProviderCache = ({
   providerCacheTtlMs,

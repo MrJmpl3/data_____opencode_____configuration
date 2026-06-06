@@ -7,18 +7,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as quotaIndex from '../index.tsx';
 import plugin, { formatResponsibleWeeklyUsage, isQuotaRateLimitError, retryAfterMsFromMessage } from '../index.tsx';
-import { createRefreshScheduler } from '../runtime/refresh-scheduler.ts';
-import { refreshQuotaProviders } from '../runtime/runtime.tsx';
-import * as quotaProviders from '../providers.ts';
+import { createRefreshScheduler } from '../src/runtime/refresh-scheduler.ts';
+import { refreshQuotaProviders } from '../src/runtime/runtime.tsx';
+import { fetchCopilotQuota, normalizeCopilotResetAtMs } from '../src/infrastructure/providers/copilot.ts';
+import { fmtDuration } from '../src/infrastructure/providers/format.ts';
+import { fetchWithTimeout } from '../src/infrastructure/providers/http.ts';
 import {
-  fetchCopilotQuota,
-  fetchWithTimeout,
   fetchOpenAIQuota,
-  fetchOpenRouterQuota,
-  fmtDuration,
-  normalizeCopilotResetAtMs,
   parseAdditionalRateLimits,
-} from '../providers.ts';
+} from '../src/infrastructure/providers/openai.ts';
+import { fetchOpenRouterQuota as fetchOpenRouterQuotaFromOpenRouter } from '../src/infrastructure/providers/openrouter.ts';
+import { fetchOpenAIQuota as fetchOpenAIQuotaFromOpenAI } from '../src/infrastructure/providers/openai.ts';
+import { fetchOpenRouterQuota } from '../src/infrastructure/providers/openrouter.ts';
+import { fetchWithTimeout as fetchWithTimeoutFromHttp } from '../src/infrastructure/providers/http.ts';
+import { fmtDuration as fmtDurationFromProviderFormat } from '../src/infrastructure/providers/format.ts';
+import { parseAdditionalRateLimits as parseAdditionalRateLimitsFromOpenAI } from '../src/infrastructure/providers/openai.ts';
 
 const createAuthFixture = (entries: Record<string, unknown>): string => {
   const root = mkdtempSync(join(tmpdir(), 'opencode-quota-'));
@@ -65,12 +68,13 @@ describe('quota tui plugin', () => {
     expect(typeof quotaIndex.retryAfterMsFromMessage).toBe('function');
   });
 
-  it('keeps the current providers export surface available', () => {
-    expect(typeof quotaProviders.fetchCopilotQuota).toBe('function');
-    expect(typeof quotaProviders.fetchOpenAIQuota).toBe('function');
-    expect(typeof quotaProviders.fetchOpenRouterQuota).toBe('function');
-    expect(typeof quotaProviders.fmtDuration).toBe('function');
-    expect(typeof quotaProviders.parseAdditionalRateLimits).toBe('function');
+  it('exposes provider adapters from their responsibility-based modules', () => {
+    expect(fetchCopilotQuota).toBeDefined();
+    expect(fetchWithTimeout).toBe(fetchWithTimeoutFromHttp);
+    expect(fetchOpenAIQuota).toBe(fetchOpenAIQuotaFromOpenAI);
+    expect(fetchOpenRouterQuota).toBe(fetchOpenRouterQuotaFromOpenRouter);
+    expect(fmtDuration).toBe(fmtDurationFromProviderFormat);
+    expect(parseAdditionalRateLimits).toBe(parseAdditionalRateLimitsFromOpenAI);
   });
 
   it('registers a sidebar slot, responds to session changes, and disposes timers/events', async () => {
@@ -112,6 +116,7 @@ describe('quota tui plugin', () => {
     expect(events.has('session.idle')).toBe(true);
 
     disposers.forEach((dispose) => dispose());
+    await vi.runAllTimersAsync();
     expect(events.size).toBe(0);
     expect(vi.getTimerCount()).toBe(0);
   });

@@ -1,3 +1,26 @@
+export type QuotaProviderId = 'go' | 'copilot' | 'openrouter' | 'openai';
+export type QuotaDisplayMode = 'remaining' | 'used';
+
+export interface QuotaPluginOptions {
+  displayMode?: QuotaDisplayMode;
+  visibleProviders?: readonly string[];
+  pollIntervalMs?: number;
+  minRefreshIntervalMs?: number;
+  providerCacheTtlMs?: number;
+  providerErrorBackoffMs?: number;
+}
+
+export interface ProviderSpec {
+  id: QuotaProviderId;
+  label: string;
+}
+
+export interface PercentWindow {
+  usedPct: number;
+  resetSec: number;
+  limitWindowSec?: number;
+}
+
 export interface GoWindow {
   used: number;
   remaining: number;
@@ -22,11 +45,7 @@ export interface OpenRouterResult {
   usage?: number;
 }
 
-export interface OpenAIWindow {
-  usedPct: number;
-  resetSec: number;
-  limitWindowSec?: number;
-}
+export interface OpenAIWindow extends PercentWindow {}
 
 export interface OpenAIAdditionalRateLimit {
   label: string;

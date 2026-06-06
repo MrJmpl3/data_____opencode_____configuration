@@ -1,13 +1,15 @@
 import type { TuiPluginModule } from '@opencode-ai/plugin/tui';
 
-import { registerQuotaTui } from './runtime/runtime.tsx';
+import { formatResponsibleUsagePace, formatResponsibleWeeklyUsage } from './src/domain/format.ts';
+import { isQuotaRateLimitError, retryAfterMsFromMessage } from './src/infrastructure/retry-policy.ts';
+import { registerQuotaTui } from './src/runtime/runtime.tsx';
 
 export {
   formatResponsibleUsagePace,
   formatResponsibleWeeklyUsage,
   isQuotaRateLimitError,
   retryAfterMsFromMessage,
-} from './runtime/format.ts';
+};
 
 const plugin: TuiPluginModule & { id: string } = {
   id: 'quota',

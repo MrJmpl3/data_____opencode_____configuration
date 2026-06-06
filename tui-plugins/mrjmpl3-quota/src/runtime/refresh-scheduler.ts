@@ -7,11 +7,6 @@ export interface RefreshSchedulerConfig {
   refreshDelayMs?: number;
 }
 
-// --- event-driven refresh scheduler ---
-// Replaces polling with subscribe-based event binding.
-// Events trigger a coalesced timer that calls onRefresh.
-// Clean dispose ensures no stale callbacks after unmount.
-
 const DEFAULT_REFRESH_DELAY_MS = 300;
 const DEFAULT_POLL_INTERVAL_MS = 10 * 60_000;
 
@@ -33,7 +28,6 @@ export const createRefreshScheduler = ({
   let pendingDueAtMs = 0;
   let pendingSource: string | undefined;
 
-  // --- polling fallback: infrequent refresh to catch stale data ---
   const pollTimer =
     pollIntervalMs > 0
       ? setInterval(() => {
@@ -65,24 +59,16 @@ export const createRefreshScheduler = ({
     }, delay);
   };
 
-  // --- bindEvents maps event names to refresh triggers ---
-  // completionEvents get +250ms extra delay so the LLM finishes settling
-  // before fetching updated quota. Prevents reading stale intermediate state.
-
   const bindEvents = (eventNames: string[], extraDelays: number[] = []) => {
     return eventNames.map((eventName) => subscribe(eventName, () => scheduleRefresh(extraDelays, eventName)));
   };
 
   const unsubscribers = [...bindEvents(immediateEvents), ...bindEvents(completionEvents, [250])];
 
-  // --- disposed flag prevents onRefresh after unmount ---
-  // unsubscribers tear down event bindings, and pendingTimer clears any
-  // coalesced refresh that has not fired yet. Triple-lock cleanup.
-
   const dispose = () => {
     disposed = true;
     if (pollTimer) clearInterval(pollTimer);
-    for (const unsub of unsubscribers) unsub();
+    for (const unsubscribe of unsubscribers) unsubscribe();
     if (pendingTimer) clearTimeout(pendingTimer);
   };
 
