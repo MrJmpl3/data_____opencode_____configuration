@@ -66,11 +66,9 @@ describe('state', () => {
 
   it('derives a stable workspace-scoped state path', () => {
     const previousRuntimeDir = process.env.XDG_RUNTIME_DIR;
-    const previousOverride = process.env.MRJMPL3_SUBAGENT_STATUS_STATE;
 
     try {
       process.env.XDG_RUNTIME_DIR = '/run/user/1000';
-      delete process.env.MRJMPL3_SUBAGENT_STATUS_STATE;
 
       const first = resolveStatePath('/workspaces/project-a');
       const second = resolveStatePath('/workspaces/project-a');
@@ -85,29 +83,13 @@ describe('state', () => {
       } else {
         process.env.XDG_RUNTIME_DIR = previousRuntimeDir;
       }
-
-      if (previousOverride === undefined) {
-        delete process.env.MRJMPL3_SUBAGENT_STATUS_STATE;
-      } else {
-        process.env.MRJMPL3_SUBAGENT_STATUS_STATE = previousOverride;
-      }
     }
   });
 
-  it('respects the explicit persisted state override', () => {
-    const previousOverride = process.env.MRJMPL3_SUBAGENT_STATUS_STATE;
-
-    try {
-      process.env.MRJMPL3_SUBAGENT_STATUS_STATE = '/tmp/custom-state.json';
-
-      expect(resolveStatePath('/workspaces/project-a')).toBe('/tmp/custom-state.json');
-    } finally {
-      if (previousOverride === undefined) {
-        delete process.env.MRJMPL3_SUBAGENT_STATUS_STATE;
-      } else {
-        process.env.MRJMPL3_SUBAGENT_STATUS_STATE = previousOverride;
-      }
-    }
+  it('respects the explicit persisted state path option', () => {
+    expect(resolveStatePath({ workspaceDirectory: '/workspaces/project-a', statePath: '/tmp/custom-state.json' })).toBe(
+      '/tmp/custom-state.json',
+    );
   });
 
   it('does not rewrite identical children snapshots', () => {

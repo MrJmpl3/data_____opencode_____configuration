@@ -1,13 +1,20 @@
 /** @jsxImportSource @opentui/solid */
-import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
-import { createMemo, createRoot, createSignal } from 'solid-js';
+import type { TuiPluginApi, TuiPromptRef, TuiSlotContext } from '@opencode-ai/plugin/tui';
+import { createEffect, createMemo, createRoot, createSignal } from 'solid-js';
 
 import { applySubagentEvent, extractSessionID, installEventBridge } from './events.ts';
 import { registerSubagentCommands } from './commands.ts';
+import { focusPromptWithDeferredRetry, resolveSidebarReturnFocusAction } from './focus.ts';
+import { deriveSessionStatus } from '../domain/session-status.ts';
 import { hydrateDoneChildTokens } from '../infrastructure/logs.ts';
 import { reconcileChildrenState } from '../domain/reconcile.ts';
 import { hydrateStateFromRecoverySources } from '../infrastructure/recovery.ts';
 import { createSQLiteRecoverySource } from '../infrastructure/recovery/sqlite.ts';
+import {
+  resolveSubagentStatusPluginOptions,
+  type ResolvedSubagentStatusPluginOptions,
+  type StaleRunningProbePolicy,
+} from './options.ts';
 import { createBufferedTaskQueue, createCoalescedTaskRunner } from './queue.ts';
 import { createEmptyState, mergeChildDetails, pruneTerminalChildren } from '../domain/state.ts';
 import type { SubagentChild, SubagentState } from '../domain/types.ts';
@@ -26,6 +33,33 @@ import { HomeBottomView, SidebarView } from '../ui/view.tsx';
 type SessionClient = {
   status?: (input: { directory: string }) => Promise<{ data?: Record<string, unknown> } | undefined>;
   messages?: (input: { sessionID: string; directory: string }) => Promise<{ data?: unknown[] } | undefined>;
+};
+
+type StaleRunningProbeState = {
+  attempts: number;
+  lastSeenUpdatedAt: string;
+  nextProbeAtMs: number;
+};
+
+type PromptRefProp = ((ref: TuiPromptRef | undefined) => void) | { current?: TuiPromptRef | undefined } | undefined;
+
+type HomePromptProps = {
+  workspaceID?: string;
+  workspace_id?: string;
+  ref?: PromptRefProp;
+  [key: string]: unknown;
+};
+
+type SessionPromptProps = {
+  sessionID?: string;
+  session_id?: string;
+  right?: unknown;
+  visible?: boolean;
+  disabled?: boolean;
+  onSubmit?: () => void;
+  on_submit?: () => void;
+  ref?: PromptRefProp;
+  [key: string]: unknown;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -54,6 +88,10 @@ function messageInfo(message: unknown): Record<string, unknown> | undefined {
 
 function isTerminalStatus(status: SubagentChild['status']): boolean {
   return status === 'done' || status === 'error';
+}
+
+function isRealSessionRow(child: SubagentChild): boolean {
+  return child.source === 'session' || child.id.startsWith('ses_');
 }
 
 function messageActivityAt(message: unknown): string | undefined {
@@ -97,37 +135,6 @@ function completedSessionActivityAt(api: TuiPluginApi, sessionID: string): strin
   }
 }
 
-function deriveClientSessionStatus(value: unknown): SubagentChild['status'] | undefined {
-  const source = isRecord(value) ? (value.type ?? value.status ?? value.state) : value;
-  if (typeof source !== 'string') return undefined;
-
-  const status = source.trim().toLowerCase();
-  if (
-    status === 'busy' ||
-    status === 'retry' ||
-    status === 'running' ||
-    status === 'pending' ||
-    status === 'queued' ||
-    status === 'in_progress' ||
-    status === 'working' ||
-    status === 'compacting'
-  )
-    return 'running';
-  if (status === 'done' || status === 'completed' || status === 'complete' || status === 'success' || status === 'succeeded')
-    return 'done';
-  if (
-    status === 'error' ||
-    status === 'failed' ||
-    status === 'failure' ||
-    status === 'cancelled' ||
-    status === 'canceled' ||
-    status === 'aborted'
-  )
-    return 'error';
-
-  return undefined;
-}
-
 function summarizeMessages(messages: unknown[]): { status?: 'done' | 'error'; endedAt?: string } {
   let completedAtMs = 0;
   let errorAtMs = 0;
@@ -152,9 +159,113 @@ function sessionIDForChild(child: SubagentChild): string | undefined {
   return resolveNavigationSessionID(child);
 }
 
-async function hydrateChildStatusesFromClient(api: TuiPluginApi, state: SubagentState): Promise<boolean> {
+function nextStaleRunningBackoffMs(attempts: number, policy: StaleRunningProbePolicy): number {
+  return Math.min(policy.baseBackoffMs * 2 ** Math.max(0, attempts - 1), policy.maxBackoffMs);
+}
+
+function resolveStaleRunningProbeTargets(
+  state: SubagentState,
+  probeStateBySessionID: Map<string, StaleRunningProbeState>,
+  policy: StaleRunningProbePolicy,
+  nowMs: number,
+): string[] {
+  const activeRunningSessionIDs = new Set<string>();
+  const targetSessionIDs: string[] = [];
+
+  for (const child of Object.values(state.children)) {
+    if (!isRealSessionRow(child) || child.status !== 'running') continue;
+
+    const sessionID = sessionIDForChild(child);
+    if (!sessionID) continue;
+
+    activeRunningSessionIDs.add(sessionID);
+    const existing = probeStateBySessionID.get(sessionID);
+
+    if (!existing) {
+      targetSessionIDs.push(sessionID);
+      continue;
+    }
+
+    if (existing.lastSeenUpdatedAt !== child.updatedAt) {
+      probeStateBySessionID.set(sessionID, {
+        attempts: 0,
+        lastSeenUpdatedAt: child.updatedAt,
+        nextProbeAtMs: nowMs + policy.baseBackoffMs,
+      });
+      continue;
+    }
+
+    if (existing.attempts >= policy.maxAttempts) continue;
+    if (nowMs < existing.nextProbeAtMs) continue;
+    targetSessionIDs.push(sessionID);
+  }
+
+  for (const sessionID of [...probeStateBySessionID.keys()]) {
+    if (!activeRunningSessionIDs.has(sessionID)) {
+      probeStateBySessionID.delete(sessionID);
+    }
+  }
+
+  return targetSessionIDs;
+}
+
+function settleStaleRunningProbeTargets(
+  state: SubagentState,
+  probeStateBySessionID: Map<string, StaleRunningProbeState>,
+  sessionIDs: string[],
+  policy: StaleRunningProbePolicy,
+  nowMs: number,
+): void {
+  for (const sessionID of sessionIDs) {
+    const child = Object.values(state.children).find(
+      (candidate) => isRealSessionRow(candidate) && sessionIDForChild(candidate) === sessionID,
+    );
+
+    if (!child || child.status !== 'running') {
+      probeStateBySessionID.delete(sessionID);
+      continue;
+    }
+
+    const previous = probeStateBySessionID.get(sessionID);
+    if (!previous || previous.lastSeenUpdatedAt !== child.updatedAt) {
+      const attempts = 1;
+      probeStateBySessionID.set(sessionID, {
+        attempts,
+        lastSeenUpdatedAt: child.updatedAt,
+        nextProbeAtMs: nowMs + nextStaleRunningBackoffMs(attempts, policy),
+      });
+      continue;
+    }
+
+    const attempts = previous.attempts + 1;
+    probeStateBySessionID.set(sessionID, {
+      attempts,
+      lastSeenUpdatedAt: child.updatedAt,
+      nextProbeAtMs: nowMs + nextStaleRunningBackoffMs(attempts, policy),
+    });
+  }
+}
+
+function resolveRouteSessionID(api: TuiPluginApi): string | undefined {
+  return api.route.current.name === 'session' && typeof api.route.current.params?.sessionID === 'string'
+    ? api.route.current.params.sessionID
+    : undefined;
+}
+
+async function hydrateChildStatusesFromClient(
+  api: TuiPluginApi,
+  state: SubagentState,
+  targetSessionIDs: readonly string[],
+): Promise<boolean> {
   const sessionClient = api.client.session as unknown as SessionClient | undefined;
   if (!sessionClient) return false;
+
+  const targets = Object.values(state.children).filter((child) => {
+    if (!isRealSessionRow(child) || child.status !== 'running') return false;
+    const sessionID = sessionIDForChild(child);
+    return Boolean(sessionID && targetSessionIDs.includes(sessionID));
+  });
+  if (targets.length === 0) return false;
 
   const directory = api.state.path.directory;
   let statusBySessionID: Record<string, unknown> = {};
@@ -168,11 +279,11 @@ async function hydrateChildStatusesFromClient(api: TuiPluginApi, state: Subagent
   let changed = false;
 
   await Promise.all(
-    Object.values(state.children).map(async (child) => {
+    targets.map(async (child) => {
       const sessionID = sessionIDForChild(child);
       if (!sessionID) return;
 
-      const clientStatus = deriveClientSessionStatus(statusBySessionID[sessionID]);
+      const clientStatus = deriveSessionStatus(statusBySessionID[sessionID]);
       let messageSummary: { status?: 'done' | 'error'; endedAt?: string } = {};
 
       try {
@@ -185,12 +296,8 @@ async function hydrateChildStatusesFromClient(api: TuiPluginApi, state: Subagent
       const nextStatus = messageSummary.status ?? clientStatus;
       if (!nextStatus) return;
 
-      if (nextStatus === 'running' && isTerminalStatus(child.status)) {
-        return;
-      }
-
       if (nextStatus === 'running') {
-        if (child.status !== 'running' || child.endedAt !== undefined) {
+        if (child.endedAt !== undefined) {
           child.status = 'running';
           child.endedAt = undefined;
           child.updatedAt = latestSessionActivityAt(api, sessionID) ?? child.updatedAt;
@@ -216,33 +323,28 @@ async function hydrateChildStatusesFromClient(api: TuiPluginApi, state: Subagent
   return changed;
 }
 
-function hydrateChildStatusesFromTuiState(api: TuiPluginApi, state: SubagentState): boolean {
+function hydrateChildStatusesFromTuiState(
+  api: TuiPluginApi,
+  state: SubagentState,
+  targetSessionIDs: readonly string[],
+): boolean {
+  if (targetSessionIDs.length === 0) return false;
+
   let changed = false;
 
   for (const child of Object.values(state.children)) {
+    if (!isRealSessionRow(child) || child.status !== 'running') continue;
+
     const sessionID = child.targetSessionID ?? child.id;
     if (!sessionID || !sessionID.startsWith('ses_')) continue;
+    if (!targetSessionIDs.includes(sessionID)) continue;
 
     const completedAt = completedSessionActivityAt(api, sessionID);
     const latestActivityAt = latestSessionActivityAt(api, sessionID);
-    const rawStatus = api.state.session.status(sessionID)?.type;
-    const status = typeof rawStatus === 'string' ? rawStatus.trim().toLowerCase() : undefined;
+    const status = deriveSessionStatus(api.state.session.status(sessionID));
 
-    if (
-      status === 'busy' ||
-      status === 'retry' ||
-      status === 'running' ||
-      status === 'pending' ||
-      status === 'queued' ||
-      status === 'in_progress' ||
-      status === 'working' ||
-      status === 'compacting'
-    ) {
-      if (isTerminalStatus(child.status)) {
-        continue;
-      }
-
-      if (child.status !== 'running' || child.endedAt !== undefined) {
+    if (status === 'running') {
+      if (child.endedAt !== undefined) {
         child.status = 'running';
         child.endedAt = undefined;
         child.updatedAt = latestActivityAt ?? child.updatedAt;
@@ -251,16 +353,20 @@ function hydrateChildStatusesFromTuiState(api: TuiPluginApi, state: SubagentStat
       continue;
     }
 
-    if (
-      status === 'done' ||
-      status === 'completed' ||
-      status === 'complete' ||
-      status === 'success' ||
-      status === 'succeeded' ||
-      completedAt
-    ) {
+    if (status === 'error') {
+      const endedAt = latestActivityAt ?? child.endedAt ?? child.updatedAt;
+      if (child.endedAt !== endedAt || child.updatedAt !== endedAt) {
+        child.status = 'error';
+        child.endedAt = endedAt;
+        child.updatedAt = endedAt;
+        changed = true;
+      }
+      continue;
+    }
+
+    if (status === 'done' || completedAt) {
       const endedAt = completedAt ?? latestActivityAt ?? child.endedAt ?? child.updatedAt;
-      if (child.status !== 'done' || child.endedAt !== endedAt) {
+      if (child.endedAt !== endedAt || child.updatedAt !== endedAt) {
         child.status = 'done';
         child.endedAt = endedAt;
         child.updatedAt = endedAt;
@@ -309,11 +415,16 @@ export function createTuiRuntime(
     setSessionId: (sessionID: string) => void;
     setNowMs: (nowMs: number) => void;
   },
+  options: ResolvedSubagentStatusPluginOptions = resolveSubagentStatusPluginOptions(undefined),
 ): TuiRuntime {
-  const statePath = resolveStatePath(api.state.path.directory);
+  const statePath = resolveStatePath({
+    workspaceDirectory: api.state.path.directory,
+    statePath: options.persistence.statePath,
+  });
   const textPath = resolveTextPath(statePath);
   const persistQueuedSnapshot = createPersistQueue(statePath, textPath);
-  const recoverySources = [createSQLiteRecoverySource()];
+  const recoverySources = [createSQLiteRecoverySource({ databasePath: options.recovery.sqliteDatabasePath })];
+  const staleRunningProbePolicy = options.staleRunningProbePolicy;
   const bufferedEvents = createBufferedTaskQueue(async (event: unknown) => {
     await mergeEventState(event);
   });
@@ -325,6 +436,7 @@ export function createTuiRuntime(
   let activeSessionToken = 0;
   let bufferingStartupScopedEvents = true;
   const deferredStartupScopedEvents = new Map<string, unknown[]>();
+  const staleRunningProbeStateBySessionID = new Map<string, StaleRunningProbeState>();
 
   const invalidateSessionScope = (): number => {
     activeSessionToken += 1;
@@ -417,8 +529,21 @@ export function createTuiRuntime(
           { directory, parentSessionID: sid },
           recoverySources,
         );
-        const tuiStatusHydrated = hydrateChildStatusesFromTuiState(api, nextState);
-        const clientStatusHydrated = await hydrateChildStatusesFromClient(api, nextState);
+        const staleRunningProbeTargets = resolveStaleRunningProbeTargets(
+          nextState,
+          staleRunningProbeStateBySessionID,
+          staleRunningProbePolicy,
+          Date.now(),
+        );
+        const tuiStatusHydrated = hydrateChildStatusesFromTuiState(api, nextState, staleRunningProbeTargets);
+        const clientStatusHydrated = await hydrateChildStatusesFromClient(api, nextState, staleRunningProbeTargets);
+        settleStaleRunningProbeTargets(
+          nextState,
+          staleRunningProbeStateBySessionID,
+          staleRunningProbeTargets,
+          staleRunningProbePolicy,
+          Date.now(),
+        );
         const hydrated = hydrateChildTokensFromLogs(nextState);
         const pruned = pruneTerminalChildren(nextState);
         if (disposed || sessionToken !== activeSessionToken) return;
@@ -476,11 +601,11 @@ export function createTuiRuntime(
     if (!disposed && input.getSessionId()) {
       void refresh();
     }
-  }, 60_000);
+  }, staleRunningProbePolicy.refreshIntervalMs);
 
   const bootstrap = async (): Promise<void> => {
     try {
-      if (!shouldPreserveStateOnStartup()) {
+      if (!shouldPreserveStateOnStartup({ preserveStateOnStartup: options.persistence.preserveStateOnStartup })) {
         await syncState(createEmptyState(), { source: 'startup', bufferedEventCount: bufferedEvents.size() });
       } else {
         await syncState(await loadState(statePath), { source: 'load', bufferedEventCount: bufferedEvents.size() });
@@ -511,7 +636,9 @@ export function createTuiRuntime(
   };
 }
 
-export const registerSubagentStatusTui = async (api: TuiPluginApi): Promise<void> => {
+export const registerSubagentStatusTui = async (api: TuiPluginApi, options: unknown): Promise<void> => {
+  const resolvedOptions = resolveSubagentStatusPluginOptions(options);
+
   createRoot((disposeRoot) => {
     const { slots } = api;
     const [state, setState] = createSignal<SubagentState>(createEmptyState());
@@ -519,13 +646,48 @@ export const registerSubagentStatusTui = async (api: TuiPluginApi): Promise<void
     const [expanded, setExpanded] = createSignal(true);
     const [nowMs, setNowMs] = createSignal(Date.now());
     const snapshot = createMemo(() => buildTuiSnapshot(state(), nowMs()));
-    const runtime = createTuiRuntime(api, {
-      getState: state,
-      setState,
-      getSessionId: sessionId,
-      setSessionId,
-      setNowMs,
-    });
+    let previousRouteSessionID: string | undefined;
+    let pendingSidebarRefocus: { parentSessionID: string; childSessionID: string; childRowID: string } | undefined;
+    let activePromptRef: TuiPromptRef | undefined;
+
+    const composePromptRef = (slotRef: PromptRefProp) => {
+      return (ref: TuiPromptRef | undefined): void => {
+        activePromptRef = ref;
+        if (typeof slotRef === 'function') {
+          slotRef(ref);
+        } else if (slotRef && 'current' in slotRef) {
+          slotRef.current = ref;
+        }
+      };
+    };
+
+    const focusActivePrompt = (): void => {
+      focusPromptWithDeferredRetry(() => {
+        if (!activePromptRef) return false;
+        activePromptRef.focus();
+        return true;
+      });
+    };
+
+    const rememberSidebarChildNavigation = (input: {
+      parentSessionID: string;
+      childSessionID: string;
+      childRowID: string;
+    }): void => {
+      pendingSidebarRefocus = input;
+    };
+
+    const runtime = createTuiRuntime(
+      api,
+      {
+        getState: state,
+        setState,
+        getSessionId: sessionId,
+        setSessionId,
+        setNowMs,
+      },
+      resolvedOptions,
+    );
 
     api.lifecycle.onDispose(() => {
       runtime.dispose();
@@ -542,9 +704,51 @@ export const registerSubagentStatusTui = async (api: TuiPluginApi): Promise<void
       disposeCommands();
     });
 
+    createEffect(() => {
+      void api.route.current;
+      const routeSessionID = resolveRouteSessionID(api);
+      const sidebarReturnAction = resolveSidebarReturnFocusAction({
+        pendingSidebarRefocus,
+        previousRouteSessionID,
+        routeSessionID,
+      });
+
+      if (sidebarReturnAction === 'focus-prompt') {
+        pendingSidebarRefocus = undefined;
+        focusActivePrompt();
+      } else if (sidebarReturnAction === 'clear-pending') {
+        pendingSidebarRefocus = undefined;
+      }
+
+      previousRouteSessionID = routeSessionID;
+    });
+
     slots.register({
       order: 120,
       slots: {
+        home_prompt(_ctx: TuiSlotContext, props: HomePromptProps) {
+          const promptProps = {
+            ...props,
+            ...(props.workspaceID === undefined && props.workspace_id !== undefined
+              ? { workspaceID: props.workspace_id }
+              : {}),
+            ref: composePromptRef(props.ref),
+          };
+          return <api.ui.Prompt {...promptProps} />;
+        },
+        session_prompt(_ctx: TuiSlotContext, props: SessionPromptProps) {
+          const nextSessionID = props.sessionID ?? props.session_id;
+          const promptProps = {
+            ...props,
+            ...(props.sessionID === undefined && props.session_id !== undefined ? { sessionID: props.session_id } : {}),
+            ...(props.onSubmit === undefined && props.on_submit !== undefined ? { onSubmit: props.on_submit } : {}),
+            right:
+              props.right ??
+              (nextSessionID ? <api.ui.Slot name="session_prompt_right" session_id={nextSessionID} /> : undefined),
+            ref: composePromptRef(props.ref),
+          };
+          return <api.ui.Prompt {...promptProps} />;
+        },
         sidebar_content: (_ctx: unknown, slotInput: unknown) => {
           runtime.refreshFromSlot(slotInput);
 
@@ -555,6 +759,7 @@ export const registerSubagentStatusTui = async (api: TuiPluginApi): Promise<void
               totalExecuted={() => state().totalExecuted}
               expanded={expanded()}
               onToggle={() => setExpanded((value) => !value)}
+              onNavigateToChild={rememberSidebarChildNavigation}
             />
           );
         },

@@ -5,7 +5,11 @@ import os from 'node:os';
 
 import type { SubagentState } from '../domain/types.ts';
 
-import { hydrateStateFromRecoverySources, type RecoveryContext, type RecoverySource } from '../infrastructure/recovery.ts';
+import {
+  hydrateStateFromRecoverySources,
+  type RecoveryContext,
+  type RecoverySource,
+} from '../infrastructure/recovery.ts';
 import { createSerializedTaskQueue } from '../runtime/queue.ts';
 import {
   createEmptyState,
@@ -66,10 +70,19 @@ async function writeLocalFile(path: string, contents: string): Promise<void> {
   }
 }
 
-export function resolveStatePath(workspaceDirectory = process.cwd()): string {
-  const fromEnv = process.env.MRJMPL3_SUBAGENT_STATUS_STATE;
-  if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) return fromEnv;
+export function resolveStatePath(
+  input: string | { workspaceDirectory?: string; statePath?: string } = process.cwd(),
+): string {
+  if (
+    typeof input === 'object' &&
+    input !== null &&
+    typeof input.statePath === 'string' &&
+    input.statePath.trim().length > 0
+  ) {
+    return input.statePath;
+  }
 
+  const workspaceDirectory = typeof input === 'string' ? input : (input.workspaceDirectory ?? process.cwd());
   const runtimeDir = process.env.XDG_RUNTIME_DIR ?? os.tmpdir();
   const resolvedWorkspaceDirectory = resolve(workspaceDirectory);
   const workspaceHash = createHash('sha256').update(resolvedWorkspaceDirectory).digest('hex').slice(0, 16);
@@ -85,8 +98,8 @@ export function resolveDebugPath(statePath: string): string {
   return join(dirname(statePath), 'debug.json');
 }
 
-export function shouldPreserveStateOnStartup(): boolean {
-  return process.env.MRJMPL3_SUBAGENT_STATUS_PRESERVE_STATE === '1';
+export function shouldPreserveStateOnStartup(input?: { preserveStateOnStartup?: boolean }): boolean {
+  return input?.preserveStateOnStartup === true;
 }
 
 export async function loadState(

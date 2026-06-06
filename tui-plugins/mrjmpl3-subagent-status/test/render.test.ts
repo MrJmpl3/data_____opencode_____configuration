@@ -6,7 +6,15 @@ import {
   renderStatusLine,
   visibleSubagentWorkItems,
 } from '../src/ui/view-model.ts';
-import { formatContextCompact, statusColor } from '../src/ui/format.ts';
+import {
+  formatContextCompact,
+  formatCount,
+  formatSidebarRunningMeta,
+  formatSidebarTerminalMeta,
+  formatSidebarTitle,
+  statusColor,
+  truncateLabel,
+} from '../src/ui/format.ts';
 import type { SubagentChild, SubagentState } from '../src/domain/types.ts';
 
 function child(overrides: Partial<SubagentChild> = {}): SubagentChild {
@@ -140,6 +148,39 @@ describe('render', () => {
     expect(formatContextCompact(doneChild)).toBe('1.5k ctx 42%');
     expect(renderStatusLine(state, nowMs)).toContain('Subagents: 1 run · 1 done · 0 err · Σ 2');
     expect(renderStatusLine(state, nowMs)).toContain('Summarize results 1:59:00 1.5k ctx 42%');
+  });
+
+  it('truncates sidebar titles and keeps agent names out of the primary row label', () => {
+    const sidebarChild = child({
+      title: 'Implement a much wider render treatment for the subagent sidebar than the layout can fit',
+      summary: 'Prioritize task name visibility even when metadata is long',
+      agentName: 'render-specialist',
+    });
+
+    expect(truncateLabel('   lots   of    gaps   ', 12)).toBe('lots of gaps');
+    expect(formatSidebarTitle(sidebarChild)).toBe('Prioritize task name visibi…');
+    expect(formatSidebarTitle(sidebarChild)).not.toContain('render-specialist');
+  });
+
+  it('formats running and terminal sidebar metadata in compact fixed-width friendly chunks', () => {
+    const runningChild = child({
+      title: 'Review width handling',
+      agentName: 'render-specialist',
+      elapsedMs: 61_000,
+      tokens: { total: 1530, contextPercent: 42.3 },
+    });
+    const doneChild = child({
+      status: 'done',
+      elapsedMs: 4 * 60 * 1000,
+      tokens: { total: 1530, contextPercent: 42.3 },
+    });
+
+    expect(formatSidebarRunningMeta(runningChild)).toEqual({
+      primary: '01:01 · @render-spec…',
+      secondary: '1.5k 42%',
+    });
+    expect(formatSidebarTerminalMeta(doneChild)).toBe('04:00 · 1.5k 42%');
+    expect(formatCount(1200)).toBe('1,200');
   });
 
   it('keeps tracked totals honest when visible rows are pruned', () => {

@@ -178,7 +178,7 @@ describe('reconcile', () => {
     });
   });
 
-  it('prunes orphaned synthetic running rows when the last real session child disappears', () => {
+  it('keeps stale running real session rows when a later snapshot omits them', () => {
     const initial = createEmptyState();
     initial.children.ses_child = {
       id: 'ses_child',
@@ -205,10 +205,12 @@ describe('reconcile', () => {
 
     const result = reconcileChildrenState(initial, { data: [] });
 
-    expect(result.changed).toBe(true);
-    expect(result.nextState.children.ses_child).toBeUndefined();
-    expect(result.nextState.children['tool:delegate_1']).toBeUndefined();
-    expect(result.nextState.countedChildIDs).toEqual({});
+    expect(result.changed).toBe(false);
+    expect(result.nextState.children.ses_child).toMatchObject({ status: 'running' });
+    expect(result.nextState.children.ses_child).not.toHaveProperty('endedAt');
+    expect(result.nextState.children['tool:delegate_1']).toMatchObject({ status: 'running' });
+    expect(result.nextState.children['tool:delegate_1']).not.toHaveProperty('endedAt');
+    expect(result.nextState.countedChildIDs).toEqual({ ses_child: true });
     expect(result.nextState.totalExecuted).toBe(1);
   });
 

@@ -5,18 +5,23 @@ import { For, Show, createMemo } from 'solid-js';
 import type { SubagentChild } from '../domain/types.ts';
 import type { TuiSnapshot } from '../runtime/snapshot.ts';
 import { t } from '../runtime/i18n.ts';
-import { formatContextCompact, formatDuration, statusColor as resolveRenderStatusColor } from './format.ts';
+import {
+  formatCount,
+  formatSidebarRunningMeta,
+  formatSidebarTerminalMeta,
+  formatSidebarTitle,
+  statusColor as resolveRenderStatusColor,
+} from './format.ts';
 import { navigateToChildSession, resolveNavigationSessionID } from '../runtime/navigation.ts';
 
-const CLOCK_ICON = '';
-const TOKEN_ICON = '';
 const SIDEBAR_ARROW_EXPANDED = '▼';
 const SIDEBAR_ARROW_COLLAPSED = '▶';
+const ROW_NAVIGATION_HINT = '›';
 
 function taskStatusMarker(status: SubagentChild['status']): string {
-  if (status === 'done') return '[✓]';
-  if (status === 'error') return '[x]';
-  return '[ ]';
+  if (status === 'done') return '✓';
+  if (status === 'error') return '✕';
+  return '●';
 }
 
 function themeStatusColor(
@@ -28,17 +33,24 @@ function themeStatusColor(
   return theme.warning;
 }
 
-function formatChildTitle(child: SubagentChild): string {
-  const base = child.summary?.trim() || child.title?.trim() || child.id || t('subagents');
-  return child.agentName ? `${base} (${child.agentName})` : base;
-}
-
-const ChildRow = (props: { api: TuiPluginApi; child: SubagentChild }) => {
+const ChildRow = (props: {
+  api: TuiPluginApi;
+  child: SubagentChild;
+  onNavigateToChild?: (input: { parentSessionID: string; childSessionID: string; childRowID: string }) => void;
+}) => {
   const clickable = createMemo(() => resolveNavigationSessionID(props.child) !== undefined);
-  const opacity = createMemo(() => (props.child.status === 'running' ? 1 : 0.68));
-  const label = createMemo(() => formatChildTitle(props.child));
-  const elapsed = createMemo(() => formatDuration(props.child.elapsedMs));
-  const meta = createMemo(() => formatContextCompact(props.child));
+  const opacity = createMemo(() => {
+    if (props.child.status === 'running') return 1;
+    if (props.child.status === 'error') return 0.88;
+    return 0.58;
+  });
+  const title = createMemo(() => formatSidebarTitle(props.child));
+  const runningMeta = createMemo(() => formatSidebarRunningMeta(props.child));
+  const terminalMeta = createMemo(() => formatSidebarTerminalMeta(props.child));
+  const titleColor = createMemo(() => {
+    if (props.child.status === 'done') return props.api.theme.current.textMuted;
+    return props.api.theme.current.text;
+  });
 
   return (
     <box
@@ -47,31 +59,43 @@ const ChildRow = (props: { api: TuiPluginApi; child: SubagentChild }) => {
       onMouseUp={
         clickable()
           ? () => {
+              const childSessionID = resolveNavigationSessionID(props.child);
+              if (childSessionID) {
+                props.onNavigateToChild?.({
+                  parentSessionID: props.child.parentID,
+                  childSessionID,
+                  childRowID: props.child.id,
+                });
+              }
               navigateToChildSession(props.api, props.child);
             }
           : undefined
       }
     >
       <box flexDirection="row">
-        <text fg={themeStatusColor(props.child.status, props.api.theme.current)}>{taskStatusMarker(props.child.status)}</text>
-        <text fg={props.api.theme.current.text}>{` ${label()}`}</text>
+        <text fg={themeStatusColor(props.child.status, props.api.theme.current)}>
+          {taskStatusMarker(props.child.status)}
+        </text>
+        <text fg={titleColor()}>{` ${title()}`}</text>
+        <Show when={clickable()}>
+          <text fg={props.api.theme.current.textMuted}>{` ${ROW_NAVIGATION_HINT}`}</text>
+        </Show>
       </box>
 
       <Show
         when={props.child.status === 'running'}
         fallback={
-          <box flexDirection="row" paddingLeft={4}>
-            <text fg={props.api.theme.current.textMuted}>{`↳ ${CLOCK_ICON} ${elapsed()}`}</text>
-            <Show when={meta().length > 0}>
-              <text fg={props.api.theme.current.textMuted}>{` ${TOKEN_ICON} ${meta()}`}</text>
-            </Show>
-          </box>
+          <Show when={terminalMeta().length > 0}>
+            <text fg={props.api.theme.current.textMuted}>{`  ${terminalMeta()}`}</text>
+          </Show>
         }
       >
         <box flexDirection="column">
-          <text fg={props.api.theme.current.textMuted}>{`    ↳ ${CLOCK_ICON} ${elapsed()}`}</text>
-          <Show when={meta().length > 0}>
-            <text fg={props.api.theme.current.textMuted}>{`    ${TOKEN_ICON} ${meta()}`}</text>
+          <Show when={runningMeta().primary.length > 0}>
+            <text fg={props.api.theme.current.textMuted}>{`  ${runningMeta().primary}`}</text>
+          </Show>
+          <Show when={runningMeta().secondary.length > 0}>
+            <text fg={props.api.theme.current.textMuted}>{`  ${runningMeta().secondary}`}</text>
           </Show>
         </box>
       </Show>
@@ -85,6 +109,7 @@ export const SidebarView = (props: {
   totalExecuted: () => number;
   expanded: boolean;
   onToggle: () => void;
+  onNavigateToChild?: (input: { parentSessionID: string; childSessionID: string; childRowID: string }) => void;
 }) => {
   const currentSnapshot = () => props.snapshot();
   const counts = () => currentSnapshot().counts;
@@ -97,13 +122,13 @@ export const SidebarView = (props: {
         </text>
       </box>
       <box flexDirection="row" paddingRight={1}>
-        <text fg={props.api.theme.current.warning}>{`● ${counts().running} ${t('run')}`}</text>
+        <text fg={props.api.theme.current.warning}>{`● ${formatCount(counts().running)} ${t('run')}`}</text>
         <text fg={props.api.theme.current.textMuted}> · </text>
-        <text fg={props.api.theme.current.success}>{`✓ ${counts().done} ${t('done')}`}</text>
+        <text fg={props.api.theme.current.success}>{`✓ ${formatCount(counts().done)} ${t('done')}`}</text>
         <text fg={props.api.theme.current.textMuted}> · </text>
-        <text fg={props.api.theme.current.error}>{`✕ ${counts().error} ${t('err')}`}</text>
+        <text fg={props.api.theme.current.error}>{`✕ ${formatCount(counts().error)} ${t('err')}`}</text>
         <text fg={props.api.theme.current.textMuted}> · </text>
-        <text fg={props.api.theme.current.text}>{`Σ ${props.totalExecuted()}`}</text>
+        <text fg={props.api.theme.current.text}>{`Σ${formatCount(props.totalExecuted())}`}</text>
       </box>
 
       <Show when={props.expanded}>
@@ -112,7 +137,9 @@ export const SidebarView = (props: {
             when={currentSnapshot().visibleChildren.length > 0}
             fallback={<text fg={props.api.theme.current.textMuted}>{t('noSubagentsYet')}</text>}
           >
-            <For each={currentSnapshot().visibleChildren}>{(child) => <ChildRow api={props.api} child={child} />}</For>
+            <For each={currentSnapshot().visibleChildren}>
+              {(child) => <ChildRow api={props.api} child={child} onNavigateToChild={props.onNavigateToChild} />}
+            </For>
           </Show>
         </box>
       </Show>
@@ -131,13 +158,13 @@ export const HomeBottomView = (props: {
   return (
     <box paddingLeft={1} paddingRight={1}>
       <box flexDirection="row">
-        <text fg={props.api.theme.current.warning}>{`● ${counts().running}`}</text>
+        <text fg={props.api.theme.current.warning}>{`● ${formatCount(counts().running)}`}</text>
         <text fg={props.api.theme.current.textMuted}> · </text>
-        <text fg={props.api.theme.current.success}>{`✓ ${counts().done}`}</text>
+        <text fg={props.api.theme.current.success}>{`✓ ${formatCount(counts().done)}`}</text>
         <text fg={props.api.theme.current.textMuted}> · </text>
-        <text fg={props.api.theme.current.error}>{`✕ ${counts().error}`}</text>
+        <text fg={props.api.theme.current.error}>{`✕ ${formatCount(counts().error)}`}</text>
         <text fg={props.api.theme.current.textMuted}> · </text>
-        <text fg={props.api.theme.current.text}>{`Σ ${props.totalExecuted()}`}</text>
+        <text fg={props.api.theme.current.text}>{`Σ${formatCount(props.totalExecuted())}`}</text>
       </box>
     </box>
   );

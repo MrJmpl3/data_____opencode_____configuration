@@ -42,7 +42,9 @@ describe('tui bootstrap buffering', () => {
     });
 
     vi.doMock('../src/infrastructure/persistence.ts', async () => {
-      const actual = await vi.importActual<typeof import('../src/infrastructure/persistence.ts')>('../src/infrastructure/persistence.ts');
+      const actual = await vi.importActual<typeof import('../src/infrastructure/persistence.ts')>(
+        '../src/infrastructure/persistence.ts',
+      );
       const saveState = vi.fn(async (_path: string, state: { children: Record<string, unknown> }) => {
         saveStateCount += 1;
         saveStateCalls.push({ children: Object.keys(state.children) });

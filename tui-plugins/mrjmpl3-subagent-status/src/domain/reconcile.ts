@@ -5,6 +5,7 @@ import {
   pruneTerminalChildren,
   upsertRunningChild,
 } from './state.ts';
+import { deriveOpenCodeSessionStatus } from './session-status.ts';
 import type { SubagentChild, SubagentState, SubagentTokens } from './types.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -34,45 +35,6 @@ function sessionTime(input: Record<string, unknown>, key: 'created' | 'updated')
   const time = isRecord(input.time) ? input.time : undefined;
   return timestampFromUnknown(time?.[key]);
 }
-
-export function deriveOpenCodeSessionStatus(value: unknown): SubagentChild['status'] | undefined {
-  const statuses = collectStatusValues(value);
-  if (statuses.some((status) => ERROR_SESSION_STATUS_VALUES.has(status))) return 'error';
-  if (statuses.some((status) => RUNNING_SESSION_STATUS_VALUES.has(status))) return 'running';
-  if (statuses.some((status) => DONE_SESSION_STATUS_VALUES.has(status))) return 'done';
-  return undefined;
-}
-
-function collectStatusValues(value: unknown): string[] {
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-    return normalized ? [normalized] : [];
-  }
-
-  const record = isRecord(value) ? value : undefined;
-  if (!record) return [];
-
-  const statuses = [record.type, record.status, record.state, record.phase, record.result]
-    .map((candidate) => (typeof candidate === 'string' ? candidate.trim().toLowerCase() : undefined))
-    .filter((candidate): candidate is string => Boolean(candidate));
-
-  if (record.error) statuses.push('error');
-  if (record.busy === true || record.running === true) statuses.push('busy');
-  return statuses;
-}
-
-const RUNNING_SESSION_STATUS_VALUES = new Set([
-  'busy',
-  'running',
-  'pending',
-  'queued',
-  'in_progress',
-  'working',
-  'compacting',
-  'retry',
-]);
-const DONE_SESSION_STATUS_VALUES = new Set(['done', 'completed', 'complete', 'success', 'succeeded']);
-const ERROR_SESSION_STATUS_VALUES = new Set(['error', 'failed', 'failure', 'cancelled', 'canceled', 'aborted']);
 
 function normalizeTokens(value: unknown): SubagentTokens | undefined {
   if (!isRecord(value)) return undefined;
@@ -185,6 +147,7 @@ export function reconcileChildrenState(
   for (const existing of Object.values(state.children)) {
     if (!isRealSessionChild(existing)) continue;
     if (incomingIDs.has(existing.id)) continue;
+    if (existing.status === 'running') continue;
     nextState.purgedSessionIDs[existing.id] = true;
     delete nextState.children[existing.id];
     changed = true;

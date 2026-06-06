@@ -92,10 +92,6 @@ function toISOString(timestampMs: number): string {
 }
 
 function resolveOpenCodeDatabasePath(): string {
-  if (process.env.MRJMPL3_SUBAGENT_STATUS_SQLITE_PATH) {
-    return process.env.MRJMPL3_SUBAGENT_STATUS_SQLITE_PATH;
-  }
-
   const baseDir = process.env.XDG_DATA_HOME ?? join(os.homedir(), '.local', 'share');
   return join(baseDir, 'opencode', 'opencode.db');
 }

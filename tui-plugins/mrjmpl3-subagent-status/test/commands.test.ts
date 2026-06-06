@@ -6,7 +6,9 @@ describe('runtime commands', () => {
   it('registers keymap and legacy commands and disposes them', () => {
     const keymapDispose = vi.fn();
     const commandDispose = vi.fn();
-    const registerLayer = vi.fn<(layer: { commands: Array<{ run: () => void }>; bindings?: unknown[] }) => () => void>(() => keymapDispose);
+    const registerLayer = vi.fn<(layer: { commands: Array<{ run: () => void }>; bindings?: unknown[] }) => () => void>(
+      () => keymapDispose,
+    );
     const register = vi.fn(() => commandDispose);
     const setSectionEnabled = vi.fn();
     let enabled = false;
@@ -26,7 +28,9 @@ describe('runtime commands', () => {
     expect(registerLayer).toHaveBeenCalledTimes(1);
     expect(register).toHaveBeenCalledTimes(1);
 
-    const keymapLayer = registerLayer.mock.calls[0]?.[0] as { commands: Array<{ run: () => void }>; bindings?: unknown[] } | undefined;
+    const keymapLayer = registerLayer.mock.calls[0]?.[0] as
+      | { commands: Array<{ run: () => void }>; bindings?: unknown[] }
+      | undefined;
     expect(keymapLayer).toBeDefined();
     if (!keymapLayer) throw new Error('Expected keymap layer registration');
 
