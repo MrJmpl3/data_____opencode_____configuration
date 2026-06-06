@@ -2,14 +2,14 @@
 
 ## Review Workload Forecast
 
-| Field | Value |
-| --- | --- |
-| Estimated changed lines | 40-110 |
-| 400-line budget risk | Low |
-| Chained PRs recommended | No |
-| Suggested split | Single PR |
-| Delivery strategy | ask-always |
-| Chain strategy | pending |
+| Field                   | Value      |
+| ----------------------- | ---------- |
+| Estimated changed lines | 40-110     |
+| 400-line budget risk    | Low        |
+| Chained PRs recommended | No         |
+| Suggested split         | Single PR  |
+| Delivery strategy       | ask-always |
+| Chain strategy          | pending    |
 
 Decision needed before apply: Yes
 Chained PRs recommended: No
@@ -18,9 +18,9 @@ Chain strategy: pending
 
 ### Suggested Work Units
 
-| Unit | Goal | Likely PR | Notes |
-| --- | --- | --- | --- |
-| 1 | Fix idle-event terminalization and add event-path regressions | PR 1 | Keep diff inside `src/events.ts` and `src/events.test.ts`; verify with package-local test and typecheck |
+| Unit | Goal                                                          | Likely PR | Notes                                                                                                   |
+| ---- | ------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------- |
+| 1    | Fix idle-event terminalization and add event-path regressions | PR 1      | Keep diff inside `src/events.ts` and `src/events.test.ts`; verify with package-local test and typecheck |
 
 ## Phase 1: RED - Event-path regressions
 

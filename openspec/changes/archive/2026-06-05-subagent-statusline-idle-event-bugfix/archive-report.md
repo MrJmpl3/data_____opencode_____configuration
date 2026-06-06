@@ -16,8 +16,8 @@ The change was synced into the source-of-truth spec and archived successfully.
 
 ## Spec Sync
 
-| Domain | Action | Details |
-| --- | --- | --- |
+| Domain                    | Action  | Details                                                          |
+| ------------------------- | ------- | ---------------------------------------------------------------- |
 | `mrjmpl3-subagent-status` | Updated | 1 modified requirement (`Accurate child-session reconciliation`) |
 
 ## Updated Source of Truth

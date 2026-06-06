@@ -39,17 +39,17 @@ Apply the minimal event-mapping fix in `applySubagentEvent`: treat `session.idle
 
 ## Affected Areas
 
-| Area | Impact | Description |
-| --- | --- | --- |
-| `tui-plugins/mrjmpl3-subagent-status/src/events.ts` | Modified | Remove idle→done terminalization. |
-| `tui-plugins/mrjmpl3-subagent-status/src/events.test.ts` | Modified | Add regression coverage for idle-only events. |
-| `openspec/specs/mrjmpl3-subagent-status/spec.md` | Modified | Clarify idle-only event behavior in the existing capability. |
+| Area                                                     | Impact   | Description                                                  |
+| -------------------------------------------------------- | -------- | ------------------------------------------------------------ |
+| `tui-plugins/mrjmpl3-subagent-status/src/events.ts`      | Modified | Remove idle→done terminalization.                            |
+| `tui-plugins/mrjmpl3-subagent-status/src/events.test.ts` | Modified | Add regression coverage for idle-only events.                |
+| `openspec/specs/mrjmpl3-subagent-status/spec.md`         | Modified | Clarify idle-only event behavior in the existing capability. |
 
 ## Risks
 
-| Risk | Likelihood | Mitigation |
-| --- | --- | --- |
-| Some edge flow relied on idle as the only completion signal. | Low | Keep change narrow and cover explicit terminal evidence paths in tests/specs. |
+| Risk                                                         | Likelihood | Mitigation                                                                    |
+| ------------------------------------------------------------ | ---------- | ----------------------------------------------------------------------------- |
+| Some edge flow relied on idle as the only completion signal. | Low        | Keep change narrow and cover explicit terminal evidence paths in tests/specs. |
 
 ## Rollback Plan
 
