@@ -17,7 +17,7 @@ import { HomeBottomView, SidebarView } from '../ui/view.tsx';
 import { normalizeSubagentStatusPluginOptions } from './options.ts';
 import { createTuiRuntime } from './tui-runtime.ts';
 
-function resolveRouteSessionId(api: TuiPluginApi): string | undefined {
+const resolveRouteSessionId = (api: TuiPluginApi): string | undefined => {
   if (api.route.current.name !== 'session') return undefined;
 
   const params = api.route.current.params as Record<string, unknown> | undefined;
@@ -26,7 +26,7 @@ function resolveRouteSessionId(api: TuiPluginApi): string | undefined {
   if (typeof params?.sessionId === 'string') return params.sessionId;
 
   return undefined;
-}
+};
 
 export const registerSubagentStatusTui = async (api: TuiPluginApi, options: unknown): Promise<void> => {
   // El contrato del loader expone `options` como unknown; la normalizacion vive
@@ -77,11 +77,11 @@ export const registerSubagentStatusTui = async (api: TuiPluginApi, options: unkn
     slots.register({
       order: 120,
       slots: {
-        home_prompt(_ctx: TuiSlotContext, props: HomePromptProps) {
+        home_prompt: (_ctx: TuiSlotContext, props: HomePromptProps) => {
           const promptProps = normalizeHomePromptProps(props, promptFocusController.composePromptRef);
           return <api.ui.Prompt {...promptProps} />;
         },
-        session_prompt(_ctx: TuiSlotContext, props: SessionPromptProps) {
+        session_prompt: (_ctx: TuiSlotContext, props: SessionPromptProps) => {
           const nextSessionId = props.sessionID ?? props.session_id ?? props.sessionId;
           const promptProps = normalizeSessionPromptProps(
             props,

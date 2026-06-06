@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createBufferedTaskQueue, createCoalescedTaskRunner, createSerializedTaskQueue } from '../src/runtime/queue.ts';
 import { resolveSessionSlotTransition } from '../src/runtime/navigation.ts';
 
-function deferred<T>() {
+const deferred = <T>() => {
   let resolve!: (value: T | PromiseLike<T>) => void;
   let reject!: (reason?: unknown) => void;
   const promise = new Promise<T>((res, rej) => {
@@ -12,7 +12,7 @@ function deferred<T>() {
   });
 
   return { promise, resolve, reject };
-}
+};
 
 describe('tui runtime helpers', () => {
   it('serializes queued persistence writes', async () => {

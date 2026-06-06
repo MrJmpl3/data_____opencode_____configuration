@@ -33,22 +33,15 @@ export type NormalizedSessionPromptProps = Omit<SessionPromptProps, 'ref'> & {
 type ComposedPromptRef = (ref: TuiPromptRef | undefined) => void;
 type ComposePromptRef = (slotRef: PromptRefProp) => ComposedPromptRef;
 
-export function normalizeHomePromptProps(
-  props: HomePromptProps,
-  composePromptRef: ComposePromptRef,
-): NormalizedHomePromptProps {
+export const normalizeHomePromptProps = (props: HomePromptProps, composePromptRef: ComposePromptRef): NormalizedHomePromptProps => {
   return {
     ...props,
     ...(props.workspaceID === undefined && props.workspace_id !== undefined ? { workspaceID: props.workspace_id } : {}),
     ref: composePromptRef(props.ref),
   };
-}
+};
 
-export function normalizeSessionPromptProps(
-  props: SessionPromptProps,
-  composePromptRef: ComposePromptRef,
-  fallbackRight: unknown,
-): NormalizedSessionPromptProps {
+export const normalizeSessionPromptProps = (props: SessionPromptProps, composePromptRef: ComposePromptRef, fallbackRight: unknown): NormalizedSessionPromptProps => {
   return {
     ...props,
     ...(props.sessionID === undefined && props.session_id !== undefined ? { sessionID: props.session_id } : {}),
@@ -57,4 +50,4 @@ export function normalizeSessionPromptProps(
     right: props.right ?? fallbackRight,
     ref: composePromptRef(props.ref),
   };
-}
+};

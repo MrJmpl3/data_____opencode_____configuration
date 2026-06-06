@@ -17,7 +17,7 @@ const scheduleDeferred = (callback: () => void): void => {
   setTimeout(callback, 0);
 };
 
-export function resolveSidebarReturnFocusAction(input: {
+export const resolveSidebarReturnFocusAction = (input: {
   pendingSidebarRefocus?: {
     parentSessionID: string;
     childSessionID: string;
@@ -25,7 +25,7 @@ export function resolveSidebarReturnFocusAction(input: {
   };
   previousRouteSessionID?: string;
   routeSessionID?: string;
-}): SidebarReturnFocusAction {
+}): SidebarReturnFocusAction => {
   const { pendingSidebarRefocus, previousRouteSessionID, routeSessionID } = input;
   if (!pendingSidebarRefocus || previousRouteSessionID === routeSessionID) {
     return 'none';
@@ -47,23 +47,18 @@ export function resolveSidebarReturnFocusAction(input: {
   }
 
   return 'none';
-}
+};
 
-export function focusPromptWithDeferredRetry(
-  tryFocusPrompt: () => boolean,
-  schedule: (callback: () => void) => void = scheduleDeferred,
-): void {
+export const focusPromptWithDeferredRetry = (tryFocusPrompt: () => boolean, schedule: (callback: () => void) => void = scheduleDeferred): void => {
   schedule(() => {
     if (tryFocusPrompt()) return;
     schedule(() => {
       void tryFocusPrompt();
     });
   });
-}
+};
 
-export function createPromptFocusController(
-  schedule: (callback: () => void) => void = scheduleDeferred,
-) {
+export const createPromptFocusController = (schedule: (callback: () => void) => void = scheduleDeferred) => {
   let previousRouteSessionID: string | undefined;
   let pendingSidebarRefocus: PendingSidebarRefocus | undefined;
   let activePromptRef: TuiPromptRef | undefined;
@@ -116,4 +111,4 @@ export function createPromptFocusController(
       pendingSidebarRefocus = input;
     },
   };
-}
+};

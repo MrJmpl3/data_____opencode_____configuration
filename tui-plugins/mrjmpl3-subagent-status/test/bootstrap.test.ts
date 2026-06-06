@@ -1,7 +1,7 @@
 import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
 import { describe, expect, it, vi } from 'vitest';
 
-function deferred<T>() {
+const deferred = <T>() => {
   let resolve!: (value: T | PromiseLike<T>) => void;
   let reject!: (reason?: unknown) => void;
 
@@ -11,7 +11,7 @@ function deferred<T>() {
   });
 
   return { promise, resolve, reject };
-}
+};
 
 describe('tui bootstrap buffering', () => {
   it('buffers early bridge events until the initial snapshot write completes', async () => {

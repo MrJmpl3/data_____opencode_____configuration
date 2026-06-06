@@ -12,12 +12,12 @@ import {
   summarizeMessages,
 } from '../src/runtime/status-hydration.ts';
 
-function createApi(input: {
+const createApi = (input: {
   tuiStatus?: unknown;
   tuiMessages?: unknown[];
   clientStatus?: Record<string, unknown>;
   clientMessages?: unknown[];
-}): TuiPluginApi {
+}): TuiPluginApi => {
   return {
     client: {
       session: {
@@ -35,7 +35,7 @@ function createApi(input: {
       },
     },
   } as unknown as TuiPluginApi;
-}
+};
 
 describe('status hydration', () => {
   const tempDirs: string[] = [];

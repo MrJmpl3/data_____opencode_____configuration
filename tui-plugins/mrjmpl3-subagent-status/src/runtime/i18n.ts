@@ -35,19 +35,19 @@ export type TranslationKey = keyof (typeof translations)['en'];
 
 let cachedLocale: Locale | undefined;
 
-export function detectSystemLocale(): Locale {
+export const detectSystemLocale = (): Locale => {
   const envLocale =
     process.env.LANG ?? process.env.LC_ALL ?? process.env.LANGUAGE ?? Intl.DateTimeFormat().resolvedOptions().locale;
   const normalized = envLocale.toLowerCase();
   if (normalized.startsWith('es')) return 'es';
   return 'en';
-}
+};
 
-export function getLocale(): Locale {
+export const getLocale = (): Locale => {
   if (!cachedLocale) cachedLocale = detectSystemLocale();
   return cachedLocale;
-}
+};
 
-export function t(key: TranslationKey): string {
+export const t = (key: TranslationKey): string => {
   return translations[getLocale()][key] ?? translations.en[key];
-}
+};

@@ -20,7 +20,7 @@ type DoneTokenCacheEntry = {
 
 const doneTokenCache = new Map<string, DoneTokenCacheEntry>();
 
-function pruneDoneTokenCache(nowMs: number): void {
+const pruneDoneTokenCache = (nowMs: number): void => {
   for (const [sessionId, entry] of doneTokenCache) {
     if (nowMs - entry.checkedAtMs <= DONE_TOKEN_CACHE_TTL_MS) continue;
     doneTokenCache.delete(sessionId);
@@ -31,28 +31,25 @@ function pruneDoneTokenCache(nowMs: number): void {
     if (typeof oldestSessionId !== 'string') break;
     doneTokenCache.delete(oldestSessionId);
   }
-}
+};
 
-function safeRead<T>(reader: () => T): T | undefined {
+const safeRead = <T>(reader: () => T): T | undefined => {
   try {
     return reader();
   } catch {
     return undefined;
   }
-}
+};
 
-function normalizePercent(value: number): number {
+const normalizePercent = (value: number): number => {
   if (value > 0 && value <= 1) {
     return value * 100;
   }
 
   return value;
-}
+};
 
-function mergeTokens(
-  existing: SubagentTokens | undefined,
-  incoming: SubagentTokens | undefined,
-): SubagentTokens | undefined {
+const mergeTokens = (existing: SubagentTokens | undefined, incoming: SubagentTokens | undefined): SubagentTokens | undefined => {
   if (!existing && !incoming) return undefined;
   return {
     input: incoming?.input ?? existing?.input,
@@ -60,18 +57,18 @@ function mergeTokens(
     total: incoming?.total ?? existing?.total,
     contextPercent: incoming?.contextPercent ?? existing?.contextPercent,
   };
-}
+};
 
-function hasUsableTokens(tokens: SubagentTokens | undefined): boolean {
+const hasUsableTokens = (tokens: SubagentTokens | undefined): boolean => {
   return Boolean(
     typeof tokens?.input === 'number' ||
     typeof tokens?.output === 'number' ||
     typeof tokens?.total === 'number' ||
     typeof tokens?.contextPercent === 'number',
   );
-}
+};
 
-function sanitizeTokens(input: unknown): SubagentTokens | undefined {
+const sanitizeTokens = (input: unknown): SubagentTokens | undefined => {
   if (!isRecord(input)) return undefined;
 
   const tokens: SubagentTokens = {
@@ -91,9 +88,9 @@ function sanitizeTokens(input: unknown): SubagentTokens | undefined {
   }
 
   return tokens;
-}
+};
 
-function extractTokenHints(input: unknown): SubagentTokens | undefined {
+const extractTokenHints = (input: unknown): SubagentTokens | undefined => {
   const tokenHints: SubagentTokens = {};
   const visited = new Set<object>();
 
@@ -144,9 +141,9 @@ function extractTokenHints(input: unknown): SubagentTokens | undefined {
   walk(input, 0);
 
   return hasUsableTokens(tokenHints) ? tokenHints : undefined;
-}
+};
 
-function extractJsonPayloads(line: string): unknown[] {
+const extractJsonPayloads = (line: string): unknown[] => {
   const payloads: unknown[] = [];
   const starts = [...line.matchAll(/\{/g)].map((match) => match.index ?? -1).filter((index) => index >= 0);
 
@@ -159,18 +156,18 @@ function extractJsonPayloads(line: string): unknown[] {
   }
 
   return payloads;
-}
+};
 
-function resolveOpenCodeDataDir(): string {
+const resolveOpenCodeDataDir = (): string => {
   const baseDir = process.env.XDG_DATA_HOME ?? join(os.homedir(), '.local', 'share');
   return join(baseDir, 'opencode');
-}
+};
 
-function resolveOpenCodeLogDir(): string {
+const resolveOpenCodeLogDir = (): string => {
   return join(resolveOpenCodeDataDir(), 'log');
-}
+};
 
-function extractTokensFromLine(line: string): SubagentTokens | undefined {
+const extractTokensFromLine = (line: string): SubagentTokens | undefined => {
   let tokens: SubagentTokens | undefined;
 
   for (const payload of extractJsonPayloads(line)) {
@@ -178,21 +175,18 @@ function extractTokensFromLine(line: string): SubagentTokens | undefined {
   }
 
   return hasUsableTokens(tokens) ? tokens : undefined;
-}
+};
 
-export function readOpenCodeLogFileIfSmall(path: string): string | undefined {
+export const readOpenCodeLogFileIfSmall = (path: string): string | undefined => {
   const stats = safeRead(() => statSync(path));
   if (!stats?.isFile() || stats.size > MAX_SYNC_LOG_READ_BYTES) {
     return undefined;
   }
 
   return safeRead(() => readFileSync(path, 'utf8'));
-}
+};
 
-export function hydrateDoneChildTokens(
-  sessionId: string,
-  logDir = resolveOpenCodeLogDir(),
-): SubagentTokens | undefined {
+export const hydrateDoneChildTokens = (sessionId: string, logDir = resolveOpenCodeLogDir()): SubagentTokens | undefined => {
   if (!sessionId.startsWith('ses_')) return undefined;
 
   const nowMs = Date.now();
@@ -238,4 +232,4 @@ export function hydrateDoneChildTokens(
   pruneDoneTokenCache(nowMs);
 
   return tokens;
-}
+};

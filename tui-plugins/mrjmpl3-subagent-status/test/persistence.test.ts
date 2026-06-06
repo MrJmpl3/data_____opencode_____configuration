@@ -51,7 +51,7 @@ describe('persistence recovery', () => {
     } as SubagentState);
 
     const recoverySource: RecoverySource = {
-      async hydrateState(state: SubagentState, _context: RecoveryContext) {
+      hydrateState: async (state: SubagentState, _context: RecoveryContext) => {
         state.children.ses_child = {
           ...state.children.ses_child,
           status: 'done',
@@ -104,7 +104,7 @@ describe('persistence recovery', () => {
     } as SubagentState);
 
     const recoverySource: RecoverySource = {
-      async hydrateState(state: SubagentState) {
+      hydrateState: async (state: SubagentState) => {
         delete state.children.ses_stale;
         state.purgedSessionIDs.ses_stale = true;
 

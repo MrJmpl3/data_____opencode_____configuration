@@ -11,7 +11,7 @@ export type PersistSnapshotMeta = {
   bufferedEventCount?: number;
 };
 
-function serializeDebugSnapshot(state: SubagentState, snapshot: TuiSnapshot, meta: PersistSnapshotMeta): string {
+const serializeDebugSnapshot = (state: SubagentState, snapshot: TuiSnapshot, meta: PersistSnapshotMeta): string => {
   return JSON.stringify(
     {
       persistedAt: new Date().toISOString(),
@@ -25,13 +25,13 @@ function serializeDebugSnapshot(state: SubagentState, snapshot: TuiSnapshot, met
     null,
     2,
   );
-}
+};
 
-export function formatPersistedSnapshot(state: SubagentState, meta: PersistSnapshotMeta): PersistedSnapshotArtifacts {
+export const formatPersistedSnapshot = (state: SubagentState, meta: PersistSnapshotMeta): PersistedSnapshotArtifacts => {
   const snapshot = buildTuiSnapshot(state);
 
   return {
     statusText: snapshot.statusSnapshotLine,
     debugSnapshot: serializeDebugSnapshot(state, snapshot, meta),
   };
-}
+};

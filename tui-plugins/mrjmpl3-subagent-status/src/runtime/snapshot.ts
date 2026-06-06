@@ -21,15 +21,15 @@ export interface TuiSnapshot {
   };
 }
 
-function hydrateSnapshotChild(child: SubagentChild, nowMs: number): SubagentChild {
+const hydrateSnapshotChild = (child: SubagentChild, nowMs: number): SubagentChild => {
   return {
     ...child,
     color: child.color ?? resolveRenderStatusColor(child.status),
     elapsedMs: resolveElapsedMs(child, nowMs),
   };
-}
+};
 
-export function buildTuiSnapshot(state: SubagentState, nowMs = Date.now()): TuiSnapshot {
+export const buildTuiSnapshot = (state: SubagentState, nowMs = Date.now()): TuiSnapshot => {
   const hydratedChildren = Object.values(state.children).map((child) => hydrateSnapshotChild(child, nowMs));
   const snapshotView = buildSubagentSnapshotView(hydratedChildren, nowMs);
 
@@ -48,4 +48,4 @@ export function buildTuiSnapshot(state: SubagentState, nowMs = Date.now()): TuiS
       visibleCounts: snapshotView.visibleCounts,
     },
   };
-}
+};

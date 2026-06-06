@@ -50,7 +50,7 @@ type RegisterSubagentCommandsInput = {
 const TOGGLE_SECTION_COMMAND = 'subagent-statusline.toggle-sidebar-section';
 const SHOW_SECTION_COMMAND = 'subagent-statusline.show-sidebar-section';
 
-function createCompositeDispose(disposers: TuiCommandDispose[]): TuiCommandDispose {
+const createCompositeDispose = (disposers: TuiCommandDispose[]): TuiCommandDispose => {
   let disposed = false;
   return () => {
     if (disposed) return;
@@ -64,13 +64,13 @@ function createCompositeDispose(disposers: TuiCommandDispose[]): TuiCommandDispo
       }
     }
   };
-}
+};
 
-export function registerSubagentCommands({
+export const registerSubagentCommands = ({
   api,
   sectionEnabled,
   setSectionEnabled,
-}: RegisterSubagentCommandsInput): TuiCommandDispose {
+}: RegisterSubagentCommandsInput): TuiCommandDispose => {
   const disposers: TuiCommandDispose[] = [];
   const commands: KeymapCommand[] = [
     {
@@ -125,4 +125,4 @@ export function registerSubagentCommands({
   }
 
   return createCompositeDispose(disposers);
-}
+};

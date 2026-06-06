@@ -9,12 +9,12 @@ import { deriveOpenCodeSessionStatus } from './session-status.ts';
 import type { SubagentChild, SubagentState, SubagentTokens } from './types.ts';
 import { asString, isRecord, timestampFromUnknown } from '../shared/coercion.ts';
 
-function sessionTime(input: Record<string, unknown>, key: 'created' | 'updated'): string | undefined {
+const sessionTime = (input: Record<string, unknown>, key: 'created' | 'updated'): string | undefined => {
   const time = isRecord(input.time) ? input.time : undefined;
   return timestampFromUnknown(time?.[key]);
-}
+};
 
-function normalizeTokens(value: unknown): SubagentTokens | undefined {
+const normalizeTokens = (value: unknown): SubagentTokens | undefined => {
   if (!isRecord(value)) return undefined;
 
   const input = typeof value.input === 'number' && Number.isFinite(value.input) ? value.input : undefined;
@@ -30,9 +30,9 @@ function normalizeTokens(value: unknown): SubagentTokens | undefined {
   }
 
   return { input, output, total, contextPercent };
-}
+};
 
-function normalizeChild(input: unknown): SubagentChild | undefined {
+const normalizeChild = (input: unknown): SubagentChild | undefined => {
   if (!isRecord(input)) return undefined;
 
   const id = asString(input.id);
@@ -66,19 +66,19 @@ function normalizeChild(input: unknown): SubagentChild | undefined {
     elapsedMs: undefined,
     tokens: normalizeTokens(input.tokens),
   };
-}
+};
 
-export function normalizeChildrenResponse(response: unknown): SubagentChild[] {
+export const normalizeChildrenResponse = (response: unknown): SubagentChild[] => {
   const data = isRecord(response) ? response.data : response;
   if (!Array.isArray(data)) return [];
   return data.map(normalizeChild).filter((child): child is SubagentChild => Boolean(child));
-}
+};
 
-function isRealSessionChild(child: SubagentChild): boolean {
+const isRealSessionChild = (child: SubagentChild): boolean => {
   return child.source === 'session' || child.id.startsWith('ses_');
-}
+};
 
-function cloneState(state: SubagentState): SubagentState {
+const cloneState = (state: SubagentState): SubagentState => {
   return {
     ...state,
     children: Object.fromEntries(
@@ -92,16 +92,13 @@ function cloneState(state: SubagentState): SubagentState {
     ),
     countedChildIDs: { ...state.countedChildIDs },
   };
-}
+};
 
-function sameChild(left: SubagentChild | undefined, right: SubagentChild | undefined): boolean {
+const sameChild = (left: SubagentChild | undefined, right: SubagentChild | undefined): boolean => {
   return JSON.stringify(left) === JSON.stringify(right);
-}
+};
 
-export function reconcileChildrenState(
-  state: SubagentState,
-  response: unknown,
-): { changed: boolean; nextState: SubagentState } {
+export const reconcileChildrenState = (state: SubagentState, response: unknown): { changed: boolean; nextState: SubagentState } => {
   const nextState = cloneState(state);
   const incomingChildren = normalizeChildrenResponse(response);
   const incomingIDs = new Set(incomingChildren.map((child) => child.id));
@@ -144,4 +141,4 @@ export function reconcileChildrenState(
     changed: changed || pruned || prunedSynthetic,
     nextState,
   };
-}
+};

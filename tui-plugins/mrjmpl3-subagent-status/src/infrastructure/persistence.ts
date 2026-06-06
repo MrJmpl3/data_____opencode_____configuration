@@ -25,15 +25,15 @@ const STATUS_FILENAME = 'state.json';
 const STATUS_DIR_MODE = 0o700;
 const STATUS_FILE_MODE = 0o600;
 
-function safeReadJSON(value: string): unknown {
+const safeReadJSON = (value: string): unknown => {
   try {
     return JSON.parse(value);
   } catch {
     return undefined;
   }
-}
+};
 
-async function writeLocalFile(path: string, contents: string): Promise<void> {
+const writeLocalFile = async (path: string, contents: string): Promise<void> => {
   const directory = dirname(path);
   await mkdir(directory, { recursive: true, mode: STATUS_DIR_MODE });
 
@@ -45,11 +45,9 @@ async function writeLocalFile(path: string, contents: string): Promise<void> {
     await rm(tempPath, { force: true }).catch(() => undefined);
     throw error;
   }
-}
+};
 
-export function resolveStatePath(
-  input: string | { workspaceDirectory?: string; statePath?: string } = process.cwd(),
-): string {
+export const resolveStatePath = (input: string | { workspaceDirectory?: string; statePath?: string } = process.cwd()): string => {
   if (
     typeof input === 'object' &&
     input !== null &&
@@ -65,27 +63,24 @@ export function resolveStatePath(
   const workspaceHash = createHash('sha256').update(resolvedWorkspaceDirectory).digest('hex').slice(0, 16);
 
   return join(runtimeDir, STATUS_DIRNAME, `workspace-${workspaceHash}`, STATUS_FILENAME);
-}
+};
 
-export function resolveTextPath(statePath: string): string {
+export const resolveTextPath = (statePath: string): string => {
   return join(dirname(statePath), 'status.txt');
-}
+};
 
-export function resolveDebugPath(statePath: string): string {
+export const resolveDebugPath = (statePath: string): string => {
   return join(dirname(statePath), 'debug.json');
-}
+};
 
-export function shouldPreserveStateOnStartup(input?: { preserveStateOnStartup?: boolean }): boolean {
+export const shouldPreserveStateOnStartup = (input?: { preserveStateOnStartup?: boolean }): boolean => {
   return input?.preserveStateOnStartup === true;
-}
+};
 
-export async function loadState(
-  statePath: string,
-  options: {
+export const loadState = async (statePath: string, options: {
     recoveryContext?: RecoveryContext;
     recoverySources?: RecoverySource[];
-  } = {},
-): Promise<SubagentState> {
+  } = {}): Promise<SubagentState> => {
   try {
     const raw = await readFile(statePath, 'utf8');
     const parsed = safeReadJSON(raw);
@@ -190,26 +185,21 @@ export async function loadState(
   } catch {
     return createEmptyState();
   }
-}
+};
 
-export async function saveStatusText(textPath: string, contents: string): Promise<void> {
+export const saveStatusText = async (textPath: string, contents: string): Promise<void> => {
   await writeLocalFile(textPath, contents);
-}
+};
 
-export async function saveDebugSnapshot(debugPath: string, contents: string): Promise<void> {
+export const saveDebugSnapshot = async (debugPath: string, contents: string): Promise<void> => {
   await writeLocalFile(debugPath, contents);
-}
+};
 
-export async function saveState(statePath: string, state: SubagentState): Promise<void> {
+export const saveState = async (statePath: string, state: SubagentState): Promise<void> => {
   await writeLocalFile(statePath, JSON.stringify(state, null, 2));
-}
+};
 
-export async function persistSnapshot(
-  statePath: string,
-  textPath: string,
-  state: SubagentState,
-  artifacts: PersistedSnapshotArtifacts,
-): Promise<void> {
+export const persistSnapshot = async (statePath: string, textPath: string, state: SubagentState, artifacts: PersistedSnapshotArtifacts): Promise<void> => {
   try {
     await saveState(statePath, state);
     await saveStatusText(textPath, artifacts.statusText);
@@ -217,17 +207,13 @@ export async function persistSnapshot(
   } catch {
     // Persistence is best-effort.
   }
-}
+};
 
-export function createPersistQueue<TMeta>(
-  statePath: string,
-  textPath: string,
-  formatArtifacts: (state: SubagentState, meta: TMeta) => PersistedSnapshotArtifacts,
-) {
+export const createPersistQueue = <TMeta>(statePath: string, textPath: string, formatArtifacts: (state: SubagentState, meta: TMeta) => PersistedSnapshotArtifacts) => {
   const enqueue = createSerializedTaskQueue(async (payload: { state: SubagentState; meta: TMeta }) => {
     await persistSnapshot(statePath, textPath, payload.state, formatArtifacts(payload.state, payload.meta));
   });
 
   return (state: SubagentState, meta: TMeta): Promise<void> =>
     enqueue({ state: structuredClone(state) as SubagentState, meta });
-}
+};

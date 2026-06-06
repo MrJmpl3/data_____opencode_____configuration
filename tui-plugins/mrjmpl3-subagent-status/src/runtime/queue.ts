@@ -1,4 +1,4 @@
-export function createSerializedTaskQueue<T>(task: (value: T) => Promise<void>): (value: T) => Promise<void> {
+export const createSerializedTaskQueue = <T>(task: (value: T) => Promise<void>): (value: T) => Promise<void> => {
   const queue: T[] = [];
   let active = false;
 
@@ -21,9 +21,9 @@ export function createSerializedTaskQueue<T>(task: (value: T) => Promise<void>):
     queue.push(value);
     return drain();
   };
-}
+};
 
-export function createCoalescedTaskRunner<T>(task: (value: T) => Promise<void>): (value: T) => Promise<void> {
+export const createCoalescedTaskRunner = <T>(task: (value: T) => Promise<void>): (value: T) => Promise<void> => {
   let inFlight = false;
   let hasPending = false;
   let pendingValue: T;
@@ -57,14 +57,14 @@ export function createCoalescedTaskRunner<T>(task: (value: T) => Promise<void>):
   };
 
   return schedule;
-}
+};
 
 type BufferedTaskQueueOptions = {
   maxSize?: number;
   maxAgeMs?: number;
 };
 
-export function createBufferedTaskQueue<T>(task: (value: T) => Promise<void>, options: BufferedTaskQueueOptions = {}) {
+export const createBufferedTaskQueue = <T>(task: (value: T) => Promise<void>, options: BufferedTaskQueueOptions = {}) => {
   const maxSize = options.maxSize ?? 512;
   const maxAgeMs = options.maxAgeMs ?? 15_000;
   const queue: Array<{ value: T; enqueuedAt: number }> = [];
@@ -97,7 +97,7 @@ export function createBufferedTaskQueue<T>(task: (value: T) => Promise<void>, op
   };
 
   return {
-    push(value: T): void {
+    push: (value: T): void => {
       const now = Date.now();
       compactIfStale(now);
       queue.push({ value, enqueuedAt: now });
@@ -109,16 +109,16 @@ export function createBufferedTaskQueue<T>(task: (value: T) => Promise<void>, op
 
       if (ready) void drain();
     },
-    size(): number {
+    size: (): number => {
       return queue.length;
     },
-    wasTruncated(): boolean {
+    wasTruncated: (): boolean => {
       return truncated;
     },
-    markReady(): Promise<void> {
+    markReady: (): Promise<void> => {
       compactIfStale(Date.now());
       ready = true;
       return drain();
     },
   };
-}
+};

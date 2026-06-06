@@ -21,7 +21,7 @@ type SQLiteRecoveryRow = {
   tokens?: SubagentTokens;
 };
 
-function mergeTokens(existing: SubagentTokens | undefined, incoming: SubagentTokens | undefined): SubagentTokens | undefined {
+const mergeTokens = (existing: SubagentTokens | undefined, incoming: SubagentTokens | undefined): SubagentTokens | undefined => {
   if (!existing && !incoming) return undefined;
 
   return {
@@ -30,7 +30,7 @@ function mergeTokens(existing: SubagentTokens | undefined, incoming: SubagentTok
     total: incoming?.total ?? existing?.total,
     contextPercent: incoming?.contextPercent ?? existing?.contextPercent,
   };
-}
+};
 
 const READ_SQLITE_RECOVERY_SCRIPT = `
 import json, sqlite3, sys
@@ -100,21 +100,21 @@ for row in rows:
 print(json.dumps(result))
 `;
 
-function toISOString(timestampMs: number): string {
+const toISOString = (timestampMs: number): string => {
   return new Date(timestampMs).toISOString();
-}
+};
 
-function resolveOpenCodeDatabasePath(): string {
+const resolveOpenCodeDatabasePath = (): string => {
   const baseDir = process.env.XDG_DATA_HOME ?? join(os.homedir(), '.local', 'share');
   return join(baseDir, 'opencode', 'opencode.db');
-}
+};
 
-function resolveRecoveredStatus(latestPart: unknown): {
+const resolveRecoveredStatus = (latestPart: unknown): {
   status: SubagentChild['status'];
   endedAt?: string;
   updatedAt?: string;
   tokens?: SubagentTokens;
-} {
+} => {
   if (!isRecord(latestPart)) {
     return { status: 'running', updatedAt: undefined, endedAt: undefined, tokens: undefined };
   }
@@ -157,9 +157,9 @@ function resolveRecoveredStatus(latestPart: unknown): {
     endedAt: undefined,
     tokens: rawTokens,
   };
-}
+};
 
-function readSQLiteRecoveryRows(databasePath: string, parentSessionID: string): SQLiteRecoveryRow[] {
+const readSQLiteRecoveryRows = (databasePath: string, parentSessionID: string): SQLiteRecoveryRow[] => {
   if (!existsSync(databasePath)) return [];
 
   const result = spawnSync('python3', ['-c', READ_SQLITE_RECOVERY_SCRIPT, databasePath, parentSessionID], {
@@ -174,9 +174,9 @@ function readSQLiteRecoveryRows(databasePath: string, parentSessionID: string): 
   } catch {
     return [];
   }
-}
+};
 
-function safeParseLatestPart(value: string | undefined): unknown {
+const safeParseLatestPart = (value: string | undefined): unknown => {
   if (!value) return undefined;
 
   try {
@@ -184,9 +184,9 @@ function safeParseLatestPart(value: string | undefined): unknown {
   } catch {
     return undefined;
   }
-}
+};
 
-function mapRecoveredChild(row: SQLiteRecoveryRow): SubagentChild {
+const mapRecoveredChild = (row: SQLiteRecoveryRow): SubagentChild => {
   const latestPart = safeParseLatestPart(row.latestPart);
   const resolved = resolveRecoveredStatus(latestPart);
   const updatedAt = resolved.updatedAt ?? toISOString(row.updatedAtMs);
@@ -204,13 +204,13 @@ function mapRecoveredChild(row: SQLiteRecoveryRow): SubagentChild {
     endedAt: resolved.endedAt,
     tokens: mergeTokens(row.tokens, resolved.tokens),
   };
-}
+};
 
-export function createSQLiteRecoverySource(input: { databasePath?: string } = {}): RecoverySource {
+export const createSQLiteRecoverySource = (input: { databasePath?: string } = {}): RecoverySource => {
   const databasePath = input.databasePath ?? resolveOpenCodeDatabasePath();
 
   return {
-    async hydrateState(state: SubagentState, context: RecoveryContext): Promise<RecoveryResult | undefined> {
+    hydrateState: async (state: SubagentState, context: RecoveryContext): Promise<RecoveryResult | undefined> => {
       const parentSessionID = context.parentSessionID;
       if (!parentSessionID) return undefined;
 
@@ -225,4 +225,4 @@ export function createSQLiteRecoverySource(input: { databasePath?: string } = {}
       );
     },
   };
-}
+};

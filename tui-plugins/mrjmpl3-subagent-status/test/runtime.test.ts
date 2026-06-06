@@ -9,7 +9,7 @@ import { createEmptyState } from '../src/domain/state.ts';
 import type { SubagentState } from '../src/domain/types.ts';
 import { resolveSubagentStatusPluginOptions } from '../src/runtime/options.ts';
 
-function deferred<T>() {
+const deferred = <T>() => {
   let resolve!: (value: T | PromiseLike<T>) => void;
   let reject!: (reason?: unknown) => void;
 
@@ -19,15 +19,15 @@ function deferred<T>() {
   });
 
   return { promise, resolve, reject };
-}
+};
 
-async function waitForCondition(predicate: () => boolean, attempts = 20): Promise<void> {
+const waitForCondition = async (predicate: () => boolean, attempts = 20): Promise<void> => {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     if (predicate()) return;
     await Promise.resolve();
     await vi.advanceTimersByTimeAsync(0);
   }
-}
+};
 
 describe('refresh runtime', () => {
   beforeEach(() => {

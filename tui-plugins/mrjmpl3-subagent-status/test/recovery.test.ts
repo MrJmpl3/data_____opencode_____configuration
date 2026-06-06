@@ -9,9 +9,9 @@ import { createSQLiteRecoverySource } from '../src/infrastructure/recovery/sqlit
 import { createEmptyState } from '../src/domain/state.ts';
 import { applyRecoveredChildren } from '../src/infrastructure/recovery.ts';
 
-async function createSQLiteRecoveryDatabase(path: string, script: string): Promise<void> {
+const createSQLiteRecoveryDatabase = async (path: string, script: string): Promise<void> => {
   execFileSync('python3', ['-c', script, path], { encoding: 'utf8' });
-}
+};
 
 describe('sqlite recovery source', () => {
   const tempDirs: string[] = [];

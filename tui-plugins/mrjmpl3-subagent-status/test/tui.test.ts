@@ -15,9 +15,7 @@ import { hydrateChildTokensFromLogs } from '../src/runtime/status-hydration.ts';
 import type { SubagentChild, SubagentState } from '../src/domain/types.ts';
 import { persistSnapshot } from '../src/infrastructure/persistence.ts';
 
-function createChild(
-  overrides: Partial<SubagentChild> & Pick<SubagentChild, 'id' | 'title' | 'parentID'>,
-): SubagentChild {
+const createChild = (overrides: Partial<SubagentChild> & Pick<SubagentChild, 'id' | 'title' | 'parentID'>): SubagentChild => {
   return {
     id: overrides.id,
     title: overrides.title,
@@ -35,9 +33,9 @@ function createChild(
     elapsedMs: overrides.elapsedMs,
     tokens: overrides.tokens,
   };
-}
+};
 
-function createState(children: SubagentChild[], totalExecuted = children.length): SubagentState {
+const createState = (children: SubagentChild[], totalExecuted = children.length): SubagentState => {
   return {
     children: Object.fromEntries(children.map((child) => [child.id, child])),
     countedChildIDs: Object.fromEntries(children.map((child) => [child.id, true])),
@@ -45,7 +43,7 @@ function createState(children: SubagentChild[], totalExecuted = children.length)
     totalExecuted,
     updatedAt: '2026-06-04T12:00:00.000Z',
   };
-}
+};
 
 describe('tui elapsed time', () => {
   const tempDirs: string[] = [];

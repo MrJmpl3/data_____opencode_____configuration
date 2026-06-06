@@ -5,7 +5,7 @@ import { isRecord } from '../shared/coercion.ts';
 
 import { resolveChildSessionId } from './session-target.ts';
 
-function slotSessionId(slotInput: unknown, fallback = ''): string {
+const slotSessionId = (slotInput: unknown, fallback = ''): string => {
   if (!isRecord(slotInput)) return fallback;
 
   if (typeof slotInput.session_id === 'string') return slotInput.session_id;
@@ -13,13 +13,9 @@ function slotSessionId(slotInput: unknown, fallback = ''): string {
   if (typeof slotInput.sessionId === 'string') return slotInput.sessionId;
 
   return fallback;
-}
+};
 
-export function resolveSessionSlotTransition(
-  currentSessionId: string,
-  slotInput: unknown,
-  hasTrackedChildren: boolean,
-): { nextSessionId: string; resetState: boolean; shouldRefresh: boolean } {
+export const resolveSessionSlotTransition = (currentSessionId: string, slotInput: unknown, hasTrackedChildren: boolean): { nextSessionId: string; resetState: boolean; shouldRefresh: boolean } => {
   const nextSessionId = slotSessionId(slotInput);
   if (!nextSessionId) {
     return {
@@ -42,23 +38,18 @@ export function resolveSessionSlotTransition(
     resetState: false,
     shouldRefresh: !hasTrackedChildren,
   };
-}
+};
 
 export { isSessionTarget } from './session-target.ts';
 
-export function resolveNavigationSessionId(
-  child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'targetSessionID'>>,
-): string | undefined {
+export const resolveNavigationSessionId = (child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'targetSessionID'>>): string | undefined => {
   return resolveChildSessionId(child);
-}
+};
 
-export function navigateToChildSession(
-  api: Pick<TuiPluginApi, 'route'>,
-  child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'targetSessionID'>>,
-): boolean {
+export const navigateToChildSession = (api: Pick<TuiPluginApi, 'route'>, child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'targetSessionID'>>): boolean => {
   const sessionId = resolveNavigationSessionId(child);
   if (!sessionId) return false;
 
   api.route.navigate('session', { sessionID: sessionId });
   return true;
-}
+};

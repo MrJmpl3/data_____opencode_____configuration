@@ -106,25 +106,25 @@ const MIN_BACKOFF_MS = 1_000;
 const MIN_REFRESH_INTERVAL_MS = 1_000;
 const MAX_MAX_ATTEMPTS = 100;
 
-function stringOption(value: unknown): string | undefined {
+const stringOption = (value: unknown): string | undefined => {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
-}
+};
 
-function numberOption(value: unknown): number | undefined {
+const numberOption = (value: unknown): number | undefined => {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
+};
 
-function integerOption(value: unknown): number | undefined {
+const integerOption = (value: unknown): number | undefined => {
   const parsed = numberOption(value);
   return parsed === undefined ? undefined : Math.floor(parsed);
-}
+};
 
 /**
  * Normaliza el payload crudo que llega desde `plugin: [[spec, options]]`.
  * Mantener esta conversion en un unico lugar evita que el runtime tenga que
  * adivinar formas parciales o volver a introducir configuracion via ENV.
  */
-export function normalizeSubagentStatusPluginOptions(options: unknown): ResolvedSubagentStatusPluginOptions {
+export const normalizeSubagentStatusPluginOptions = (options: unknown): ResolvedSubagentStatusPluginOptions => {
   const pluginOptions = isRecord(options) ? options : {};
   const staleRunningProbePolicy = isRecord(pluginOptions.staleRunningProbePolicy)
     ? pluginOptions.staleRunningProbePolicy
@@ -164,6 +164,6 @@ export function normalizeSubagentStatusPluginOptions(options: unknown): Resolved
       sqliteDatabasePath: stringOption(recovery.sqliteDatabasePath),
     },
   };
-}
+};
 
 export const resolveSubagentStatusPluginOptions = normalizeSubagentStatusPluginOptions;

@@ -19,7 +19,7 @@ const DONE_SESSION_STATUS_VALUES = new Set(['done', 'completed', 'complete', 'su
 
 const ERROR_SESSION_STATUS_VALUES = new Set(['error', 'failed', 'failure', 'cancelled', 'canceled', 'aborted']);
 
-export function collectSessionStatusValues(value: unknown): string[] {
+export const collectSessionStatusValues = (value: unknown): string[] => {
   const direct = normalizedString(value);
   if (direct) return [direct];
 
@@ -34,23 +34,23 @@ export function collectSessionStatusValues(value: unknown): string[] {
   if (record.busy === true || record.running === true) statuses.push('busy');
 
   return statuses;
-}
+};
 
-export function deriveSessionStatus(value: unknown): SubagentStatus | undefined {
+export const deriveSessionStatus = (value: unknown): SubagentStatus | undefined => {
   const statuses = collectSessionStatusValues(value);
   if (statuses.some((status) => ERROR_SESSION_STATUS_VALUES.has(status))) return 'error';
   if (statuses.some((status) => RUNNING_SESSION_STATUS_VALUES.has(status))) return 'running';
   if (statuses.some((status) => DONE_SESSION_STATUS_VALUES.has(status))) return 'done';
 
   return undefined;
-}
+};
 
-export function deriveTerminalSessionStatus(value: unknown): TerminalSubagentStatus | undefined {
+export const deriveTerminalSessionStatus = (value: unknown): TerminalSubagentStatus | undefined => {
   const statuses = collectSessionStatusValues(value);
   if (statuses.some((status) => ERROR_SESSION_STATUS_VALUES.has(status))) return 'error';
   if (statuses.some((status) => DONE_SESSION_STATUS_VALUES.has(status))) return 'done';
 
   return undefined;
-}
+};
 
 export const deriveOpenCodeSessionStatus = deriveSessionStatus;

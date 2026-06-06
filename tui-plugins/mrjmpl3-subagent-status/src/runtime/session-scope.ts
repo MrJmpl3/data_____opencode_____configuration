@@ -2,12 +2,12 @@ import { createEmptyState } from '../domain/state.ts';
 import type { SubagentState } from '../domain/types.ts';
 import type { PersistSnapshotMeta } from './persisted-snapshot.ts';
 
-export function createRuntimeSessionScopeHelpers(input: {
+export const createRuntimeSessionScopeHelpers = (input: {
   getSessionId: () => string;
   setSessionId: (sessionId: string) => void;
   syncState: (state: SubagentState, meta: PersistSnapshotMeta) => Promise<void>;
   createRefreshMeta: () => PersistSnapshotMeta;
-}) {
+}) => {
   let activeSessionToken = 0;
   let bufferingStartupScopedEvents = true;
   const deferredStartupScopedEvents = new Map<string, unknown[]>();
@@ -77,4 +77,4 @@ export function createRuntimeSessionScopeHelpers(input: {
     replayDeferredStartupScopedEvents,
     resetSessionScope,
   };
-}
+};

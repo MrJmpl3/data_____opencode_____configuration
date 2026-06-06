@@ -9,16 +9,11 @@ export type StaleRunningProbeState = {
   nextProbeAtMs: number;
 };
 
-export function nextStaleRunningBackoffMs(attempts: number, policy: StaleRunningProbePolicy): number {
+export const nextStaleRunningBackoffMs = (attempts: number, policy: StaleRunningProbePolicy): number => {
   return Math.min(policy.baseBackoffMs * 2 ** Math.max(0, attempts - 1), policy.maxBackoffMs);
-}
+};
 
-export function resolveStaleRunningProbeTargets(
-  state: SubagentState,
-  probeStateBySessionId: Map<string, StaleRunningProbeState>,
-  policy: StaleRunningProbePolicy,
-  nowMs: number,
-): string[] {
+export const resolveStaleRunningProbeTargets = (state: SubagentState, probeStateBySessionId: Map<string, StaleRunningProbeState>, policy: StaleRunningProbePolicy, nowMs: number): string[] => {
   const activeRunningSessionIds = new Set<string>();
   const targetSessionIds: string[] = [];
 
@@ -57,15 +52,9 @@ export function resolveStaleRunningProbeTargets(
   }
 
   return targetSessionIds;
-}
+};
 
-export function settleStaleRunningProbeTargets(
-  state: SubagentState,
-  probeStateBySessionId: Map<string, StaleRunningProbeState>,
-  sessionIds: string[],
-  policy: StaleRunningProbePolicy,
-  nowMs: number,
-): void {
+export const settleStaleRunningProbeTargets = (state: SubagentState, probeStateBySessionId: Map<string, StaleRunningProbeState>, sessionIds: string[], policy: StaleRunningProbePolicy, nowMs: number): void => {
   for (const sessionId of sessionIds) {
     const child = Object.values(state.children).find(
       (candidate) => isRealSessionRow(candidate) && resolveSessionRowSessionId(candidate) === sessionId,
@@ -94,4 +83,4 @@ export function settleStaleRunningProbeTargets(
       nextProbeAtMs: nowMs + nextStaleRunningBackoffMs(attempts, policy),
     });
   }
-}
+};

@@ -18,7 +18,7 @@ import {
 } from '../src/ui/format.ts';
 import type { SubagentChild, SubagentState } from '../src/domain/types.ts';
 
-function child(overrides: Partial<SubagentChild> = {}): SubagentChild {
+const child = (overrides: Partial<SubagentChild> = {}): SubagentChild => {
   return {
     id: 'ses_child',
     title: 'Review auth changes',
@@ -33,7 +33,7 @@ function child(overrides: Partial<SubagentChild> = {}): SubagentChild {
     elapsedMs: 61_000,
     ...overrides,
   };
-}
+};
 
 describe('render', () => {
   it('collapses matching synthetic and session rows into one visible execution', () => {

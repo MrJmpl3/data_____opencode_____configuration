@@ -24,28 +24,21 @@ export interface RecoverySource {
   ): Promise<RecoveryResult | undefined> | RecoveryResult | undefined;
 }
 
-function resolveSessionIdentity(
-  child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'targetSessionID'>>,
-): string | undefined {
+const resolveSessionIdentity = (child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'targetSessionID'>>): string | undefined => {
   if (child.id.startsWith('ses_')) return child.id;
   return child.targetSessionID;
-}
+};
 
-function isRealSessionChild(child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'source'>>): boolean {
+const isRealSessionChild = (child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'source'>>): boolean => {
   return child.source === 'session' || child.id.startsWith('ses_');
-}
+};
 
-export function inferParentSessionID(state: SubagentState): string | undefined {
+export const inferParentSessionID = (state: SubagentState): string | undefined => {
   const parentIDs = new Set(Object.values(state.children).map((child) => child.parentID));
   return parentIDs.size === 1 ? [...parentIDs][0] : undefined;
-}
+};
 
-export function applyRecoveredChildren(
-  state: SubagentState,
-  children: SubagentChild[],
-  authoritativeSessionIDs: string[],
-  parentSessionID?: string,
-): RecoveryResult {
+export const applyRecoveredChildren = (state: SubagentState, children: SubagentChild[], authoritativeSessionIDs: string[], parentSessionID?: string): RecoveryResult => {
   let changed = false;
   const authoritativeSet = new Set(authoritativeSessionIDs);
 
@@ -84,13 +77,9 @@ export function applyRecoveredChildren(
     changed,
     authoritativeSessionIDs,
   };
-}
+};
 
-export async function hydrateStateFromRecoverySources(
-  state: SubagentState,
-  context: RecoveryContext,
-  recoverySources: RecoverySource[],
-): Promise<RecoveryResult> {
+export const hydrateStateFromRecoverySources = async (state: SubagentState, context: RecoveryContext, recoverySources: RecoverySource[]): Promise<RecoveryResult> => {
   let changed = false;
   const authoritativeSessionIDs = new Set<string>();
 
@@ -108,4 +97,4 @@ export async function hydrateStateFromRecoverySources(
     changed,
     authoritativeSessionIDs: [...authoritativeSessionIDs],
   };
-}
+};

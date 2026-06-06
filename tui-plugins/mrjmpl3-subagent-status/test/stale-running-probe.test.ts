@@ -9,12 +9,12 @@ import {
   settleStaleRunningProbeTargets,
 } from '../src/runtime/stale-probe.ts';
 
-function runningState(children: SubagentState['children']): SubagentState {
+const runningState = (children: SubagentState['children']): SubagentState => {
   return {
     ...createEmptyState(),
     children,
   };
-}
+};
 
 describe('stale running probe helpers', () => {
   it('targets only real running session rows', () => {

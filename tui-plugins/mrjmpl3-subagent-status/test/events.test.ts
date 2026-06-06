@@ -9,7 +9,7 @@ const IDLE_AT = '2026-06-05T10:01:00.000Z';
 const DONE_AT = '2026-06-05T10:02:00.000Z';
 const ERROR_AT = '2026-06-05T10:03:00.000Z';
 
-function seedChildSession() {
+const seedChildSession = () => {
   const state = createEmptyState();
 
   expect(
@@ -29,7 +29,7 @@ function seedChildSession() {
   ).toBe(true);
 
   return state;
-}
+};
 
 describe('events', () => {
   it('parses subtask events and keeps completed task tool evidence non-terminal', () => {

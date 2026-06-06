@@ -14,12 +14,12 @@ type SessionClient = {
   messages?: (input: { sessionID: string; directory: string }) => Promise<{ data?: unknown[] } | undefined>;
 };
 
-function messageInfo(message: unknown): Record<string, unknown> | undefined {
+const messageInfo = (message: unknown): Record<string, unknown> | undefined => {
   const record = isRecord(message) ? message : undefined;
   return isRecord(record?.info) ? record.info : record;
-}
+};
 
-function messageTime(message: unknown, ...keys: string[]): string | undefined {
+const messageTime = (message: unknown, ...keys: string[]): string | undefined => {
   const record = isRecord(message) ? message : undefined;
   const info = messageInfo(message);
   const state = isRecord(record?.state) ? record.state : undefined;
@@ -41,13 +41,13 @@ function messageTime(message: unknown, ...keys: string[]): string | undefined {
   }
 
   return undefined;
-}
+};
 
-function messageActivityAt(message: unknown): string | undefined {
+const messageActivityAt = (message: unknown): string | undefined => {
   return messageTime(message, 'completed', 'updated', 'created');
-}
+};
 
-export function latestSessionActivityAt(api: TuiPluginApi, sessionId: string): string | undefined {
+export const latestSessionActivityAt = (api: TuiPluginApi, sessionId: string): string | undefined => {
   try {
     let latestMs = 0;
     for (const message of api.state.session.messages(sessionId)) {
@@ -60,9 +60,9 @@ export function latestSessionActivityAt(api: TuiPluginApi, sessionId: string): s
   } catch {
     return undefined;
   }
-}
+};
 
-export function sessionStatusEndedAt(value: unknown): string | undefined {
+export const sessionStatusEndedAt = (value: unknown): string | undefined => {
   if (!isRecord(value)) return undefined;
 
   const time = isRecord(value.time) ? value.time : undefined;
@@ -72,9 +72,9 @@ export function sessionStatusEndedAt(value: unknown): string | undefined {
     timestampFromUnknown(time?.end) ??
     timestampFromUnknown(time?.updated)
   );
-}
+};
 
-export function summarizeMessages(messages: readonly unknown[]): { status?: 'done' | 'error'; endedAt?: string } {
+export const summarizeMessages = (messages: readonly unknown[]): { status?: 'done' | 'error'; endedAt?: string } => {
   let completedAtMs = 0;
   let errorAtMs = 0;
 
@@ -106,13 +106,9 @@ export function summarizeMessages(messages: readonly unknown[]): { status?: 'don
   if (completedAtMs > 0) return { status: 'done', endedAt: new Date(completedAtMs).toISOString() };
 
   return {};
-}
+};
 
-export async function hydrateChildStatusesFromClient(
-  api: TuiPluginApi,
-  state: SubagentState,
-  targetSessionIDs: readonly string[],
-): Promise<boolean> {
+export const hydrateChildStatusesFromClient = async (api: TuiPluginApi, state: SubagentState, targetSessionIDs: readonly string[]): Promise<boolean> => {
   const sessionClient = api.client.session as unknown as SessionClient | undefined;
   if (!sessionClient) return false;
 
@@ -172,13 +168,9 @@ export async function hydrateChildStatusesFromClient(
   if (changed) state.updatedAt = new Date().toISOString();
 
   return changed;
-}
+};
 
-export function hydrateChildStatusesFromTuiState(
-  api: TuiPluginApi,
-  state: SubagentState,
-  targetSessionIDs: readonly string[],
-): boolean {
+export const hydrateChildStatusesFromTuiState = (api: TuiPluginApi, state: SubagentState, targetSessionIDs: readonly string[]): boolean => {
   if (targetSessionIDs.length === 0) return false;
 
   let changed = false;
@@ -218,9 +210,9 @@ export function hydrateChildStatusesFromTuiState(
   if (changed) state.updatedAt = new Date().toISOString();
 
   return changed;
-}
+};
 
-export function hydrateChildTokensFromLogs(state: SubagentState): boolean {
+export const hydrateChildTokensFromLogs = (state: SubagentState): boolean => {
   let changed = false;
 
   for (const child of Object.values(state.children)) {
@@ -239,4 +231,4 @@ export function hydrateChildTokensFromLogs(state: SubagentState): boolean {
   }
 
   return changed;
-}
+};

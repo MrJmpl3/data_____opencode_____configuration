@@ -4,10 +4,10 @@ import { resolveChildSessionId } from './session-target.ts';
 
 type SessionRowLike = Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'source' | 'targetSessionID'>>;
 
-export function isRealSessionRow(child: SessionRowLike): boolean {
+export const isRealSessionRow = (child: SessionRowLike): boolean => {
   return child.source === 'session' || child.id.startsWith('ses_');
-}
+};
 
-export function resolveSessionRowSessionId(child: SessionRowLike): string | undefined {
+export const resolveSessionRowSessionId = (child: SessionRowLike): string | undefined => {
   return resolveChildSessionId(child);
-}
+};
