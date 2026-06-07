@@ -2,7 +2,6 @@
 import type { TuiPluginApi, TuiSlotContext } from '@opencode-ai/plugin/tui';
 import { createEffect, createMemo, createRoot, createSignal } from 'solid-js';
 
-import { registerSubagentCommands } from './commands.ts';
 import { createPromptFocusController } from './focus.ts';
 import {
   normalizeHomePromptProps,
@@ -47,16 +46,6 @@ export const registerSubagentStatusTui = async (api: TuiPluginApi, options: unkn
     api.lifecycle.onDispose(() => {
       runtime.dispose();
       disposeRoot();
-    });
-
-    const disposeCommands = registerSubagentCommands({
-      api,
-      sectionEnabled: expanded,
-      setSectionEnabled: (enabled) => setExpanded(enabled),
-    });
-
-    api.lifecycle.onDispose(() => {
-      disposeCommands();
     });
 
     createEffect(() => {

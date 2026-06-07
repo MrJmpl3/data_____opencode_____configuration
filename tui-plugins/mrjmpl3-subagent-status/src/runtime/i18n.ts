@@ -9,11 +9,6 @@ const translations = {
     run: 'run',
     done: 'done',
     err: 'err',
-    toggleSidebarSection: 'Subagents: Toggle sidebar section',
-    toggleSidebarSectionDescription: 'Show or hide the subagent sidebar section',
-    showSidebarSection: 'Subagents: Show sidebar section',
-    showSidebarSectionDescription: 'Expand the subagent sidebar section',
-    commandCategory: 'Subagents',
   },
   es: {
     subagents: 'Subagentes',
@@ -23,11 +18,6 @@ const translations = {
     run: 'act',
     done: 'listo',
     err: 'err',
-    toggleSidebarSection: 'Subagentes: alternar sección lateral',
-    toggleSidebarSectionDescription: 'Mostrar u ocultar la sección lateral de subagentes',
-    showSidebarSection: 'Subagentes: mostrar sección lateral',
-    showSidebarSectionDescription: 'Expandir la sección lateral de subagentes',
-    commandCategory: 'Subagentes',
   },
 } as const;
 
