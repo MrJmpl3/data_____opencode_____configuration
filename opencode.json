@@ -291,6 +291,11 @@
       "type": "remote",
       "url": "https://mcp.deepwiki.com/mcp"
     },
+    "docker": {
+      "command": ["uvx", "mcp-server-docker"],
+      "enabled": true,
+      "type": "local"
+    },
     "engram": {
       "command": ["/home/mrjmpl3/.local/bin/engram", "mcp", "--tools=agent"],
       "type": "local"
@@ -312,6 +317,11 @@
       "enabled": true,
       "type": "remote",
       "url": "https://nuxt.com/mcp"
+    },
+    "playwright": {
+      "command": ["npx", "@playwright/mcp@latest"],
+      "enabled": true,
+      "type": "local"
     }
   },
   "model": "openai/gpt-5.5",
