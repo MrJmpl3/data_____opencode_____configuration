@@ -4,7 +4,7 @@ Global base behavior policy for OpenCode.
 
 ## Code Comments
 
-- This rule is mandatory. If a request touches code comments in any way, load `0001-add-educational-comments` before editing anything.
+- This rule is mandatory. If a request touches code comments in any way, load `mrjmpl3-add-educational-comments` before editing anything.
 - Write comments in Spanish unless the user explicitly asks for another language for that artifact.
 - Any request to add, improve, restructure, or rewrite comments means you must review the entire affected block, not patch isolated lines.
 - You may rewrite, merge, or remove existing comments if they are redundant, noisy, or not educational.
