@@ -1,14 +1,25 @@
 export interface RefreshSchedulerConfig {
-  subscribe: (eventName: string, handler: () => void) => () => void;
+  subscribe: (eventName: string, handler: (payload?: unknown) => void) => () => void;
   onRefresh: (source?: string) => void;
-  immediateEvents: string[];
-  completionEvents: string[];
+  immediateEvents: RefreshEventConfig[];
+  completionEvents: RefreshEventConfig[];
   pollIntervalMs?: number;
   refreshDelayMs?: number;
 }
 
+export interface RefreshEventSpec {
+  name: string;
+  shouldRefresh?: (payload: unknown) => boolean;
+}
+
+export type RefreshEventConfig = string | RefreshEventSpec;
+
 const DEFAULT_REFRESH_DELAY_MS = 300;
 const DEFAULT_POLL_INTERVAL_MS = 10 * 60_000;
+
+const normalizeEventSpec = (config: RefreshEventConfig): RefreshEventSpec => {
+  return typeof config === 'string' ? { name: config } : config;
+};
 
 export interface RefreshScheduler {
   scheduleRefresh(extraDelays?: number[], source?: string): void;
@@ -59,8 +70,18 @@ export const createRefreshScheduler = ({
     }, delay);
   };
 
-  const bindEvents = (eventNames: string[], extraDelays: number[] = []) => {
-    return eventNames.map((eventName) => subscribe(eventName, () => scheduleRefresh(extraDelays, eventName)));
+  const bindEvents = (eventConfigs: RefreshEventConfig[], extraDelays: number[] = []) => {
+    return eventConfigs.map((eventConfig) => {
+      const event = normalizeEventSpec(eventConfig);
+
+      return subscribe(event.name, (payload) => {
+        if (event.shouldRefresh && !event.shouldRefresh(payload)) {
+          return;
+        }
+
+        scheduleRefresh(extraDelays, event.name);
+      });
+    });
   };
 
   const unsubscribers = [...bindEvents(immediateEvents), ...bindEvents(completionEvents, [250])];

@@ -13,14 +13,25 @@ export interface ResolvedQuotaPluginOptions {
   providerErrorBackoffMs: number;
 }
 
+export interface ResolvedQuotaPluginOptionsDiagnostics {
+  invalidVisibleProviderEntries: readonly string[];
+  fellBackToDefaultVisibleProviders: boolean;
+}
+
+export interface InspectedQuotaPluginOptions {
+  options: ResolvedQuotaPluginOptions;
+  diagnostics: ResolvedQuotaPluginOptionsDiagnostics;
+}
+
 export const PROVIDER_SPECS: readonly ProviderSpec[] = [
-  { id: 'go', label: 'OpenCode Go' },
-  { id: 'copilot', label: 'GitHub Copilot' },
+  { id: 'opencode-go', label: 'OpenCode Go' },
+  { id: 'github-copilot', label: 'GitHub Copilot' },
   { id: 'openrouter', label: 'OpenRouter' },
   { id: 'openai', label: 'OpenAI' },
 ];
 
-export const DEFAULT_VISIBLE_PROVIDERS: readonly QuotaProviderId[] = ['go', 'copilot', 'openrouter'];
+export const DEFAULT_VISIBLE_PROVIDERS: readonly QuotaProviderId[] = ['opencode-go', 'github-copilot', 'openrouter'];
+export const ALLOWED_VISIBLE_PROVIDER_IDS: readonly QuotaProviderId[] = PROVIDER_SPECS.map((spec) => spec.id);
 export const DEFAULT_POLL_INTERVAL_MS = 10 * 60_000;
 export const DEFAULT_MIN_REFRESH_INTERVAL_MS = 120_000;
 export const DEFAULT_PROVIDER_CACHE_TTL_MS = 5 * 60_000;
@@ -36,46 +47,67 @@ const defaultVisibleProviderSpecs = (): readonly ProviderSpec[] => {
   return PROVIDER_SPECS.filter((spec) => DEFAULT_VISIBLE_PROVIDERS.includes(spec.id));
 };
 
-const normalizeProviderId = (value: string): QuotaProviderId | undefined => {
-  const normalized = value.trim().toLowerCase();
-  switch (normalized) {
-    case 'go':
-    case 'opencode-go':
-      return 'go';
-    case 'copilot':
-    case 'cp':
-    case 'github-copilot':
-      return 'copilot';
-    case 'openrouter':
-    case 'or':
-      return 'openrouter';
-    case 'openai':
-    case 'oa':
-    case 'chatgpt':
-      return 'openai';
-    default:
-      return undefined;
+const formatInvalidVisibleProviderEntry = (value: unknown): string => {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
   }
 };
 
-export const getVisibleProviders = (options: unknown): readonly ProviderSpec[] => {
+export const inspectVisibleProviders = (options: unknown): {
+  visibleProviders: readonly ProviderSpec[];
+  invalidVisibleProviderEntries: readonly string[];
+  fellBackToDefaultVisibleProviders: boolean;
+} => {
   const configured = isRecord(options) ? options.visibleProviders : undefined;
   if (!Array.isArray(configured) || configured.length === 0) {
-    return defaultVisibleProviderSpecs();
+    return {
+      visibleProviders: defaultVisibleProviderSpecs(),
+      invalidVisibleProviderEntries: [],
+      fellBackToDefaultVisibleProviders: false,
+    };
   }
 
-  const ids = new Set<QuotaProviderId>();
+  const resolvedProviders: ProviderSpec[] = [];
+  const invalidVisibleProviderEntries: string[] = [];
+  const seenProviderIds = new Set<QuotaProviderId>();
+
   for (const raw of configured) {
-    if (typeof raw !== 'string') continue;
-    const id = normalizeProviderId(raw);
-    if (id) ids.add(id);
+    if (typeof raw !== 'string') {
+      invalidVisibleProviderEntries.push(formatInvalidVisibleProviderEntry(raw));
+      continue;
+    }
+
+    const providerSpec = PROVIDER_SPECS.find((spec) => spec.id === raw);
+    if (!providerSpec) {
+      invalidVisibleProviderEntries.push(formatInvalidVisibleProviderEntry(raw));
+      continue;
+    }
+
+    if (seenProviderIds.has(providerSpec.id)) continue;
+
+    seenProviderIds.add(providerSpec.id);
+    resolvedProviders.push(providerSpec);
   }
 
-  if (ids.size === 0) {
-    return defaultVisibleProviderSpecs();
+  if (resolvedProviders.length === 0) {
+    return {
+      visibleProviders: defaultVisibleProviderSpecs(),
+      invalidVisibleProviderEntries,
+      fellBackToDefaultVisibleProviders: invalidVisibleProviderEntries.length > 0,
+    };
   }
 
-  return PROVIDER_SPECS.filter((spec) => ids.has(spec.id));
+  return {
+    visibleProviders: resolvedProviders,
+    invalidVisibleProviderEntries,
+    fellBackToDefaultVisibleProviders: false,
+  };
+};
+
+export const getVisibleProviders = (options: unknown): readonly ProviderSpec[] => {
+  return inspectVisibleProviders(options).visibleProviders;
 };
 
 export const getDisplayModeSetting = (options: unknown): QuotaDisplayMode => {
@@ -97,36 +129,48 @@ export const getNumberOption = (
   return Math.max(minimum, value);
 };
 
-export const normalizeQuotaPluginOptions = (options: unknown): ResolvedQuotaPluginOptions => {
+export const inspectQuotaPluginOptions = (options: unknown): InspectedQuotaPluginOptions => {
+  const visibleProviders = inspectVisibleProviders(options);
+
   return {
-    displayMode: getDisplayModeSetting(options),
-    visibleProviders: getVisibleProviders(options),
-    pollIntervalMs: getNumberOption(
-      options,
-      'pollIntervalMs',
-      DEFAULT_POLL_INTERVAL_MS,
-      MIN_SAFE_REFRESH_INTERVAL_MS,
-      true,
-    ),
-    minRefreshIntervalMs: getNumberOption(
-      options,
-      'minRefreshIntervalMs',
-      DEFAULT_MIN_REFRESH_INTERVAL_MS,
-      MIN_SAFE_REFRESH_INTERVAL_MS,
-    ),
-    providerCacheTtlMs: getNumberOption(
-      options,
-      'providerCacheTtlMs',
-      DEFAULT_PROVIDER_CACHE_TTL_MS,
-      MIN_SAFE_CACHE_TTL_MS,
-    ),
-    providerErrorBackoffMs: getNumberOption(
-      options,
-      'providerErrorBackoffMs',
-      DEFAULT_PROVIDER_ERROR_BACKOFF_MS,
-      MIN_SAFE_CACHE_TTL_MS,
-    ),
+    options: {
+      displayMode: getDisplayModeSetting(options),
+      visibleProviders: visibleProviders.visibleProviders,
+      pollIntervalMs: getNumberOption(
+        options,
+        'pollIntervalMs',
+        DEFAULT_POLL_INTERVAL_MS,
+        MIN_SAFE_REFRESH_INTERVAL_MS,
+        true,
+      ),
+      minRefreshIntervalMs: getNumberOption(
+        options,
+        'minRefreshIntervalMs',
+        DEFAULT_MIN_REFRESH_INTERVAL_MS,
+        MIN_SAFE_REFRESH_INTERVAL_MS,
+      ),
+      providerCacheTtlMs: getNumberOption(
+        options,
+        'providerCacheTtlMs',
+        DEFAULT_PROVIDER_CACHE_TTL_MS,
+        MIN_SAFE_CACHE_TTL_MS,
+      ),
+      providerErrorBackoffMs: getNumberOption(
+        options,
+        'providerErrorBackoffMs',
+        DEFAULT_PROVIDER_ERROR_BACKOFF_MS,
+        MIN_SAFE_CACHE_TTL_MS,
+      ),
+    },
+    diagnostics: {
+      invalidVisibleProviderEntries: visibleProviders.invalidVisibleProviderEntries,
+      fellBackToDefaultVisibleProviders: visibleProviders.fellBackToDefaultVisibleProviders,
+    },
   };
+};
+
+export const normalizeQuotaPluginOptions = (options: unknown): ResolvedQuotaPluginOptions => {
+  return inspectQuotaPluginOptions(options).options;
 };
 
 export const resolveQuotaPluginOptions = normalizeQuotaPluginOptions;

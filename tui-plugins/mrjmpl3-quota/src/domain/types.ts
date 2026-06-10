@@ -1,4 +1,4 @@
-export type QuotaProviderId = 'go' | 'copilot' | 'openrouter' | 'openai';
+export type QuotaProviderId = 'opencode-go' | 'github-copilot' | 'openrouter' | 'openai';
 export type QuotaDisplayMode = 'remaining' | 'used';
 
 export interface QuotaPluginOptions {

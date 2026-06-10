@@ -9,6 +9,13 @@ TUI plugin for OpenCode that displays provider quota and usage status in the sid
 - renders responsible weekly usage and pace information
 - handles quota rate-limit retry windows defensively
 
+## Supported providers
+
+- `opencode-go` — OpenCode Go
+- `github-copilot` — GitHub Copilot
+- `openrouter` — OpenRouter
+- `openai` — OpenAI
+
 ## Install
 
 Add the package directory to your OpenCode TUI config.

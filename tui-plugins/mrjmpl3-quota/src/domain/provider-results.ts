@@ -26,7 +26,7 @@ export const fetchProviderLines = async (
   displayMode: QuotaDisplayMode,
   setNowMs: (nowMs: number) => void,
 ): Promise<ProviderFetchResult> => {
-  if (providerId === 'go') {
+  if (providerId === 'opencode-go') {
     if (!goConfig) return undefined;
     const result = await fetchGoDashboard(goConfig.workspaceId, goConfig.authCookie);
     if (!('data' in result)) return result.error;
@@ -53,7 +53,7 @@ export const fetchProviderLines = async (
     return dataLines.length ? dataLines : [detailTextLine('No windows')];
   }
 
-  if (providerId === 'copilot') {
+  if (providerId === 'github-copilot') {
     const cp = await fetchCopilotQuota();
     if (cp === null) return undefined;
     if ('error' in cp) return cp.error;

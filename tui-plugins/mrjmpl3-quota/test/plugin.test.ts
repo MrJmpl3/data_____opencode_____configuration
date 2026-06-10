@@ -12,8 +12,14 @@ import plugin, {
   resolveQuotaPluginOptions,
   retryAfterMsFromMessage,
 } from '../index.tsx';
+import { inspectQuotaPluginOptions } from '../src/runtime/options.ts';
 import { createRefreshScheduler } from '../src/runtime/refresh-scheduler.ts';
-import { refreshQuotaProviders } from '../src/runtime/runtime.tsx';
+import {
+  isQuotaTerminalSessionEvent,
+  isQuotaTerminalTaskEvent,
+  registerQuotaTui,
+  refreshQuotaProviders,
+} from '../src/runtime/runtime.tsx';
 import { fetchCopilotQuota, normalizeCopilotResetAtMs } from '../src/infrastructure/providers/copilot.ts';
 import { fmtDuration } from '../src/infrastructure/providers/format.ts';
 import { fetchWithTimeout } from '../src/infrastructure/providers/http.ts';
@@ -31,6 +37,11 @@ const createAuthFixture = (entries: Record<string, unknown>): string => {
   mkdirSync(authDir, { recursive: true });
   writeFileSync(join(authDir, 'auth.json'), JSON.stringify(entries), 'utf8');
   return root;
+};
+
+const flushAsyncTasks = async (): Promise<void> => {
+  await Promise.resolve();
+  await Promise.resolve();
 };
 
 const pluginMeta: TuiPluginMeta = {
@@ -77,8 +88,8 @@ describe('quota tui plugin', () => {
     expect(options).toEqual({
       displayMode: 'remaining',
       visibleProviders: [
-        { id: 'go', label: 'OpenCode Go' },
-        { id: 'copilot', label: 'GitHub Copilot' },
+        { id: 'opencode-go', label: 'OpenCode Go' },
+        { id: 'github-copilot', label: 'GitHub Copilot' },
         { id: 'openrouter', label: 'OpenRouter' },
       ],
       pollIntervalMs: 600_000,
@@ -88,10 +99,58 @@ describe('quota tui plugin', () => {
     });
   });
 
-  it('normalizes explicit plugin options before runtime usage', () => {
+  it('rejects legacy provider ids and falls back to defaults when nothing valid remains', () => {
+    const options = resolveQuotaPluginOptions({
+      visibleProviders: [' OR ', 'copilot', 'go', 'unknown', 'chatgpt'],
+    });
+
+    expect(options.visibleProviders).toEqual([
+      { id: 'opencode-go', label: 'OpenCode Go' },
+      { id: 'github-copilot', label: 'GitHub Copilot' },
+      { id: 'openrouter', label: 'OpenRouter' },
+    ]);
+  });
+
+  it('reports invalid visibleProviders entries without changing canonical selection rules', () => {
+    const resolved = inspectQuotaPluginOptions({
+      visibleProviders: ['openai', 'copilot', 'go', 'or', 'openai', 42],
+    });
+
+    expect(resolved.options.visibleProviders).toEqual([{ id: 'openai', label: 'OpenAI' }]);
+    expect(resolved.diagnostics).toEqual({
+      invalidVisibleProviderEntries: ['"copilot"', '"go"', '"or"', '42'],
+      fellBackToDefaultVisibleProviders: false,
+    });
+  });
+
+  it('accepts canonical provider ids and preserves their configured order', () => {
+    const options = resolveQuotaPluginOptions({
+      visibleProviders: ['openai', 'opencode-go', 'github-copilot'],
+    });
+
+    expect(options.visibleProviders).toEqual([
+      { id: 'openai', label: 'OpenAI' },
+      { id: 'opencode-go', label: 'OpenCode Go' },
+      { id: 'github-copilot', label: 'GitHub Copilot' },
+    ]);
+  });
+
+  it('keeps the first duplicate canonical provider and does not reorder the output', () => {
+    const options = resolveQuotaPluginOptions({
+      visibleProviders: ['openai', 'opencode-go', 'openai', 'github-copilot', 'opencode-go'],
+    });
+
+    expect(options.visibleProviders).toEqual([
+      { id: 'openai', label: 'OpenAI' },
+      { id: 'opencode-go', label: 'OpenCode Go' },
+      { id: 'github-copilot', label: 'GitHub Copilot' },
+    ]);
+  });
+
+  it('normalizes numeric plugin options without changing canonical provider order', () => {
     const options = resolveQuotaPluginOptions({
       displayMode: 'used',
-      visibleProviders: [' OR ', 'github-copilot', 'unknown', 'openai', 'openai'],
+      visibleProviders: ['openai', 'openrouter', 'openai'],
       pollIntervalMs: 0,
       minRefreshIntervalMs: 10,
       providerCacheTtlMs: 20,
@@ -101,9 +160,8 @@ describe('quota tui plugin', () => {
     expect(options).toEqual({
       displayMode: 'used',
       visibleProviders: [
-        { id: 'copilot', label: 'GitHub Copilot' },
-        { id: 'openrouter', label: 'OpenRouter' },
         { id: 'openai', label: 'OpenAI' },
+        { id: 'openrouter', label: 'OpenRouter' },
       ],
       pollIntervalMs: 0,
       minRefreshIntervalMs: 60_000,
@@ -122,13 +180,13 @@ describe('quota tui plugin', () => {
   });
 
   it('registers a sidebar slot, responds to session changes, and disposes timers/events', async () => {
-    const events = new Map<string, () => void>();
+    const events = new Map<string, (payload?: unknown) => void>();
     const disposers: (() => void)[] = [];
     const slotRegistrations: { slots: { sidebar_content: (ctx: unknown, slotInput: unknown) => unknown } }[] = [];
 
     const api = {
       event: {
-        on: (eventName: string, handler: () => void) => {
+        on: (eventName: string, handler: (payload?: unknown) => void) => {
           events.set(eventName, handler);
           return () => events.delete(eventName);
         },
@@ -156,6 +214,9 @@ describe('quota tui plugin', () => {
     );
 
     expect(slotRegistrations).toHaveLength(1);
+    expect(events.has('message.part.updated')).toBe(true);
+    expect(events.has('session.error')).toBe(true);
+    expect(events.has('session.status')).toBe(true);
     expect(events.has('tui.session.select')).toBe(true);
     expect(events.has('session.idle')).toBe(true);
 
@@ -165,8 +226,59 @@ describe('quota tui plugin', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('warns once when visibleProviders contains invalid entries', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const events = new Map<string, (payload?: unknown) => void>();
+    const disposers: (() => void)[] = [];
+    const slotRegistrations: { slots: { sidebar_content: (ctx: unknown, slotInput: unknown) => unknown } }[] = [];
+
+    const api = {
+      event: {
+        on: (eventName: string, handler: (payload?: unknown) => void) => {
+          events.set(eventName, handler);
+          return () => events.delete(eventName);
+        },
+      },
+      lifecycle: {
+        onDispose: (handler: () => void) => disposers.push(handler),
+      },
+      slots: {
+        register: (registration: { slots: { sidebar_content: (ctx: unknown, slotInput: unknown) => unknown } }) => {
+          slotRegistrations.push(registration);
+        },
+      },
+      theme: { current: { text: 'white', textMuted: 'gray' } },
+    } as unknown as TuiPluginApi;
+
+    await registerQuotaTui(
+      api,
+      {
+        minRefreshIntervalMs: 60_000,
+        pollIntervalMs: 0,
+        providerCacheTtlMs: 60_000,
+        visibleProviders: ['copilot', 'openrouter', 'chatgpt'],
+      },
+    );
+
+    await flushAsyncTasks();
+
+    expect(slotRegistrations).toHaveLength(1);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[quota] Ignoring invalid visibleProviders entries: "copilot", "chatgpt". ' +
+        'Allowed canonical provider ids: opencode-go, github-copilot, openrouter, openai.',
+    );
+
+    events.get('session.idle')?.();
+    await flushAsyncTasks();
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+
+    disposers.forEach((dispose) => dispose());
+  });
+
   it('coalesces repeated immediate refresh events before execution', () => {
-    const events = new Map<string, () => void>();
+    const events = new Map<string, (payload?: unknown) => void>();
     const onRefresh = vi.fn();
     const scheduler = createRefreshScheduler({
       subscribe: (eventName, handler) => {
@@ -195,18 +307,216 @@ describe('quota tui plugin', () => {
     scheduler.dispose();
   });
 
+  it('recognizes terminal subagent completion events without reacting to non-terminal noise', () => {
+    expect(
+      isQuotaTerminalTaskEvent({
+        properties: {
+          part: {
+            type: 'tool',
+            tool: 'task',
+            state: {
+              status: 'completed',
+            },
+          },
+        },
+      }),
+    ).toBe(true);
+
+    expect(
+      isQuotaTerminalTaskEvent({
+        properties: {
+          part: {
+            type: 'tool',
+            tool: 'task',
+            state: {
+              status: 'running',
+            },
+          },
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isQuotaTerminalSessionEvent({
+        properties: {
+          state: {
+            status: 'completed',
+          },
+        },
+      }),
+    ).toBe(true);
+
+    expect(
+      isQuotaTerminalSessionEvent({
+        properties: {
+          status: 'running',
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it('filters non-terminal task updates before scheduling completion refreshes', () => {
+    const events = new Map<string, (payload?: unknown) => void>();
+    const onRefresh = vi.fn();
+    const scheduler = createRefreshScheduler({
+      subscribe: (eventName, handler) => {
+        events.set(eventName, handler);
+        return () => events.delete(eventName);
+      },
+      onRefresh,
+      immediateEvents: [],
+      completionEvents: [{ name: 'message.part.updated', shouldRefresh: isQuotaTerminalTaskEvent }],
+      pollIntervalMs: 0,
+      refreshDelayMs: 300,
+    });
+
+    events.get('message.part.updated')?.({
+      properties: {
+        part: {
+          type: 'tool',
+          tool: 'task',
+          state: {
+            status: 'running',
+          },
+        },
+      },
+    });
+    vi.advanceTimersByTime(600);
+    expect(onRefresh).toHaveBeenCalledTimes(0);
+
+    events.get('message.part.updated')?.({
+      properties: {
+        part: {
+          type: 'tool',
+          tool: 'task',
+          state: {
+            status: 'completed',
+          },
+        },
+      },
+    });
+    vi.advanceTimersByTime(549);
+    expect(onRefresh).toHaveBeenCalledTimes(0);
+
+    vi.advanceTimersByTime(1);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    expect(onRefresh).toHaveBeenCalledWith('message.part.updated');
+
+    scheduler.dispose();
+  });
+
+  it('coalesces terminal subagent bursts into one forced provider refetch per refresh interval', async () => {
+    vi.resetModules();
+
+    const fetchProviderLines = vi.fn(async () => ['OpenRouter ready']);
+
+    vi.doMock('../src/domain/provider-results.ts', async () => {
+      const actual = await vi.importActual<typeof import('../src/domain/provider-results.ts')>(
+        '../src/domain/provider-results.ts',
+      );
+
+      return {
+        ...actual,
+        fetchProviderLines,
+      };
+    });
+
+    const { registerQuotaTui } = await import('../src/runtime/runtime.tsx');
+    const events = new Map<string, (payload?: unknown) => void>();
+    const disposers: Array<() => void> = [];
+
+    const api = {
+      event: {
+        on: (eventName: string, handler: (payload?: unknown) => void) => {
+          events.set(eventName, handler);
+          return () => events.delete(eventName);
+        },
+      },
+      lifecycle: {
+        onDispose: (handler: () => void) => disposers.push(handler),
+      },
+      slots: {
+        register: vi.fn(),
+      },
+      theme: { current: { text: 'white', textMuted: 'gray' } },
+    } as unknown as TuiPluginApi;
+
+    await registerQuotaTui(api, {
+      minRefreshIntervalMs: 60_000,
+      pollIntervalMs: 0,
+      providerCacheTtlMs: 300_000,
+      visibleProviders: ['openrouter'],
+    });
+    await flushAsyncTasks();
+
+    expect(fetchProviderLines).toHaveBeenCalledTimes(1);
+
+    const emitTerminalTaskCompletion = () => {
+      events.get('message.part.updated')?.({
+        properties: {
+          part: {
+            type: 'tool',
+            tool: 'task',
+            state: {
+              status: 'completed',
+            },
+          },
+        },
+      });
+    };
+
+    emitTerminalTaskCompletion();
+    vi.advanceTimersByTime(549);
+    await flushAsyncTasks();
+    expect(fetchProviderLines).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(1);
+    await flushAsyncTasks();
+    expect(fetchProviderLines).toHaveBeenCalledTimes(2);
+
+    emitTerminalTaskCompletion();
+    events.get('session.status')?.({
+      properties: {
+        state: {
+          status: 'completed',
+        },
+      },
+    });
+    events.get('session.error')?.({
+      properties: {
+        sessionID: 'ses_child',
+      },
+    });
+
+    vi.advanceTimersByTime(550);
+    await flushAsyncTasks();
+    expect(fetchProviderLines).toHaveBeenCalledTimes(2);
+
+    vi.advanceTimersByTime(59_449);
+    await flushAsyncTasks();
+    expect(fetchProviderLines).toHaveBeenCalledTimes(2);
+
+    vi.advanceTimersByTime(1);
+    await flushAsyncTasks();
+    expect(fetchProviderLines).toHaveBeenCalledTimes(3);
+
+    disposers.forEach((dispose) => dispose());
+    vi.doUnmock('../src/domain/provider-results.ts');
+    vi.resetModules();
+  });
+
   it('starts provider refreshes in parallel and applies each result as it settles', async () => {
     const started: string[] = [];
     const resolvers: Record<string, (value: string) => void> = {};
     const results = new Map([
-      ['copilot' as const, null],
+      ['github-copilot' as const, null],
       ['openrouter' as const, null],
     ]);
     const onUpdate = vi.fn();
 
     const refreshPromise = refreshQuotaProviders({
       visibleProviders: [
-        { id: 'copilot', label: 'GitHub Copilot' },
+        { id: 'github-copilot', label: 'GitHub Copilot' },
         { id: 'openrouter', label: 'OpenRouter' },
       ],
       results,
@@ -222,19 +532,19 @@ describe('quota tui plugin', () => {
       onUpdate,
     });
 
-    expect(started).toEqual(['copilot', 'openrouter']);
+    expect(started).toEqual(['github-copilot', 'openrouter']);
 
     resolvers.openrouter?.('openrouter-ready');
     await Promise.resolve();
 
     expect(results.get('openrouter')).toBe('openrouter-ready');
-    expect(results.get('copilot')).toBeNull();
+    expect(results.get('github-copilot')).toBeNull();
     expect(onUpdate).toHaveBeenCalledTimes(1);
 
-    resolvers.copilot?.('copilot-ready');
+    resolvers['github-copilot']?.('copilot-ready');
     await refreshPromise;
 
-    expect(results.get('copilot')).toBe('copilot-ready');
+    expect(results.get('github-copilot')).toBe('copilot-ready');
     expect(onUpdate).toHaveBeenCalledTimes(2);
   });
 
