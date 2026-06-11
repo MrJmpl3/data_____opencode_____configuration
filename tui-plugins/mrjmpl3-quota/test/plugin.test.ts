@@ -250,15 +250,12 @@ describe('quota tui plugin', () => {
       theme: { current: { text: 'white', textMuted: 'gray' } },
     } as unknown as TuiPluginApi;
 
-    await registerQuotaTui(
-      api,
-      {
-        minRefreshIntervalMs: 60_000,
-        pollIntervalMs: 0,
-        providerCacheTtlMs: 60_000,
-        visibleProviders: ['copilot', 'openrouter', 'chatgpt'],
-      },
-    );
+    await registerQuotaTui(api, {
+      minRefreshIntervalMs: 60_000,
+      pollIntervalMs: 0,
+      providerCacheTtlMs: 60_000,
+      visibleProviders: ['copilot', 'openrouter', 'chatgpt'],
+    });
 
     await flushAsyncTasks();
 

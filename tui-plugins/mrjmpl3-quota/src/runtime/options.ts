@@ -55,7 +55,9 @@ const formatInvalidVisibleProviderEntry = (value: unknown): string => {
   }
 };
 
-export const inspectVisibleProviders = (options: unknown): {
+export const inspectVisibleProviders = (
+  options: unknown,
+): {
   visibleProviders: readonly ProviderSpec[];
   invalidVisibleProviderEntries: readonly string[];
   fellBackToDefaultVisibleProviders: boolean;

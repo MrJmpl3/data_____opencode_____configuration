@@ -11,11 +11,7 @@ import { createQuotaProviderCache } from '../infrastructure/cache.ts';
 import { readGoConfig } from '../infrastructure/providers/go.ts';
 import { View } from '../ui/view.tsx';
 import { createRefreshScheduler } from './refresh-scheduler.ts';
-import {
-  ALLOWED_VISIBLE_PROVIDER_IDS,
-  DEFAULT_VISIBLE_PROVIDERS,
-  inspectQuotaPluginOptions,
-} from './options.ts';
+import { ALLOWED_VISIBLE_PROVIDER_IDS, DEFAULT_VISIBLE_PROVIDERS, inspectQuotaPluginOptions } from './options.ts';
 import type { ProviderSpec } from '../domain/types.ts';
 import { slotSessionId } from './session.ts';
 
@@ -35,10 +31,16 @@ const TERMINAL_SESSION_STATUSES = new Set([
   'timed_out',
 ]);
 const TERMINAL_TASK_STATUSES = new Set(['cancelled', 'canceled', 'completed', 'done', 'error', 'failed', 'success']);
-const PROVIDER_CACHE_INVALIDATION_SOURCES = new Set(['message.part.updated', 'quota-window-expired', 'session.error', 'session.status']);
+const PROVIDER_CACHE_INVALIDATION_SOURCES = new Set([
+  'message.part.updated',
+  'quota-window-expired',
+  'session.error',
+  'session.status',
+]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
-const asString = (value: unknown): string | undefined => (typeof value === 'string' && value.trim() ? value : undefined);
+const asString = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() ? value : undefined;
 const normalizedStatus = (value: unknown): string | undefined => asString(value)?.trim().toLowerCase();
 
 const readStatus = (value: unknown): string | undefined => {
@@ -112,8 +114,10 @@ const buildInvalidVisibleProvidersWarning = ({
     ? ` Falling back to defaults: ${DEFAULT_VISIBLE_PROVIDERS.join(', ')}.`
     : '';
 
-  return `[quota] Ignoring invalid visibleProviders entries: ${invalidVisibleProviderEntries.join(', ')}. ` +
-    `Allowed canonical provider ids: ${ALLOWED_VISIBLE_PROVIDER_IDS.join(', ')}.${fallbackMessage}`;
+  return (
+    `[quota] Ignoring invalid visibleProviders entries: ${invalidVisibleProviderEntries.join(', ')}. ` +
+    `Allowed canonical provider ids: ${ALLOWED_VISIBLE_PROVIDER_IDS.join(', ')}.${fallbackMessage}`
+  );
 };
 
 export const refreshQuotaProviders = async ({
@@ -163,10 +167,7 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
   let disposed = false;
   let clockTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const {
-    options: resolvedOptions,
-    diagnostics,
-  } = inspectQuotaPluginOptions(options);
+  const { options: resolvedOptions, diagnostics } = inspectQuotaPluginOptions(options);
 
   if (diagnostics.invalidVisibleProviderEntries.length > 0) {
     console.warn(buildInvalidVisibleProvidersWarning(diagnostics));
@@ -222,7 +223,11 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
     return items;
   };
 
-  const requestRefresh = (source?: string, force = false, invalidateProviderCache = shouldInvalidateProviderCache(source)) => {
+  const requestRefresh = (
+    source?: string,
+    force = false,
+    invalidateProviderCache = shouldInvalidateProviderCache(source),
+  ) => {
     if (disposed) return;
     if (refreshPromise) {
       queuePendingRefresh(source, invalidateProviderCache);
