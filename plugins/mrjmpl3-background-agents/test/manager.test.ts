@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DelegationManager } from '../src/manager.ts';
 import type { Logger } from '../src/logger.ts';
-import type { OpencodeClient } from '../src/types.ts';
+import { DELEGATION_STALL_TIMEOUT_MS } from '../src/types.ts';
+import type { OpencodeClient, SessionMessageItem } from '../src/types.ts';
 
 function createLogger(): Logger {
   return {
@@ -37,6 +38,46 @@ function createClient(overrides: Record<string, unknown> = {}): OpencodeClient {
   };
 
   return client as unknown as OpencodeClient;
+}
+
+function createAssistantMessage(options: {
+  sessionID: string;
+  messageID?: string;
+  error?: { name: 'UnknownError'; data: { message: string } };
+  parts?: SessionMessageItem['parts'];
+}): SessionMessageItem {
+  return {
+    info: {
+      id: options.messageID ?? 'assistant-message',
+      sessionID: options.sessionID,
+      role: 'assistant',
+      time: {
+        created: 0,
+        completed: 1,
+      },
+      parentID: 'user-message',
+      modelID: 'test-model',
+      providerID: 'test-provider',
+      mode: 'test',
+      path: {
+        cwd: '/tmp',
+        root: '/tmp',
+      },
+      cost: 0,
+      tokens: {
+        input: 0,
+        output: 0,
+        reasoning: 0,
+        cache: {
+          read: 0,
+          write: 0,
+        },
+      },
+      finish: 'stop',
+      ...(options.error ? { error: options.error } : {}),
+    },
+    parts: options.parts ?? [],
+  } as SessionMessageItem;
 }
 
 function inspectManagerState(manager: DelegationManager): {
@@ -382,6 +423,72 @@ describe('DelegationManager', () => {
     expect(output).toContain('**Status:** complete');
   });
 
+  it('fails stalled delegations before the hard timeout when no progress events arrive', async () => {
+    const client = createClient();
+    const manager = new DelegationManager(client, baseDir, createLogger());
+    const delegation = await manager.delegate({
+      parentSessionID: 'parent-session',
+      parentMessageID: 'parent-message',
+      parentAgent: 'build',
+      prompt: 'Inspect the project',
+      agent: 'explore',
+    });
+
+    await vi.advanceTimersByTimeAsync(DELEGATION_STALL_TIMEOUT_MS + 1);
+
+    const outputPath = path.join(baseDir, 'parent-session', `${delegation.id}.md`);
+    await vi.waitFor(async () => {
+      const output = await fs.readFile(outputPath, 'utf8');
+
+      expect(output).toContain('[STALL WATCHDOG TRIGGERED]');
+      expect(output).toContain(`Delegation stalled after ${DELEGATION_STALL_TIMEOUT_MS / 1000}s without progress`);
+    });
+
+    const output = await manager.readOutput('parent-session', delegation.id);
+    const delegations = await manager.listDelegations('parent-session');
+
+    expect(output).toContain(`Delegation stalled after ${DELEGATION_STALL_TIMEOUT_MS / 1000}s without progress`);
+    expect(client.session.delete).toHaveBeenCalledWith({ path: { id: delegation.sessionID } });
+    expect(delegations).toContainEqual(expect.objectContaining({ id: delegation.id, status: 'timeout' }));
+  });
+
+  it('resets the stall watchdog when delegated sessions emit progress events', async () => {
+    const client = createClient();
+    const manager = new DelegationManager(client, baseDir, createLogger());
+    const delegation = await manager.delegate({
+      parentSessionID: 'parent-session',
+      parentMessageID: 'parent-message',
+      parentAgent: 'build',
+      prompt: 'Inspect the project',
+      agent: 'explore',
+    });
+
+    await vi.advanceTimersByTimeAsync(DELEGATION_STALL_TIMEOUT_MS - 1);
+
+    expect(manager.getRunningDelegations()).toContainEqual(expect.objectContaining({ id: delegation.id }));
+    expect(client.session.delete).not.toHaveBeenCalled();
+
+    manager.handleMessageEvent(delegation.sessionID);
+    await vi.advanceTimersByTimeAsync(DELEGATION_STALL_TIMEOUT_MS - 1);
+
+    expect(manager.getRunningDelegations()).toContainEqual(expect.objectContaining({ id: delegation.id }));
+    expect(client.session.delete).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+
+    const outputPath = path.join(baseDir, 'parent-session', `${delegation.id}.md`);
+    await vi.waitFor(async () => {
+      const output = await fs.readFile(outputPath, 'utf8');
+
+      expect(output).toContain('[STALL WATCHDOG TRIGGERED]');
+    });
+
+    const output = await manager.readOutput('parent-session', delegation.id);
+
+    expect(output).toContain(`Delegation stalled after ${DELEGATION_STALL_TIMEOUT_MS / 1000}s without progress`);
+    expect(client.session.delete).toHaveBeenCalledWith({ path: { id: delegation.sessionID } });
+  });
+
   it('persists prompt errors before notifying the parent session', async () => {
     vi.useRealTimers();
 
@@ -425,6 +532,158 @@ describe('DelegationManager', () => {
     await vi.waitFor(() => {
       expect(parentNotificationSawPersistedOutput).toEqual([true, true]);
     });
+  });
+
+  it('persists sanitized delegated-session diagnostics for malformed tool call failures', async () => {
+    const malformedRawPayload = JSON.stringify({
+      name: 'read',
+      arguments: {
+        filePath: '/tmp/private.txt',
+        extra: 'x'.repeat(2500),
+      },
+    });
+    const delegatedSessionID = 'delegation-session';
+    const client = createClient({
+      session: {
+        create: vi.fn().mockResolvedValue({ data: { id: delegatedSessionID } }),
+        delete: vi.fn().mockResolvedValue({}),
+        get: vi.fn().mockResolvedValue({ data: { id: 'parent-session' } }),
+        messages: vi.fn().mockResolvedValue({
+          data: [
+            createAssistantMessage({
+              sessionID: delegatedSessionID,
+              error: { name: 'UnknownError', data: { message: 'Malformed function call payload' } },
+              parts: [
+                {
+                  id: 'tool-error',
+                  sessionID: delegatedSessionID,
+                  messageID: 'assistant-message',
+                  type: 'tool',
+                  callID: 'call_1',
+                  tool: 'read',
+                  state: {
+                    status: 'error',
+                    input: { filePath: '/tmp/private.txt' },
+                    error: 'Tool arguments were malformed',
+                    time: { start: 1, end: 2 },
+                  },
+                },
+              ],
+            }),
+          ],
+        }),
+        prompt: vi.fn().mockResolvedValue({ data: {} }),
+      },
+    });
+    const manager = new DelegationManager(client, baseDir, createLogger());
+    const delegation = await manager.delegate({
+      parentSessionID: 'parent-session',
+      parentMessageID: 'parent-message',
+      parentAgent: 'build',
+      prompt: 'Inspect the project',
+      agent: 'explore',
+    });
+
+    await manager.captureEvent({
+      type: 'message.part.updated',
+      properties: {
+        part: {
+          id: 'tool-pending',
+          sessionID: delegatedSessionID,
+          messageID: 'assistant-message',
+          type: 'tool',
+          callID: 'call_1',
+          tool: 'read',
+          state: {
+            status: 'pending',
+            input: { filePath: '/tmp/private.txt' },
+            raw: malformedRawPayload,
+          },
+        },
+      },
+    } as never);
+    await manager.captureEvent({
+      type: 'session.error',
+      properties: {
+        sessionID: delegatedSessionID,
+        error: {
+          name: 'UnknownError',
+          data: { message: 'Malformed function call payload' },
+        },
+      },
+    } as never);
+
+    await manager.handleSessionIdle(delegation.sessionID);
+
+    const diagnosticsPath = path.join(baseDir, 'parent-session', `${delegation.id}.diagnostics.json`);
+    const diagnostics = JSON.parse(await fs.readFile(diagnosticsPath, 'utf8')) as {
+      rawPayloadAvailable: boolean;
+      rawPayloadNote: string;
+      sessionError?: { message?: string };
+      assistantError?: { message?: string };
+      toolCalls: Array<{ raw?: string; error?: string }>;
+      notes: string[];
+    };
+    const output = await manager.readOutput('parent-session', delegation.id);
+
+    expect(diagnostics.rawPayloadAvailable).toBe(true);
+    expect(diagnostics.rawPayloadNote).toContain('Sanitized raw tool-call payload was captured');
+    expect(diagnostics.sessionError?.message).toBe('Malformed function call payload');
+    expect(diagnostics.assistantError?.message).toBe('Malformed function call payload');
+    expect(diagnostics.toolCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          raw: expect.stringContaining('"name":"read"'),
+          error: 'Tool arguments were malformed',
+        }),
+      ]),
+    );
+    expect(diagnostics.notes).toContain(
+      'No assistant text parts were available in session.messages; diagnostics reflect surrounding tool and error context only.',
+    );
+    expect(output).toContain(`Delegation "${delegation.id}" completed but produced no text content.`);
+  });
+
+  it('does not persist diagnostics for successful delegated sessions', async () => {
+    const delegatedSessionID = 'delegation-session';
+    const client = createClient({
+      session: {
+        create: vi.fn().mockResolvedValue({ data: { id: delegatedSessionID } }),
+        delete: vi.fn().mockResolvedValue({}),
+        get: vi.fn().mockResolvedValue({ data: { id: 'parent-session' } }),
+        messages: vi.fn().mockResolvedValue({
+          data: [
+            createAssistantMessage({
+              sessionID: delegatedSessionID,
+              parts: [
+                {
+                  id: 'text-part',
+                  sessionID: delegatedSessionID,
+                  messageID: 'assistant-message',
+                  type: 'text',
+                  text: 'All done.',
+                },
+              ],
+            }),
+          ],
+        }),
+        prompt: vi.fn().mockResolvedValue({ data: {} }),
+      },
+    });
+    const manager = new DelegationManager(client, baseDir, createLogger());
+    const delegation = await manager.delegate({
+      parentSessionID: 'parent-session',
+      parentMessageID: 'parent-message',
+      parentAgent: 'build',
+      prompt: 'Inspect the project',
+      agent: 'explore',
+    });
+
+    await manager.handleSessionIdle(delegation.sessionID);
+
+    await expect(
+      fs.access(path.join(baseDir, 'parent-session', `${delegation.id}.diagnostics.json`)),
+    ).rejects.toThrow();
   });
 
   it('batches parent notifications until all active delegations for the same parent complete', async () => {

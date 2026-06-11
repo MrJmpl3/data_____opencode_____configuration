@@ -1,15 +1,26 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import type { Event } from '@opencode-ai/sdk';
+
 import { resolveAgentModel } from './agents.ts';
+import {
+  buildDelegationDiagnosticsReport,
+  captureDelegationEvent,
+  captureMessageInspectionError,
+  captureMessageSnapshot,
+  createDelegationDiagnosticsState,
+  extractEventSessionID,
+  type DelegationDiagnosticsState,
+} from './diagnostics.ts';
 import { dispatchDelegationNotifications, PendingDelegationNotifications } from './delegation-notifications.ts';
 import { getDelegationResult } from './delegation-results.ts';
 import { DelegationStorage } from './delegation-storage.ts';
 import { generateReadableId } from './ids.ts';
 import type { Logger } from './logger.ts';
 import { generateMetadata } from './metadata.ts';
-import { MAX_RUN_TIME_MS } from './types.ts';
-import type { DelegateInput, Delegation, DelegationListItem, OpencodeClient } from './types.ts';
+import { DELEGATION_STALL_TIMEOUT_MS, MAX_RUN_TIME_MS } from './types.ts';
+import type { DelegateInput, Delegation, DelegationListItem, OpencodeClient, SessionMessageItem } from './types.ts';
 
 interface AgentSummary {
   name: string;
@@ -26,6 +37,8 @@ export class DelegationManager {
   private log: Logger;
   private storage: DelegationStorage;
   private notificationTracker = new PendingDelegationNotifications();
+  private stallTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private diagnostics: Map<string, DelegationDiagnosticsState> = new Map();
 
   constructor(client: OpencodeClient, baseDir: string, log: Logger) {
     this.client = client;
@@ -99,6 +112,7 @@ export class DelegationManager {
 
     await this.registerDelegation(delegation);
     this.scheduleDelegationTimeout(delegation.id);
+    this.scheduleStallWatchdog(delegation.id);
     this.startDelegationPrompt(delegation, promptInput);
 
     return delegation;
@@ -181,6 +195,7 @@ export class DelegationManager {
   private async registerDelegation(delegation: Delegation): Promise<void> {
     await this.debugLog(`Created delegation ${delegation.id}`);
     this.delegations.set(delegation.id, delegation);
+    this.diagnostics.set(delegation.id, createDelegationDiagnosticsState());
 
     const pendingCount = this.notificationTracker.track(delegation.parentSessionID, delegation.id);
     await this.debugLog(
@@ -199,6 +214,29 @@ export class DelegationManager {
         void this.handleTimeout(delegationId);
       }
     }, MAX_RUN_TIME_MS + 5000);
+  }
+
+  private scheduleStallWatchdog(delegationId: string): void {
+    this.clearStallWatchdog(delegationId);
+
+    const timeoutId = setTimeout(() => {
+      this.stallTimers.delete(delegationId);
+
+      const current = this.delegations.get(delegationId);
+      if (current && current.status === 'running') {
+        void this.handleStall(delegationId);
+      }
+    }, DELEGATION_STALL_TIMEOUT_MS);
+
+    this.stallTimers.set(delegationId, timeoutId);
+  }
+
+  private clearStallWatchdog(delegationId: string): void {
+    const timeoutId = this.stallTimers.get(delegationId);
+    if (!timeoutId) return;
+
+    clearTimeout(timeoutId);
+    this.stallTimers.delete(delegationId);
   }
 
   private async buildDelegationPromptInput(delegation: Delegation): Promise<SessionPromptInput> {
@@ -229,11 +267,106 @@ export class DelegationManager {
     });
   }
 
+  private getDiagnosticsState(delegationId: string): DelegationDiagnosticsState {
+    let state = this.diagnostics.get(delegationId);
+
+    if (!state) {
+      state = createDelegationDiagnosticsState();
+      this.diagnostics.set(delegationId, state);
+    }
+
+    return state;
+  }
+
+  async captureEvent(event: Event): Promise<void> {
+    const sessionID = extractEventSessionID(event);
+    if (!sessionID) return;
+
+    const delegation = this.findBySession(sessionID);
+    if (!delegation) return;
+
+    const captured = captureDelegationEvent(this.getDiagnosticsState(delegation.id), event);
+
+    if (!captured || delegation.status === 'running') return;
+
+    if (event.type === 'session.error' || event.type === 'message.updated' || event.type === 'message.part.updated') {
+      await this.persistDiagnosticsIfNeeded(delegation, `post-completion:${event.type}`);
+    }
+  }
+
+  private async inspectSessionMessages(delegation: Delegation): Promise<void> {
+    const diagnosticsState = this.getDiagnosticsState(delegation.id);
+
+    try {
+      const messages = await this.client.session.messages({
+        path: { id: delegation.sessionID },
+      });
+
+      captureMessageSnapshot(diagnosticsState, messages.data as SessionMessageItem[] | undefined);
+    } catch (error) {
+      captureMessageInspectionError(
+        diagnosticsState,
+        error instanceof Error ? error : new Error('Unknown session.messages error'),
+      );
+    }
+  }
+
+  private async persistDiagnosticsIfNeeded(delegation: Delegation, trigger: string): Promise<void> {
+    const diagnosticsState = this.getDiagnosticsState(delegation.id);
+
+    await this.inspectSessionMessages(delegation);
+
+    const report = buildDelegationDiagnosticsReport(delegation, diagnosticsState, trigger);
+    if (!report) return;
+
+    try {
+      const filePath = await this.storage.persistDiagnostics(delegation, report);
+      await this.debugLog(`Persisted diagnostics to ${filePath}`);
+    } catch (error) {
+      await this.debugLog(`Failed to persist diagnostics: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   private async handlePromptError(delegation: Delegation, error: Error): Promise<void> {
+    this.clearStallWatchdog(delegation.id);
     delegation.status = 'error';
     delegation.error = error.message;
     delegation.completedAt = new Date();
+
+    const diagnosticsState = this.getDiagnosticsState(delegation.id);
+    diagnosticsState.promptError = error.message;
+    diagnosticsState.notes.add('Delegation failed before normal session completion.');
+
     await this.persistOutput(delegation, `Error: ${error.message}`);
+    await this.persistDiagnosticsIfNeeded(delegation, 'prompt-error');
+    await this.notifyParent(delegation);
+  }
+
+  private async handleStall(delegationId: string): Promise<void> {
+    const delegation = this.delegations.get(delegationId);
+    if (!delegation || delegation.status !== 'running') return;
+
+    this.clearStallWatchdog(delegation.id);
+    await this.debugLog(`handleStall for delegation ${delegation.id}`);
+
+    delegation.status = 'timeout';
+    delegation.completedAt = new Date();
+    delegation.error = `Delegation stalled after ${DELEGATION_STALL_TIMEOUT_MS / 1000}s without progress`;
+
+    this.getDiagnosticsState(delegation.id).notes.add('Delegation stalled before a terminal response was observed.');
+
+    try {
+      await this.client.session.delete({
+        path: { id: delegation.sessionID },
+      });
+    } catch {
+      // Ignore
+    }
+
+    const result = await this.getResult(delegation);
+    await this.persistOutput(delegation, `${result}\n\n[STALL WATCHDOG TRIGGERED]\n${delegation.error}`);
+    await this.persistDiagnosticsIfNeeded(delegation, 'stall-watchdog');
+
     await this.notifyParent(delegation);
   }
 
@@ -244,11 +377,14 @@ export class DelegationManager {
     const delegation = this.delegations.get(delegationId);
     if (!delegation || delegation.status !== 'running') return;
 
+    this.clearStallWatchdog(delegation.id);
     await this.debugLog(`handleTimeout for delegation ${delegation.id}`);
 
     delegation.status = 'timeout';
     delegation.completedAt = new Date();
     delegation.error = `Delegation timed out after ${MAX_RUN_TIME_MS / 1000}s`;
+
+    this.getDiagnosticsState(delegation.id).notes.add('Delegation timed out before a terminal response was observed.');
 
     // Try to cancel the session
     try {
@@ -261,7 +397,8 @@ export class DelegationManager {
 
     // Get whatever result was produced so far
     const result = await this.getResult(delegation);
-    await this.persistOutput(delegation, `${result}\n\n[TIMEOUT REACHED]`);
+    await this.persistOutput(delegation, `${result}\n\n[TIMEOUT REACHED]\n${delegation.error}`);
+    await this.persistDiagnosticsIfNeeded(delegation, 'timeout');
 
     // Notify parent session
     await this.notifyParent(delegation);
@@ -292,6 +429,7 @@ export class DelegationManager {
     const delegation = this.findBySession(sessionID);
     if (!delegation || delegation.status !== 'running') return;
 
+    this.clearStallWatchdog(delegation.id);
     await this.debugLog(`handleSessionIdle for delegation ${delegation.id}`);
 
     delegation.status = 'complete';
@@ -308,6 +446,7 @@ export class DelegationManager {
 
     // Persist output with generated metadata
     await this.persistOutput(delegation, result);
+    await this.persistDiagnosticsIfNeeded(delegation, 'session-idle');
 
     // Notify parent session
     await this.notifyParent(delegation);
@@ -433,6 +572,7 @@ export class DelegationManager {
     if (delegationId) {
       const delegation = this.delegations.get(delegationId);
       if (delegation?.status === 'running') {
+        this.clearStallWatchdog(delegation.id);
         try {
           await this.client.session.delete({
             path: { id: delegation.sessionID },
@@ -445,11 +585,17 @@ export class DelegationManager {
       }
       if (delegation) {
         this.notificationTracker.remove(delegation.parentSessionID, delegation.id);
+        this.diagnostics.delete(delegation.id);
       }
       this.delegations.delete(delegationId);
     }
 
-    return await this.storage.deleteOutput(sessionID, id);
+    const [outputDeleted, diagnosticsDeleted] = await Promise.all([
+      this.storage.deleteOutput(sessionID, id),
+      this.storage.deleteDiagnostics(sessionID, id),
+    ]);
+
+    return outputDeleted || diagnosticsDeleted;
   }
 
   /**
@@ -467,6 +613,7 @@ export class DelegationManager {
     if (!delegation || delegation.status !== 'running') return;
 
     delegation.progress.lastUpdate = new Date();
+    this.scheduleStallWatchdog(delegation.id);
     if (messageText) {
       delegation.progress.lastMessage = messageText;
       delegation.progress.lastMessageAt = new Date();

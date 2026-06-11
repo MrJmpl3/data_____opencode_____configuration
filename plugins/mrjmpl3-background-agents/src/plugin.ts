@@ -94,6 +94,8 @@ export const BackgroundAgents: Plugin = async (ctx) => {
 
     // Event hook
     event: async ({ event }: { event: Event }): Promise<void> => {
+      await manager.captureEvent(event);
+
       if (event.type === 'session.idle') {
         const sessionID = event.properties.sessionID;
         const delegation = manager.findBySession(sessionID);
@@ -104,6 +106,13 @@ export const BackgroundAgents: Plugin = async (ctx) => {
 
       if (event.type === 'message.updated') {
         const sessionID = event.properties.info.sessionID;
+        if (sessionID) {
+          manager.handleMessageEvent(sessionID);
+        }
+      }
+
+      if (event.type === 'message.part.updated') {
+        const sessionID = event.properties.part.sessionID;
         if (sessionID) {
           manager.handleMessageEvent(sessionID);
         }

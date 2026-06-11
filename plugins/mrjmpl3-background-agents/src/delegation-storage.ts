@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import type { Delegation, DelegationListItem } from './types.ts';
+import type { Delegation, DelegationDiagnosticsReport, DelegationListItem } from './types.ts';
 
 type ResolveRootSessionID = (sessionID: string) => Promise<string>;
 
@@ -114,6 +114,17 @@ export class DelegationStorage {
     return filePath;
   }
 
+  async persistDiagnostics(delegation: Delegation, report: DelegationDiagnosticsReport): Promise<string> {
+    this.assertValidDelegationId(delegation.id);
+
+    const dir = await this.ensureDelegationsDir(delegation.parentSessionID);
+    const filePath = path.join(dir, `${delegation.id}.diagnostics.json`);
+
+    await fs.writeFile(filePath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+
+    return filePath;
+  }
+
   async readOutput(sessionID: string, id: string): Promise<string | undefined> {
     this.assertValidDelegationId(id);
 
@@ -168,6 +179,20 @@ export class DelegationStorage {
 
     try {
       const filePath = path.join(dir, `${id}.md`);
+      await fs.unlink(filePath);
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async deleteDiagnostics(sessionID: string, id: string): Promise<boolean> {
+    this.assertValidDelegationId(id);
+    const dir = await this.getDelegationsDir(sessionID);
+
+    try {
+      const filePath = path.join(dir, `${id}.diagnostics.json`);
       await fs.unlink(filePath);
 
       return true;

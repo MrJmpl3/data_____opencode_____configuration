@@ -25,6 +25,79 @@ export interface DelegationProgress {
   lastMessageAt?: Date;
 }
 
+export interface DelegationDiagnosticError {
+  name?: string;
+  message?: string;
+  statusCode?: number;
+  isRetryable?: boolean;
+  responseHeaders?: Record<string, string>;
+  responseBody?: string;
+}
+
+export interface DelegationToolCallDiagnostic {
+  partID: string;
+  callID?: string;
+  messageID?: string;
+  tool: string;
+  status: string;
+  input?: unknown;
+  raw?: string;
+  error?: string;
+  metadata?: unknown;
+  time?: unknown;
+}
+
+export interface DelegationEventDiagnostic {
+  type: string;
+  sessionID?: string;
+  messageID?: string;
+  role?: string;
+  tool?: string;
+  callID?: string;
+  status?: unknown;
+  error?: DelegationDiagnosticError;
+  rawCaptured?: boolean;
+  time?: unknown;
+}
+
+export interface DelegationMessageSnapshot {
+  totalMessages: number;
+  assistantMessages: number;
+  lastAssistantMessage?: {
+    messageID: string;
+    finish?: string;
+    error?: DelegationDiagnosticError;
+    partTypes: string[];
+    textPartCount: number;
+    toolCalls: DelegationToolCallDiagnostic[];
+  };
+  inspectionError?: string;
+}
+
+export interface DelegationDiagnosticsReport {
+  capturedAt: string;
+  trigger: string;
+  rawPayloadAvailable: boolean;
+  rawPayloadNote: string;
+  delegation: {
+    id: string;
+    sessionID: string;
+    parentSessionID: string;
+    agent: string;
+    status: string;
+    startedAt: string;
+    completedAt?: string;
+  };
+  promptError?: string;
+  sessionError?: DelegationDiagnosticError;
+  assistantError?: DelegationDiagnosticError;
+  toolCalls: DelegationToolCallDiagnostic[];
+  recentEvents: DelegationEventDiagnostic[];
+  messageSnapshot?: DelegationMessageSnapshot;
+  notes: string[];
+}
+
+export const DELEGATION_STALL_TIMEOUT_MS = 5 * 60 * 1000;
 export const MAX_RUN_TIME_MS = 15 * 60 * 1000;
 
 export interface Delegation {
