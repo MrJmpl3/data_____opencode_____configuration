@@ -1,5 +1,6 @@
 import {
   clearPurgedSession,
+  isTerminalStatus,
   markChildStatus,
   pruneOrphanedSyntheticRunningChildren,
   pruneTerminalChildren,
@@ -59,7 +60,7 @@ const normalizeChild = (input: unknown): SubagentChild | undefined => {
           : undefined,
     targetSessionID: asString(input.targetSessionID) ?? (id.startsWith('ses_') ? id : undefined),
     status,
-    color: status === 'done' ? 'green' : status === 'error' ? 'red' : 'yellow',
+    color: status === 'done' ? 'green' : status === 'error' ? 'red' : status === 'stale' ? 'gray' : 'yellow',
     startedAt,
     updatedAt,
     endedAt: asString(input.endedAt) ?? (status === 'running' ? undefined : updatedAt),
@@ -113,7 +114,7 @@ export const reconcileChildrenState = (
   for (const child of incomingChildren) {
     const before = nextState.children[child.id];
     changed = upsertRunningChild(nextState, child, { allowTerminalReopen: true }) || changed;
-    if (child.status === 'done' || child.status === 'error') {
+    if (isTerminalStatus(child.status)) {
       changed = markChildStatus(nextState, child.id, child.status, child.endedAt ?? child.updatedAt) || changed;
     }
 

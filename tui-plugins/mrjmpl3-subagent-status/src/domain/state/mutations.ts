@@ -1,7 +1,7 @@
 import type { SubagentChild, SubagentState, SubagentTokens } from '../types.ts';
 
 import { createEmptyState } from './core.ts';
-import { isTerminalStatus } from './helpers.ts';
+import { isTerminalStatus, resolveStatusColor } from './helpers.ts';
 import {
   childEvidenceTimestampMs,
   mergeTokens,
@@ -76,7 +76,7 @@ export const upsertRunningChild = (
     input.id.startsWith('ses_') ? input.id : undefined,
   );
   const incomingStatus =
-    input.status === 'done' || input.status === 'error' || input.status === 'running'
+    input.status === 'done' || input.status === 'error' || input.status === 'stale' || input.status === 'running'
       ? input.status
       : (existing?.status ?? 'running');
   const sessionIdentity = resolveSessionIdentity({ id: input.id, targetSessionID });
@@ -171,7 +171,7 @@ export const replaceChildren = (state: SubagentState, nextChildren: SubagentChil
 
   for (const child of nextChildren) {
     upsertRunningChild(nextState, child);
-    if (child.status === 'done' || child.status === 'error') {
+    if (isTerminalStatus(child.status)) {
       markChildStatus(nextState, child.id, child.status, child.endedAt ?? child.updatedAt);
     }
   }
@@ -328,6 +328,7 @@ export const markChildStatus = (
       {
         ...child,
         status,
+        color: resolveStatusColor(status),
         endedAt: resolvedEndedAt,
         updatedAt: resolvedEndedAt,
       },

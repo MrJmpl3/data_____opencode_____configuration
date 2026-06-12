@@ -934,6 +934,208 @@ describe('refresh runtime', () => {
     runtime.dispose();
   });
 
+  it('marks a legacy running real-session row as stale once missing-authoritative probes are exhausted', async () => {
+    vi.resetModules();
+    const probePolicy = {
+      baseBackoffMs: 1_000,
+      maxBackoffMs: 4_000,
+      maxAttempts: 3,
+      refreshIntervalMs: 1_000,
+    };
+
+    const persistedState = createEmptyState();
+    persistedState.children.ses_child = {
+      id: 'ses_child',
+      title: 'Recovered child',
+      parentID: 'ses_parent',
+      source: 'session',
+      targetSessionID: 'ses_child',
+      status: 'running',
+      startedAt: '2026-06-04T05:15:00.000Z',
+      updatedAt: '2026-06-04T05:19:00.000Z',
+      color: 'yellow',
+    };
+
+    vi.doMock('../src/infrastructure/persistence.ts', async () => {
+      const actual = await vi.importActual<typeof import('../src/infrastructure/persistence.ts')>(
+        '../src/infrastructure/persistence.ts',
+      );
+
+      return {
+        ...actual,
+        resolveStatePath: vi.fn(() => '/tmp/mrjmpl3-subagent-status-state.json'),
+        resolveTextPath: vi.fn(() => '/tmp/mrjmpl3-subagent-status-status.txt'),
+        loadState: vi.fn(async () => persistedState),
+        shouldPreserveStateOnStartup: vi.fn(() => true),
+        createPersistQueue: vi.fn(() => async () => undefined),
+      };
+    });
+
+    const { createTuiRuntime } = await import('../src/runtime/tui-runtime.ts');
+
+    const statusSpy = vi.fn(async () => ({ data: {} }));
+    const messagesSpy = vi.fn(async () => ({ data: [] }));
+
+    let state: SubagentState = createEmptyState();
+    let sessionID = 'ses_parent';
+    const api = {
+      client: {
+        session: {
+          children: vi.fn(async () => ({ data: [] })),
+          status: statusSpy,
+          messages: messagesSpy,
+        },
+      },
+      event: {},
+      lifecycle: {
+        onDispose: vi.fn(),
+      },
+      state: {
+        path: {
+          directory: '/tmp/workspace',
+        },
+        session: {
+          messages: vi.fn(() => []),
+          status: vi.fn(() => undefined),
+        },
+      },
+    } as unknown as TuiPluginApi;
+
+    const runtime = createTuiRuntime(
+      api,
+      {
+        getState: () => state,
+        setState: (nextState) => {
+          state = nextState;
+        },
+        getSessionId: () => sessionID,
+        setSessionId: (nextSessionID) => {
+          sessionID = nextSessionID;
+        },
+        setNowMs: vi.fn(),
+      },
+      resolveSubagentStatusPluginOptions({ persistence: { preserveStateOnStartup: true }, staleRunningProbePolicy: probePolicy }),
+    );
+
+    await runtime.bootstrap();
+    await waitForCondition(() => statusSpy.mock.calls.length === 1);
+
+    await vi.advanceTimersByTimeAsync(probePolicy.baseBackoffMs);
+    await waitForCondition(() => statusSpy.mock.calls.length === 2);
+
+    await vi.advanceTimersByTimeAsync(probePolicy.baseBackoffMs * 2);
+    await waitForCondition(() => state.children.ses_child?.status === 'stale');
+
+    expect(state.children.ses_child).toMatchObject({
+      status: 'stale',
+      color: 'gray',
+    });
+    expect(state.children.ses_child?.endedAt).toBeDefined();
+
+    runtime.dispose();
+  });
+
+  it('keeps a genuinely active missing child running when direct session evidence still reports running', async () => {
+    vi.resetModules();
+    const probePolicy = {
+      baseBackoffMs: 1_000,
+      maxBackoffMs: 4_000,
+      maxAttempts: 3,
+      refreshIntervalMs: 1_000,
+    };
+
+    const persistedState = createEmptyState();
+    persistedState.children.ses_child = {
+      id: 'ses_child',
+      title: 'Recovered child',
+      parentID: 'ses_parent',
+      source: 'session',
+      targetSessionID: 'ses_child',
+      status: 'running',
+      startedAt: '2026-06-04T05:15:00.000Z',
+      updatedAt: '2026-06-04T05:19:00.000Z',
+      color: 'yellow',
+    };
+
+    vi.doMock('../src/infrastructure/persistence.ts', async () => {
+      const actual = await vi.importActual<typeof import('../src/infrastructure/persistence.ts')>(
+        '../src/infrastructure/persistence.ts',
+      );
+
+      return {
+        ...actual,
+        resolveStatePath: vi.fn(() => '/tmp/mrjmpl3-subagent-status-state.json'),
+        resolveTextPath: vi.fn(() => '/tmp/mrjmpl3-subagent-status-status.txt'),
+        loadState: vi.fn(async () => persistedState),
+        shouldPreserveStateOnStartup: vi.fn(() => true),
+        createPersistQueue: vi.fn(() => async () => undefined),
+      };
+    });
+
+    const { createTuiRuntime } = await import('../src/runtime/tui-runtime.ts');
+
+    const statusSpy = vi.fn(async () => ({ data: { ses_child: { type: 'running' } } }));
+
+    let state: SubagentState = createEmptyState();
+    let sessionID = 'ses_parent';
+    const api = {
+      client: {
+        session: {
+          children: vi.fn(async () => ({ data: [] })),
+          status: statusSpy,
+          messages: vi.fn(async () => ({ data: [] })),
+        },
+      },
+      event: {},
+      lifecycle: {
+        onDispose: vi.fn(),
+      },
+      state: {
+        path: {
+          directory: '/tmp/workspace',
+        },
+        session: {
+          messages: vi.fn(() => []),
+          status: vi.fn(() => ({ type: 'running' })),
+        },
+      },
+    } as unknown as TuiPluginApi;
+
+    const runtime = createTuiRuntime(
+      api,
+      {
+        getState: () => state,
+        setState: (nextState) => {
+          state = nextState;
+        },
+        getSessionId: () => sessionID,
+        setSessionId: (nextSessionID) => {
+          sessionID = nextSessionID;
+        },
+        setNowMs: vi.fn(),
+      },
+      resolveSubagentStatusPluginOptions({ persistence: { preserveStateOnStartup: true }, staleRunningProbePolicy: probePolicy }),
+    );
+
+    await runtime.bootstrap();
+    await waitForCondition(() => statusSpy.mock.calls.length === 1);
+
+    await vi.advanceTimersByTimeAsync(probePolicy.baseBackoffMs);
+    await waitForCondition(() => statusSpy.mock.calls.length === 2);
+
+    await vi.advanceTimersByTimeAsync(probePolicy.baseBackoffMs * 2);
+    await waitForCondition(() => statusSpy.mock.calls.length >= 3);
+
+    expect(state.children.ses_child).toMatchObject({
+      status: 'running',
+      color: 'yellow',
+      updatedAt: '2026-06-04T05:19:00.000Z',
+    });
+    expect(state.children.ses_child?.endedAt).toBeUndefined();
+
+    runtime.dispose();
+  });
+
   it('keeps children running when refresh only sees generic completedAt message evidence', async () => {
     vi.resetModules();
 

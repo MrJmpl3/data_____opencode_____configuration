@@ -136,8 +136,12 @@ export const loadState = async (
               ? value.source
               : undefined,
           targetSessionID: typeof value.targetSessionID === 'string' ? value.targetSessionID : undefined,
-          status: value.status === 'done' || value.status === 'error' ? value.status : 'running',
-          color: value.color === 'green' || value.color === 'red' || value.color === 'yellow' ? value.color : undefined,
+          status:
+            value.status === 'done' || value.status === 'error' || value.status === 'stale' ? value.status : 'running',
+          color:
+            value.color === 'green' || value.color === 'red' || value.color === 'yellow' || value.color === 'gray'
+              ? value.color
+              : undefined,
           startedAt: typeof value.startedAt === 'string' ? value.startedAt : state.updatedAt,
           updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : state.updatedAt,
           endedAt: typeof value.endedAt === 'string' ? value.endedAt : undefined,

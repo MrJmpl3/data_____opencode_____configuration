@@ -4,6 +4,7 @@ import { collapseSubagentWorkItems } from '../src/ui/view-model/collapse.ts';
 import { buildSubagentSnapshotView } from '../src/ui/view-model/snapshot-view.ts';
 import { renderStatusLine } from '../src/ui/view-model/status-line.ts';
 import { splitSidebarVisibleSections, visibleSubagentWorkItems } from '../src/ui/view-model/visibility.ts';
+import { DEFAULT_SUBAGENT_VISIBILITY_POLICY } from '../src/shared/visibility.ts';
 import {
   formatContextCompact,
   formatCount,
@@ -147,6 +148,112 @@ describe('render', () => {
     expect(visibleSubagentWorkItems([visibleDone, hiddenDone], nowMs).map((item) => item.id)).toEqual(['done_recent']);
   });
 
+  it('uses a configured done retention override when deciding completed row visibility', () => {
+    const nowMs = Date.parse('2026-06-04T10:20:00.000Z');
+    const doneExtended = child({
+      id: 'done_extended',
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T10:07:00.000Z',
+      updatedAt: '2026-06-04T10:07:00.000Z',
+    });
+
+    expect(visibleSubagentWorkItems([doneExtended], nowMs)).toEqual([]);
+    expect(
+      visibleSubagentWorkItems([doneExtended], nowMs, {
+        ...DEFAULT_SUBAGENT_VISIBILITY_POLICY,
+        doneRetentionMs: 15 * 60 * 1000,
+      }).map((item) => item.id),
+    ).toEqual(['done_extended']);
+  });
+
+  it('keeps stale zombies visible longer than done rows but still ages them out before errors', () => {
+    const nowMs = Date.parse('2026-06-04T10:20:00.000Z');
+    const staleVisible = child({
+      id: 'stale_visible',
+      status: 'stale',
+      color: 'gray',
+      endedAt: '2026-06-04T10:05:00.000Z',
+      updatedAt: '2026-06-04T10:05:00.000Z',
+    });
+    const staleExpired = child({
+      id: 'stale_expired',
+      status: 'stale',
+      color: 'gray',
+      endedAt: '2026-06-04T09:55:00.000Z',
+      updatedAt: '2026-06-04T09:55:00.000Z',
+    });
+    const doneExpired = child({
+      id: 'done_expired',
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T10:05:00.000Z',
+      updatedAt: '2026-06-04T10:05:00.000Z',
+    });
+    const errorSticky = child({
+      id: 'error_sticky',
+      status: 'error',
+      color: 'red',
+      endedAt: '2026-06-04T09:30:00.000Z',
+      updatedAt: '2026-06-04T09:30:00.000Z',
+    });
+
+    expect(visibleSubagentWorkItems([staleVisible, staleExpired, doneExpired, errorSticky], nowMs).map((item) => item.id)).toEqual([
+      'stale_visible',
+      'error_sticky',
+    ]);
+  });
+
+  it('uses a configured stale retention override when deciding zombie visibility', () => {
+    const nowMs = Date.parse('2026-06-04T10:20:00.000Z');
+    const staleExtended = child({
+      id: 'stale_extended',
+      status: 'stale',
+      color: 'gray',
+      endedAt: '2026-06-04T09:55:00.000Z',
+      updatedAt: '2026-06-04T09:55:00.000Z',
+    });
+
+    expect(visibleSubagentWorkItems([staleExtended], nowMs)).toEqual([]);
+    expect(
+      visibleSubagentWorkItems([staleExtended], nowMs, {
+        ...DEFAULT_SUBAGENT_VISIBILITY_POLICY,
+        staleRetentionMs: 30 * 60 * 1000,
+      }).map((item) => item.id),
+    ).toEqual(['stale_extended']);
+  });
+
+  it('keeps stale zombies visible alongside active work even when they are not part of the current running message', () => {
+    const nowMs = Date.parse('2026-06-04T10:20:00.000Z');
+    const runningChild = child({
+      id: 'ses_running',
+      messageID: 'msg_running',
+      status: 'running',
+      color: 'yellow',
+    });
+    const staleChild = child({
+      id: 'ses_stale',
+      messageID: 'msg_old',
+      status: 'stale',
+      color: 'gray',
+      endedAt: '2026-06-04T10:10:00.000Z',
+      updatedAt: '2026-06-04T10:10:00.000Z',
+    });
+    const doneChild = child({
+      id: 'ses_done',
+      messageID: 'msg_old',
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T10:10:00.000Z',
+      updatedAt: '2026-06-04T10:10:00.000Z',
+    });
+
+    expect(visibleSubagentWorkItems([runningChild, staleChild, doneChild], nowMs).map((item) => item.id)).toEqual([
+      'ses_running',
+      'ses_stale',
+    ]);
+  });
+
   it('formats compact token/context text and aggregate statusline output', () => {
     const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
     const recentEndedAt = new Date(nowMs - 60_000).toISOString();
@@ -183,7 +290,7 @@ describe('render', () => {
     expect(formatTokenCompact(doneChild)).toBe('1.5k tok');
     expect(formatContextCompact(doneChild)).toBe('42%');
     expect(formatUsageCompact(doneChild)).toBe('1.5k tok 42%');
-    expect(renderStatusLine(state, nowMs)).toContain('Subagents: 1 run · 1 done · 0 err · Σ 2');
+    expect(renderStatusLine(state, nowMs)).toContain('Subagents: 1 run · 1 done · 0 zombie · 0 err · Σ 2');
     expect(renderStatusLine(state, nowMs)).toContain('Summarize results 1:59:00 1.5k tok 42%');
   });
 
@@ -241,17 +348,22 @@ describe('render', () => {
     });
     expect(formatRelativeRecency(doneChild.endedAt, nowMs)).toBe('2m ago');
     expect(formatSidebarTerminalMeta(doneChild, nowMs)).toBe('2m ago · 1.5k 42%');
+    expect(
+      formatSidebarTerminalMeta({ ...doneChild, status: 'stale', color: 'gray' }, nowMs),
+    ).toBe('zombie · 2m ago');
     expect(formatCount(1200)).toBe('1,200');
   });
 
-  it('splits visible sidebar rows into active and recent sections without reordering within each group', () => {
+  it('splits visible sidebar rows into active, zombie, and recent sections without reordering within each group', () => {
     const runningChild = child({ id: 'ses_running' });
+    const staleChild = child({ id: 'ses_stale', status: 'stale', color: 'gray' });
     const errorChild = child({ id: 'ses_error', status: 'error', color: 'red' });
     const doneChild = child({ id: 'ses_done', status: 'done', color: 'green' });
 
-    const sections = splitSidebarVisibleSections([runningChild, errorChild, doneChild]);
+    const sections = splitSidebarVisibleSections([runningChild, staleChild, errorChild, doneChild]);
 
     expect(sections.active.map((item) => item.id)).toEqual(['ses_running']);
+    expect(sections.zombies.map((item) => item.id)).toEqual(['ses_stale']);
     expect(sections.recent.map((item) => item.id)).toEqual(['ses_error', 'ses_done']);
   });
 
@@ -272,8 +384,8 @@ describe('render', () => {
 
     const view = buildSubagentSnapshotView([recentDone, staleDone], nowMs);
 
-    expect(view.trackedCounts).toEqual({ running: 0, done: 2, error: 0 });
-    expect(view.visibleCounts).toEqual({ running: 0, done: 1, error: 0 });
+    expect(view.trackedCounts).toEqual({ running: 0, done: 2, stale: 0, error: 0 });
+    expect(view.visibleCounts).toEqual({ running: 0, done: 1, stale: 0, error: 0 });
     expect(view.visibleChildren.map((item) => item.id)).toEqual(['done_recent']);
     expect(
       renderStatusLine(
@@ -292,6 +404,7 @@ describe('render', () => {
   it('maps statuses to the expected color keys', () => {
     expect(statusColor('running')).toBe('yellow');
     expect(statusColor('done')).toBe('green');
+    expect(statusColor('stale')).toBe('gray');
     expect(statusColor('error')).toBe('red');
   });
 });

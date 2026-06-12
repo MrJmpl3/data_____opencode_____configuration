@@ -1,4 +1,10 @@
 import { isRecord } from '../shared/coercion.ts';
+import {
+  DEFAULT_DONE_RETENTION_MS,
+  DEFAULT_STALE_RETENTION_MS,
+  DEFAULT_SUBAGENT_VISIBILITY_POLICY,
+  type SubagentVisibilityPolicy,
+} from '../shared/visibility.ts';
 
 export type StaleRunningProbePolicy = {
   baseBackoffMs: number;
@@ -53,6 +59,15 @@ export interface SubagentStatusRecoveryOptions {
   sqliteDatabasePath?: string;
 }
 
+export interface SubagentStatusVisibilityOptions {
+  doneRetentionMs?: number;
+  /**
+   * How long a `stale` child stays visible in the zombie section before it is
+   * hidden from the live snapshot.
+   */
+  staleRetentionMs?: number;
+}
+
 /**
  * Forma publica del objeto `options` que acompana al plugin en `tui.json`.
  *
@@ -61,6 +76,7 @@ export interface SubagentStatusRecoveryOptions {
  *   "/abs/path/to/mrjmpl3-subagent-status",
  *   {
  *     staleRunningProbePolicy: { refreshIntervalMs: 120000 },
+ *     visibility: { staleRetentionMs: 1800000 },
  *     persistence: { statePath: "/tmp/subagent-status.json" },
  *     recovery: { sqliteDatabasePath: "/tmp/opencode.db" }
  *   }
@@ -73,6 +89,7 @@ export interface SubagentStatusRecoveryOptions {
  */
 export interface SubagentStatusPluginOptions {
   staleRunningProbePolicy?: SubagentStatusStaleRunningProbePolicyOptions;
+  visibility?: SubagentStatusVisibilityOptions;
   persistence?: SubagentStatusPersistenceOptions;
   recovery?: SubagentStatusRecoveryOptions;
 }
@@ -86,6 +103,7 @@ export type SubagentStatusPluginConfigEntry = readonly [pluginSpec: string, opti
 
 export interface ResolvedSubagentStatusPluginOptions {
   staleRunningProbePolicy: StaleRunningProbePolicy;
+  visibility: SubagentVisibilityPolicy;
   persistence: {
     statePath?: string;
     preserveStateOnStartup: boolean;
@@ -101,6 +119,8 @@ export const DEFAULT_STALE_RUNNING_PROBE_POLICY: StaleRunningProbePolicy = {
   maxAttempts: 4,
   refreshIntervalMs: 60_000,
 };
+
+export { DEFAULT_DONE_RETENTION_MS, DEFAULT_STALE_RETENTION_MS };
 
 const MIN_BACKOFF_MS = 1_000;
 const MIN_REFRESH_INTERVAL_MS = 1_000;
@@ -129,6 +149,7 @@ export const normalizeSubagentStatusPluginOptions = (options: unknown): Resolved
   const staleRunningProbePolicy = isRecord(pluginOptions.staleRunningProbePolicy)
     ? pluginOptions.staleRunningProbePolicy
     : {};
+  const visibility = isRecord(pluginOptions.visibility) ? pluginOptions.visibility : {};
   const persistence = isRecord(pluginOptions.persistence) ? pluginOptions.persistence : {};
   const recovery = isRecord(pluginOptions.recovery) ? pluginOptions.recovery : {};
 
@@ -148,6 +169,11 @@ export const normalizeSubagentStatusPluginOptions = (options: unknown): Resolved
     MIN_REFRESH_INTERVAL_MS,
     numberOption(staleRunningProbePolicy.refreshIntervalMs) ?? DEFAULT_STALE_RUNNING_PROBE_POLICY.refreshIntervalMs,
   );
+  const staleRetentionMs = Math.max(
+    0,
+    integerOption(visibility.staleRetentionMs) ?? DEFAULT_STALE_RETENTION_MS,
+  );
+  const doneRetentionMs = Math.max(0, integerOption(visibility.doneRetentionMs) ?? DEFAULT_DONE_RETENTION_MS);
 
   return {
     staleRunningProbePolicy: {
@@ -155,6 +181,11 @@ export const normalizeSubagentStatusPluginOptions = (options: unknown): Resolved
       maxBackoffMs,
       maxAttempts,
       refreshIntervalMs,
+    },
+    visibility: {
+      ...DEFAULT_SUBAGENT_VISIBILITY_POLICY,
+      doneRetentionMs,
+      staleRetentionMs,
     },
     persistence: {
       statePath: stringOption(persistence.statePath),

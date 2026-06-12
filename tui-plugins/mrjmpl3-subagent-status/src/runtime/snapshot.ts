@@ -1,6 +1,7 @@
 import type { SubagentChild, SubagentCounts, SubagentState } from '../domain/types.ts';
 
 import { resolveElapsedMs } from '../domain/state.ts';
+import { DEFAULT_SUBAGENT_VISIBILITY_POLICY, type SubagentVisibilityPolicy } from '../shared/visibility.ts';
 import { statusColor as resolveRenderStatusColor } from '../ui/format.ts';
 import { buildSubagentSnapshotView } from '../ui/view-model/snapshot-view.ts';
 import { renderStatusLine, renderStatusSnapshotLine } from '../ui/view-model/status-line.ts';
@@ -29,15 +30,19 @@ const hydrateSnapshotChild = (child: SubagentChild, nowMs: number): SubagentChil
   };
 };
 
-export const buildTuiSnapshot = (state: SubagentState, nowMs = Date.now()): TuiSnapshot => {
+export const buildTuiSnapshot = (
+  state: SubagentState,
+  nowMs = Date.now(),
+  visibilityPolicy: SubagentVisibilityPolicy = DEFAULT_SUBAGENT_VISIBILITY_POLICY,
+): TuiSnapshot => {
   const hydratedChildren = Object.values(state.children).map((child) => hydrateSnapshotChild(child, nowMs));
-  const snapshotView = buildSubagentSnapshotView(hydratedChildren, nowMs);
+  const snapshotView = buildSubagentSnapshotView(hydratedChildren, nowMs, visibilityPolicy);
 
   return {
     counts: snapshotView.trackedCounts,
     visibleCounts: snapshotView.visibleCounts,
-    statusLine: renderStatusLine(state, nowMs),
-    statusSnapshotLine: renderStatusSnapshotLine(state, nowMs),
+    statusLine: renderStatusLine(state, nowMs, visibilityPolicy),
+    statusSnapshotLine: renderStatusSnapshotLine(state, nowMs, visibilityPolicy),
     visibleChildren: snapshotView.visibleChildren,
     debug: {
       snapshotSemantics: 'snapshot',

@@ -19,5 +19,7 @@ describe('runtime i18n', () => {
 
     expect(detectSystemLocale()).toBe('en');
     expect(t('noSubagentsYet')).toBe('No subagents yet');
+    expect(t('zombie')).toBe('zombie');
+    expect(t('zombies')).toBe('Zombies');
   });
 });

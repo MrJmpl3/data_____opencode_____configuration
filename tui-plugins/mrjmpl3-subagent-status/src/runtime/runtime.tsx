@@ -28,7 +28,7 @@ export const registerSubagentStatusTui = async (api: TuiPluginApi, options: unkn
     const [sessionId, setSessionId] = createSignal('');
     const [expanded, setExpanded] = createSignal(true);
     const [nowMs, setNowMs] = createSignal(Date.now());
-    const snapshot = createMemo(() => buildTuiSnapshot(state(), nowMs()));
+    const snapshot = createMemo(() => buildTuiSnapshot(state(), nowMs(), resolvedOptions.visibility));
     const promptFocusController = createPromptFocusController();
 
     const runtime = createTuiRuntime(

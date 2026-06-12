@@ -10,6 +10,8 @@ import { isRecord, normalizedString, timestampFromUnknown } from '../shared/coer
 import { createSessionClientBoundary } from './boundaries/session-client.ts';
 import { isRealSessionRow, resolveSessionRowSessionId } from './session-row.ts';
 
+type RunningEvidenceCollector = Set<string>;
+
 const messageInfo = (message: unknown): Record<string, unknown> | undefined => {
   const record = isRecord(message) ? message : undefined;
   return isRecord(record?.info) ? record.info : record;
@@ -43,12 +45,51 @@ const messageActivityAt = (message: unknown): string | undefined => {
   return messageTime(message, 'completed', 'updated', 'created');
 };
 
+const messageLiveActivityAt = (message: unknown): string | undefined => {
+  return messageTime(message, 'updated', 'created');
+};
+
+const latestMessagesActivityAt = (messages: readonly unknown[]): string | undefined => {
+  let latestMs = 0;
+
+  for (const message of messages) {
+    const timestamp = messageLiveActivityAt(message);
+    if (!timestamp) continue;
+
+    latestMs = Math.max(latestMs, Date.parse(timestamp));
+  }
+
+  return latestMs > 0 ? new Date(latestMs).toISOString() : undefined;
+};
+
+const isNewerTimestamp = (candidate: string | undefined, baseline: string | undefined): boolean => {
+  if (!candidate || !baseline) return false;
+
+  return Date.parse(candidate) > Date.parse(baseline);
+};
+
 export const latestSessionActivityAt = (api: TuiPluginApi, sessionId: string): string | undefined => {
   try {
     let latestMs = 0;
     for (const message of api.state.session.messages(sessionId)) {
       const timestamp = messageActivityAt(message);
       if (!timestamp) continue;
+      latestMs = Math.max(latestMs, Date.parse(timestamp));
+    }
+
+    return latestMs > 0 ? new Date(latestMs).toISOString() : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const latestLiveSessionActivityAt = (api: TuiPluginApi, sessionId: string): string | undefined => {
+  try {
+    let latestMs = 0;
+    for (const message of api.state.session.messages(sessionId)) {
+      const timestamp = messageLiveActivityAt(message);
+      if (!timestamp) continue;
+
       latestMs = Math.max(latestMs, Date.parse(timestamp));
     }
 
@@ -91,9 +132,10 @@ export const summarizeMessages = (messages: readonly unknown[]): { status?: 'don
       continue;
     }
 
-    const hasStrictDoneSignal =
-      (type === 'session.status' && status === 'done') || (type === 'step-finish' && reason === 'stop');
-    if (hasStrictDoneSignal && terminalAt) {
+    const hasDoneSignal =
+      (status === 'done' && (type === 'session.status' || type === 'completed')) ||
+      (type === 'step-finish' && reason === 'stop');
+    if (hasDoneSignal && terminalAt) {
       completedAtMs = Math.max(completedAtMs, Date.parse(terminalAt));
     }
   }
@@ -108,6 +150,7 @@ export const hydrateChildStatusesFromClient = async (
   api: TuiPluginApi,
   state: SubagentState,
   targetSessionIDs: readonly string[],
+  runningEvidenceSessionIDs?: RunningEvidenceCollector,
 ): Promise<boolean> => {
   const sessionClient = createSessionClientBoundary(api);
 
@@ -137,20 +180,30 @@ export const hydrateChildStatusesFromClient = async (
       const clientStatus = deriveSessionStatus(clientSessionStatus);
       const clientTerminalStatus = deriveTerminalSessionStatus(clientSessionStatus);
       let messageSummary: { status?: 'done' | 'error'; endedAt?: string } = {};
+      let latestClientActivityAt: string | undefined;
 
       try {
         const messages = await sessionClient.readMessages(sessionId);
         messageSummary = summarizeMessages(messages);
+        latestClientActivityAt = latestMessagesActivityAt(messages);
       } catch {
         messageSummary = {};
+        latestClientActivityAt = undefined;
       }
 
       const nextStatus = clientStatus === 'running' ? 'running' : (clientTerminalStatus ?? messageSummary.status);
-      if (!nextStatus) return;
+      if (!nextStatus) {
+        if (isNewerTimestamp(latestClientActivityAt, child.updatedAt)) {
+          runningEvidenceSessionIDs?.add(sessionId);
+          changed = markChildRunning(state, child.id, latestClientActivityAt) || changed;
+        }
+
+        return;
+      }
 
       if (nextStatus === 'running') {
-        changed =
-          markChildRunning(state, child.id, latestSessionActivityAt(api, sessionId) ?? child.updatedAt) || changed;
+        runningEvidenceSessionIDs?.add(sessionId);
+        changed = markChildRunning(state, child.id, latestLiveSessionActivityAt(api, sessionId) ?? child.updatedAt) || changed;
         return;
       }
 
@@ -173,6 +226,7 @@ export const hydrateChildStatusesFromTuiState = (
   api: TuiPluginApi,
   state: SubagentState,
   targetSessionIDs: readonly string[],
+  runningEvidenceSessionIDs?: RunningEvidenceCollector,
 ): boolean => {
   if (targetSessionIDs.length === 0) return false;
 
@@ -185,13 +239,14 @@ export const hydrateChildStatusesFromTuiState = (
     if (!sessionId) continue;
     if (!targetSessionIDs.includes(sessionId)) continue;
 
-    const latestActivityAt = latestSessionActivityAt(api, sessionId);
+    const latestActivityAt = latestLiveSessionActivityAt(api, sessionId);
     const sessionStatus = api.state.session.status(sessionId);
     const status = deriveSessionStatus(sessionStatus);
     const terminalStatus = deriveTerminalSessionStatus(sessionStatus);
     const messageSummary = summarizeMessages(api.state.session.messages(sessionId));
 
     if (status === 'running') {
+      runningEvidenceSessionIDs?.add(sessionId);
       changed = markChildRunning(state, child.id, latestActivityAt ?? child.updatedAt) || changed;
       continue;
     }
@@ -207,10 +262,16 @@ export const hydrateChildStatusesFromTuiState = (
       const endedAt =
         sessionStatusEndedAt(sessionStatus) ??
         messageSummary.endedAt ??
-        latestActivityAt ??
+        latestSessionActivityAt(api, sessionId) ??
         child.endedAt ??
         child.updatedAt;
       changed = markChildStatus(state, child.id, nextStatus, endedAt) || changed;
+      continue;
+    }
+
+    if (isNewerTimestamp(latestActivityAt, child.updatedAt)) {
+      runningEvidenceSessionIDs?.add(sessionId);
+      changed = markChildRunning(state, child.id, latestActivityAt) || changed;
     }
   }
 

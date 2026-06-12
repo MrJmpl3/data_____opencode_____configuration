@@ -5,7 +5,8 @@ import { safeTimestamp, timestampMs, toFiniteNumber, toNonNegativeInteger } from
 
 export const isTerminalStatus = (
   status: SubagentChild['status'],
-): status is Exclude<SubagentChild['status'], 'running'> => status === 'done' || status === 'error';
+): status is Exclude<SubagentChild['status'], 'running'> =>
+  status === 'done' || status === 'error' || status === 'stale';
 
 export const childEvidenceTimestampMs = (child: Pick<SubagentChild, 'startedAt' | 'updatedAt' | 'endedAt'>): number =>
   timestampMs(child.endedAt ?? child.updatedAt ?? child.startedAt);
@@ -50,6 +51,7 @@ export const mergeTokens = (
 export const resolveStatusColor = (status: SubagentChild['status']): NonNullable<SubagentChild['color']> => {
   if (status === 'done') return 'green';
   if (status === 'error') return 'red';
+  if (status === 'stale') return 'gray';
   return 'yellow';
 };
 

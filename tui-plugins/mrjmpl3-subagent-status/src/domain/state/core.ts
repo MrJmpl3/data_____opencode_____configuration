@@ -9,11 +9,12 @@ export const createEmptyState = (): SubagentState => ({
 });
 
 export const getCounts = (state: SubagentState): SubagentCounts => {
-  const counts: SubagentCounts = { running: 0, done: 0, error: 0 };
+  const counts: SubagentCounts = { running: 0, done: 0, stale: 0, error: 0 };
 
   for (const child of Object.values(state.children)) {
     if (child.status === 'running') counts.running += 1;
     if (child.status === 'done') counts.done += 1;
+    if (child.status === 'stale') counts.stale += 1;
     if (child.status === 'error') counts.error += 1;
   }
 

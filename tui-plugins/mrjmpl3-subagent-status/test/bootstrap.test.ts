@@ -230,6 +230,9 @@ describe('tui bootstrap buffering', () => {
           maxAttempts: 2,
           refreshIntervalMs: 30,
         },
+        visibility: {
+          staleRetentionMs: 90_000,
+        },
         persistence: {
           statePath: ' /tmp/from-options.json ',
           preserveStateOnStartup: true,

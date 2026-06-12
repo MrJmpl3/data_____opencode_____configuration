@@ -2,6 +2,7 @@ export { createEmptyState, getCounts } from './state/core.ts';
 export { rekeyCountedExecution, resolveExecutionCountIdentity, syncExecutionState } from './state/execution-count.ts';
 export {
   childEvidenceTimestampMs,
+  isTerminalStatus,
   mergeTokens,
   resolveElapsedMs,
   resolveStatusColor,

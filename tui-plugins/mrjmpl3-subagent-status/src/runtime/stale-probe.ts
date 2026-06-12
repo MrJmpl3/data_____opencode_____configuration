@@ -2,9 +2,11 @@ import type { SubagentState } from '../domain/types.ts';
 
 import type { StaleRunningProbePolicy } from './options.ts';
 import { isRealSessionRow, resolveSessionRowSessionId } from './session-row.ts';
+import { markChildStatus } from '../domain/state.ts';
 
 export type StaleRunningProbeState = {
   attempts: number;
+  missingAuthoritativeAttempts: number;
   lastSeenUpdatedAt: string;
   nextProbeAtMs: number;
 };
@@ -39,13 +41,13 @@ export const resolveStaleRunningProbeTargets = (
     if (existing.lastSeenUpdatedAt !== child.updatedAt) {
       probeStateBySessionId.set(sessionId, {
         attempts: 0,
+        missingAuthoritativeAttempts: 0,
         lastSeenUpdatedAt: child.updatedAt,
         nextProbeAtMs: nowMs + policy.baseBackoffMs,
       });
       continue;
     }
 
-    if (existing.attempts >= policy.maxAttempts) continue;
     if (nowMs < existing.nextProbeAtMs) continue;
     targetSessionIds.push(sessionId);
   }
@@ -63,9 +65,13 @@ export const settleStaleRunningProbeTargets = (
   state: SubagentState,
   probeStateBySessionId: Map<string, StaleRunningProbeState>,
   sessionIds: string[],
+  authoritativeSessionIDs: ReadonlySet<string>,
+  runningEvidenceSessionIDs: ReadonlySet<string>,
   policy: StaleRunningProbePolicy,
   nowMs: number,
-): void => {
+): boolean => {
+  let changed = false;
+
   for (const sessionId of sessionIds) {
     const child = Object.values(state.children).find(
       (candidate) => isRealSessionRow(candidate) && resolveSessionRowSessionId(candidate) === sessionId,
@@ -77,21 +83,29 @@ export const settleStaleRunningProbeTargets = (
     }
 
     const previous = probeStateBySessionId.get(sessionId);
-    if (!previous || previous.lastSeenUpdatedAt !== child.updatedAt) {
-      const attempts = 1;
-      probeStateBySessionId.set(sessionId, {
-        attempts,
-        lastSeenUpdatedAt: child.updatedAt,
-        nextProbeAtMs: nowMs + nextStaleRunningBackoffMs(attempts, policy),
-      });
+    const attempts = Math.min(policy.maxAttempts, (previous?.lastSeenUpdatedAt === child.updatedAt ? previous.attempts : 0) + 1);
+    const hasAuthoritativePresence = authoritativeSessionIDs.has(sessionId);
+    const hasRunningEvidence = runningEvidenceSessionIDs.has(sessionId);
+    const missingAuthoritativeAttempts = hasAuthoritativePresence || hasRunningEvidence
+      ? 0
+      : Math.min(
+          policy.maxAttempts,
+          (previous?.lastSeenUpdatedAt === child.updatedAt ? previous.missingAuthoritativeAttempts : 0) + 1,
+        );
+
+    if (missingAuthoritativeAttempts >= policy.maxAttempts) {
+      probeStateBySessionId.delete(sessionId);
+      changed = markChildStatus(state, child.id, 'stale', new Date(nowMs).toISOString()) || changed;
       continue;
     }
 
-    const attempts = previous.attempts + 1;
     probeStateBySessionId.set(sessionId, {
       attempts,
+      missingAuthoritativeAttempts,
       lastSeenUpdatedAt: child.updatedAt,
       nextProbeAtMs: nowMs + nextStaleRunningBackoffMs(attempts, policy),
     });
   }
+
+  return changed;
 };

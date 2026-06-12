@@ -28,6 +28,10 @@ Add the plugin to your OpenCode TUI config with either a bare path or a tuple wi
         },
         "staleRunningProbePolicy": {
           "refreshIntervalMs": 60000
+        },
+        "visibility": {
+          "doneRetentionMs": 600000,
+          "staleRetentionMs": 1200000
         }
       }
     ]
@@ -52,6 +56,11 @@ Add the plugin to your OpenCode TUI config with either a bare path or a tuple wi
 - `maxBackoffMs`
 - `maxAttempts`
 - `refreshIntervalMs`
+
+### `visibility`
+
+- `doneRetentionMs`: how long a `done` row stays visible before it ages out
+- `staleRetentionMs`: how long a zombie/stale row stays visible before it ages out
 
 ## Development
 

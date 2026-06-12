@@ -191,6 +191,47 @@ describe('status hydration', () => {
     expect(state.children.ses_child).not.toHaveProperty('endedAt');
   });
 
+  it('marks a running row done from explicit completed message evidence', async () => {
+    const state = createEmptyState();
+    state.children.ses_child = {
+      id: 'ses_child',
+      title: 'Recovered child',
+      parentID: 'ses_parent',
+      source: 'session',
+      targetSessionID: 'ses_child',
+      status: 'running',
+      color: 'yellow',
+      startedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T12:00:00.000Z',
+    };
+
+    const changed = await hydrateChildStatusesFromClient(
+      createApi({
+        clientStatus: {
+          ses_child: {
+            type: 'idle',
+          },
+        },
+        clientMessages: [
+          {
+            type: 'completed',
+            time: { completed: '2026-06-04T12:01:30.000Z' },
+          },
+        ],
+      }),
+      state,
+      ['ses_child'],
+    );
+
+    expect(changed).toBe(true);
+    expect(state.children.ses_child).toMatchObject({
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T12:01:30.000Z',
+      updatedAt: '2026-06-04T12:01:30.000Z',
+    });
+  });
+
   it('prefers strict done evidence when error and done arrive with the same terminal timestamp', () => {
     expect(
       summarizeMessages([

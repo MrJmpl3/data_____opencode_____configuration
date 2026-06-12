@@ -13,7 +13,9 @@ import {
 export const normalizeChild = (child: SubagentChild, nowMs = Date.now()): SubagentChild => {
   const now = new Date(nowMs).toISOString();
   const status =
-    child.status === 'done' || child.status === 'error' || child.status === 'running' ? child.status : 'running';
+    child.status === 'done' || child.status === 'error' || child.status === 'stale' || child.status === 'running'
+      ? child.status
+      : 'running';
   const title = typeof child.title === 'string' && child.title.trim().length > 0 ? child.title : child.id;
   const startedAt = safeTimestamp(child.startedAt, now);
   const updatedAt = safeTimestamp(child.updatedAt, startedAt);

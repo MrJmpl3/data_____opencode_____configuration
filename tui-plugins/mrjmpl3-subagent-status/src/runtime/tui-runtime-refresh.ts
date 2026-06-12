@@ -17,12 +17,13 @@ import type { PersistSnapshotMeta } from './persisted-snapshot.ts';
 import { normalizeEventPayload } from './boundaries/event-payload.ts';
 import { createSessionClientBoundary } from './boundaries/session-client.ts';
 import { pruneTerminalChildren } from '../domain/state.ts';
-import { reconcileChildrenState } from '../domain/reconcile.ts';
+import { normalizeChildrenResponse, reconcileChildrenState } from '../domain/reconcile.ts';
 import type { SubagentState } from '../domain/types.ts';
 import { hydrateStateFromRecoverySources } from '../infrastructure/recovery.ts';
 import type { RecoverySource } from '../infrastructure/recovery.ts';
 import type { ResolvedSubagentStatusPluginOptions } from './options.ts';
 import type { createRuntimeSessionScopeHelpers } from './session-scope.ts';
+import { isRealSessionRow, resolveSessionRowSessionId } from './session-row.ts';
 
 type RuntimeSessionScopeHelpers = ReturnType<typeof createRuntimeSessionScopeHelpers>;
 
@@ -89,7 +90,12 @@ export const createTuiRuntimeRefresh = (
       const response = await sessionClient.listChildren(sessionId);
       if (isInactiveSessionToken(sessionToken)) return;
 
-      const directory = api.state.path.directory;
+      const authoritativeSessionIDs = new Set(
+        normalizeChildrenResponse(response)
+          .filter((child) => isRealSessionRow(child))
+          .map((child) => resolveSessionRowSessionId(child))
+          .filter((candidate): candidate is string => Boolean(candidate)),
+      );
       const { changed, nextState } = reconcileChildrenState(input.state.getState(), response);
       const staleRunningProbeTargets = resolveStaleRunningProbeTargets(
         nextState,
@@ -97,18 +103,31 @@ export const createTuiRuntimeRefresh = (
         input.staleRunningProbePolicy,
         Date.now(),
       );
-      const tuiStatusHydrated = hydrateChildStatusesFromTuiState(api, nextState, staleRunningProbeTargets);
-      const clientStatusHydrated = await hydrateChildStatusesFromClient(api, nextState, staleRunningProbeTargets);
-      settleStaleRunningProbeTargets(
+      const runningEvidenceSessionIDs = new Set<string>();
+      const tuiStatusHydrated = hydrateChildStatusesFromTuiState(
+        api,
+        nextState,
+        staleRunningProbeTargets,
+        runningEvidenceSessionIDs,
+      );
+      const clientStatusHydrated = await hydrateChildStatusesFromClient(
+        api,
+        nextState,
+        staleRunningProbeTargets,
+        runningEvidenceSessionIDs,
+      );
+      const staleRunningSettled = settleStaleRunningProbeTargets(
         nextState,
         input.staleRunningProbeStateBySessionId,
         staleRunningProbeTargets,
+        authoritativeSessionIDs,
+        runningEvidenceSessionIDs,
         input.staleRunningProbePolicy,
         Date.now(),
       );
       const pruned = pruneTerminalChildren(nextState);
       if (isInactiveSessionToken(sessionToken)) return;
-      if (!changed && !tuiStatusHydrated && !clientStatusHydrated && !pruned) {
+      if (!changed && !tuiStatusHydrated && !clientStatusHydrated && !staleRunningSettled && !pruned) {
         return;
       }
 

@@ -14,6 +14,7 @@ import { formatPersistedSnapshot } from '../src/runtime/persisted-snapshot.ts';
 import { hydrateChildTokensFromLogs } from '../src/runtime/status-hydration.ts';
 import type { SubagentChild } from '../src/domain/types.ts';
 import { persistSnapshot } from '../src/infrastructure/persistence.ts';
+import { DEFAULT_SUBAGENT_VISIBILITY_POLICY } from '../src/shared/visibility.ts';
 import { createChild, createState } from './fixtures/subagent-state.ts';
 
 describe('tui elapsed time', () => {
@@ -94,12 +95,12 @@ describe('tui elapsed time', () => {
       Date.parse('2026-06-04T12:00:00.000Z'),
     );
 
-    expect(snapshot.counts).toEqual({ running: 1, done: 1, error: 1 });
+    expect(snapshot.counts).toEqual({ running: 1, done: 1, stale: 0, error: 1 });
     expect(snapshot.visibleChildren.map((child) => child.id)).toHaveLength(3);
     expect(snapshot.visibleChildren.map((child) => child.id)).toEqual(
       expect.arrayContaining(['ses_child_running', 'ses_child_error', 'ses_child_done']),
     );
-    expect(snapshot.statusLine).toContain('Subagents: 1 run · 1 done · 1 err · Σ 3');
+    expect(snapshot.statusLine).toContain('Subagents: 1 run · 1 done · 0 zombie · 1 err · Σ 3');
     expect(snapshot.statusLine).toContain('Implement sidebar sync');
     expect(snapshot.statusLine).toContain('420 tok 58%');
   });
@@ -118,7 +119,7 @@ describe('tui elapsed time', () => {
 
     const snapshot = buildTuiSnapshot(createState([doneSession], 1), Date.parse('2026-06-04T12:00:00.000Z'));
 
-    expect(snapshot.counts).toEqual({ running: 0, done: 1, error: 0 });
+    expect(snapshot.counts).toEqual({ running: 0, done: 1, stale: 0, error: 0 });
     expect(snapshot.visibleChildren.map((child) => child.id)).toEqual(['ses_child_done_no_tokens']);
     expect(snapshot.statusLine).toContain('Done without tokens');
     expect(snapshot.statusLine).not.toContain('ctx');
@@ -225,8 +226,8 @@ describe('tui elapsed time', () => {
     expect(JSON.parse(readFileSync(debugPath, 'utf8'))).toMatchObject({
       source: 'load',
       snapshotSemantics: 'snapshot',
-      trackedCounts: { running: 0, done: 1, error: 0 },
-      visibleCounts: { running: 0, done: 1, error: 0 },
+        trackedCounts: { running: 0, done: 1, stale: 0, error: 0 },
+        visibleCounts: { running: 0, done: 1, stale: 0, error: 0 },
     });
   });
 
@@ -252,10 +253,60 @@ describe('tui elapsed time', () => {
 
     const snapshot = buildTuiSnapshot(createState([recentDone, staleDone], 2), Date.parse('2026-06-04T12:00:00.000Z'));
 
-    expect(snapshot.counts).toEqual({ running: 0, done: 2, error: 0 });
-    expect(snapshot.visibleCounts).toEqual({ running: 0, done: 1, error: 0 });
+    expect(snapshot.counts).toEqual({ running: 0, done: 2, stale: 0, error: 0 });
+    expect(snapshot.visibleCounts).toEqual({ running: 0, done: 1, stale: 0, error: 0 });
     expect(snapshot.visibleChildren.map((child) => child.id)).toEqual(['ses_recent']);
     expect(snapshot.statusLine).toContain('2 done');
+  });
+
+  it('threads configured stale retention through snapshot rendering', () => {
+    const staleZombie = createChild({
+      id: 'ses_stale_zombie',
+      title: 'Zombie child',
+      parentID: 'ses_parent',
+      source: 'session',
+      status: 'stale',
+      endedAt: '2026-06-04T11:35:00.000Z',
+      updatedAt: '2026-06-04T11:35:00.000Z',
+    });
+
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+
+    expect(buildTuiSnapshot(createState([staleZombie], 1), nowMs).visibleChildren).toEqual([]);
+
+    const snapshot = buildTuiSnapshot(createState([staleZombie], 1), nowMs, {
+      ...DEFAULT_SUBAGENT_VISIBILITY_POLICY,
+      staleRetentionMs: 30 * 60 * 1000,
+    });
+
+    expect(snapshot.visibleCounts).toEqual({ running: 0, done: 0, stale: 1, error: 0 });
+    expect(snapshot.visibleChildren.map((child) => child.id)).toEqual(['ses_stale_zombie']);
+    expect(snapshot.statusLine).toContain('Zombie child');
+  });
+
+  it('threads configured done retention through snapshot rendering', () => {
+    const staleDone = createChild({
+      id: 'ses_done_extended',
+      title: 'Done child',
+      parentID: 'ses_parent',
+      source: 'session',
+      status: 'done',
+      endedAt: '2026-06-04T11:47:00.000Z',
+      updatedAt: '2026-06-04T11:47:00.000Z',
+    });
+
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+
+    expect(buildTuiSnapshot(createState([staleDone], 1), nowMs).visibleChildren).toEqual([]);
+
+    const snapshot = buildTuiSnapshot(createState([staleDone], 1), nowMs, {
+      ...DEFAULT_SUBAGENT_VISIBILITY_POLICY,
+      doneRetentionMs: 15 * 60 * 1000,
+    });
+
+    expect(snapshot.visibleCounts).toEqual({ running: 0, done: 1, stale: 0, error: 0 });
+    expect(snapshot.visibleChildren.map((child) => child.id)).toEqual(['ses_done_extended']);
+    expect(snapshot.statusLine).toContain('Done child');
   });
 
   it('captures persistence diagnostics for refresh reconciliation', async () => {
@@ -302,7 +353,7 @@ describe('tui elapsed time', () => {
     const persistedSnapshot = formatPersistedSnapshot(state, { source: 'startup' });
     const debug = JSON.parse(persistedSnapshot.debugSnapshot) as Record<string, unknown>;
 
-    expect(persistedSnapshot.statusText).toContain('Subagents snapshot: 1 run · 0 done · 0 err · Σ 1');
+    expect(persistedSnapshot.statusText).toContain('Subagents snapshot: 1 run · 0 done · 0 zombie · 0 err · Σ 1');
     expect(debug).toMatchObject({
       source: 'startup',
       bufferedEventCount: 0,

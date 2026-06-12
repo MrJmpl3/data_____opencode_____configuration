@@ -3,6 +3,8 @@ import type { TuiPluginModule } from '@opencode-ai/plugin/tui';
 import { registerSubagentStatusTui } from './src/runtime/runtime.tsx';
 
 export {
+  DEFAULT_DONE_RETENTION_MS,
+  DEFAULT_STALE_RETENTION_MS,
   DEFAULT_STALE_RUNNING_PROBE_POLICY,
   normalizeSubagentStatusPluginOptions,
   resolveSubagentStatusPluginOptions,
@@ -15,6 +17,7 @@ export type {
   SubagentStatusPluginOptions,
   SubagentStatusRecoveryOptions,
   SubagentStatusStaleRunningProbePolicyOptions,
+  SubagentStatusVisibilityOptions,
 } from './src/runtime/options.ts';
 
 const plugin: TuiPluginModule & { id: string } = {

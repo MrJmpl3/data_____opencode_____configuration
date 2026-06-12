@@ -8,6 +8,7 @@ const SIDEBAR_RUNNING_META_PRIMARY_MAX = 22;
 const SIDEBAR_RUNNING_META_SECONDARY_MAX = 20;
 const SIDEBAR_TERMINAL_META_MAX = 20;
 const SIDEBAR_AGENT_MAX = 12;
+const STALE_STATUS_META_LABEL = 'zombie';
 
 export const formatRelativeRecency = (timestamp: string | undefined, nowMs = Date.now()): string => {
   if (!timestamp) return '';
@@ -165,6 +166,7 @@ export const formatSidebarRunningMeta = (child: SubagentChild): { primary: strin
 export const formatSidebarTerminalMeta = (child: SubagentChild, nowMs = Date.now()): string => {
   return joinCompactParts(
     [
+      child.status === 'stale' ? STALE_STATUS_META_LABEL : '',
       formatRelativeRecency(child.endedAt ?? child.updatedAt, nowMs),
       formatSidebarUsageCompact(child),
       formatDuration(child.elapsedMs),
@@ -180,5 +182,6 @@ export const formatCount = (value: number): string => {
 export const statusColor = (status: SubagentChild['status']): NonNullable<SubagentChild['color']> => {
   if (status === 'done') return 'green';
   if (status === 'error') return 'red';
+  if (status === 'stale') return 'gray';
   return 'yellow';
 };

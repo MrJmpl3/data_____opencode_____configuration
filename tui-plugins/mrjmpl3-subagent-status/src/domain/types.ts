@@ -1,4 +1,4 @@
-export type SubagentStatus = 'running' | 'done' | 'error';
+export type SubagentStatus = 'running' | 'done' | 'error' | 'stale';
 
 export interface SubagentTokens {
   input?: number;
@@ -17,7 +17,7 @@ export interface SubagentChild {
   source?: 'session' | 'subtask' | 'tool';
   targetSessionID?: string;
   status: SubagentStatus;
-  color?: 'yellow' | 'green' | 'red';
+  color?: 'yellow' | 'green' | 'red' | 'gray';
   startedAt: string;
   updatedAt: string;
   endedAt?: string;
@@ -28,6 +28,7 @@ export interface SubagentChild {
 export interface SubagentCounts {
   running: number;
   done: number;
+  stale: number;
   error: number;
 }
 

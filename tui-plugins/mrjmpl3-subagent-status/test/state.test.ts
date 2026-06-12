@@ -50,7 +50,7 @@ describe('state', () => {
       },
     ]);
 
-    expect(getCounts(state)).toEqual({ running: 0, done: 1, error: 0 });
+    expect(getCounts(state)).toEqual({ running: 0, done: 1, stale: 0, error: 0 });
     expect(state.totalExecuted).toBe(1);
 
     const dir = await mkdtemp(join(tmpdir(), 'mrjmpl3-subagent-status-'));
@@ -61,7 +61,7 @@ describe('state', () => {
     const loaded = await loadState(statePath);
 
     expect(loaded.totalExecuted).toBe(1);
-    expect(getCounts(loaded)).toEqual({ running: 0, done: 1, error: 0 });
+    expect(getCounts(loaded)).toEqual({ running: 0, done: 1, stale: 0, error: 0 });
     expect(JSON.parse(await readFile(statePath, 'utf8'))).toMatchObject({
       totalExecuted: 1,
     });
@@ -187,7 +187,42 @@ describe('state', () => {
       ses_running: true,
     });
     expect(loaded.totalExecuted).toBe(3);
-    expect(getCounts(loaded)).toEqual({ running: 1, done: 1, error: 0 });
+    expect(getCounts(loaded)).toEqual({ running: 1, done: 1, stale: 0, error: 0 });
+
+  });
+
+  it('treats stale rows as terminal and preserves them across persistence', async () => {
+    const state = createEmptyState();
+    state.children.ses_stale = {
+      id: 'ses_stale',
+      title: 'Zombie child',
+      parentID: 'ses_parent',
+      source: 'session',
+      status: 'running',
+      startedAt: '2026-06-04T11:50:00.000Z',
+      updatedAt: '2026-06-04T11:55:00.000Z',
+    };
+
+    expect(markChildStatus(state, 'ses_stale', 'stale', '2026-06-04T12:00:00.000Z')).toBe(true);
+    expect(state.children.ses_stale).toMatchObject({
+      status: 'stale',
+      color: 'gray',
+      endedAt: '2026-06-04T12:00:00.000Z',
+    });
+    expect(getCounts(state)).toEqual({ running: 0, done: 0, stale: 1, error: 0 });
+
+    const dir = await mkdtemp(join(tmpdir(), 'mrjmpl3-subagent-status-'));
+    tempDirs.push(dir);
+    const statePath = join(dir, 'state.json');
+
+    await saveState(statePath, state);
+    const loaded = await loadState(statePath);
+
+    expect(loaded.children.ses_stale).toMatchObject({
+      status: 'stale',
+      color: 'gray',
+    });
+    expect(getCounts(loaded)).toEqual({ running: 0, done: 0, stale: 1, error: 0 });
   });
 
   it('prunes orphaned synthetic running rows that are no longer anchored to an active session', () => {

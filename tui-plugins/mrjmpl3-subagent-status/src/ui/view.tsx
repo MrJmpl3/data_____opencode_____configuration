@@ -39,15 +39,18 @@ const SidebarSection = (props: {
 const taskStatusMarker = (status: SubagentChild['status']): string => {
   if (status === 'done') return '✓';
   if (status === 'error') return '✕';
+  if (status === 'stale') return '☠';
   return '●';
 };
 
 const themeStatusColor = (
   status: SubagentChild['status'],
-  theme: Pick<TuiThemeCurrent, 'success' | 'error' | 'warning'>,
+  theme: Pick<TuiThemeCurrent, 'success' | 'error' | 'warning' | 'textMuted'>,
 ): TuiThemeCurrent['success'] => {
+  if (status === 'stale') return theme.warning;
   if (resolveRenderStatusColor(status) === 'green') return theme.success;
   if (resolveRenderStatusColor(status) === 'red') return theme.error;
+  if (resolveRenderStatusColor(status) === 'gray') return theme.textMuted;
   return theme.warning;
 };
 
@@ -60,6 +63,7 @@ const ChildRow = (props: {
   const opacity = createMemo(() => {
     if (props.child.status === 'running') return 1;
     if (props.child.status === 'error') return 0.88;
+    if (props.child.status === 'stale') return 0.78;
     return 0.58;
   });
   const title = createMemo(() => formatSidebarTitle(props.child));
@@ -67,10 +71,12 @@ const ChildRow = (props: {
   const terminalMeta = createMemo(() => formatSidebarTerminalMeta(props.child));
   const titleColor = createMemo(() => {
     if (props.child.status === 'done') return props.api.theme.current.textMuted;
+    if (props.child.status === 'stale') return props.api.theme.current.text;
     return props.api.theme.current.text;
   });
   const metaColor = createMemo(() => {
     if (props.child.status === 'error') return props.api.theme.current.error;
+    if (props.child.status === 'stale') return props.api.theme.current.warning;
     return props.api.theme.current.textMuted;
   });
 
@@ -149,6 +155,8 @@ export const SidebarView = (props: {
         <text fg={props.api.theme.current.textMuted}> · </text>
         <text fg={props.api.theme.current.success}>{`✓ ${formatCount(counts().done)} ${t('done')}`}</text>
         <text fg={props.api.theme.current.textMuted}> · </text>
+        <text fg={props.api.theme.current.warning}>{`☠ ${formatCount(counts().stale)} ${t('zombie')}`}</text>
+        <text fg={props.api.theme.current.textMuted}> · </text>
         <text fg={props.api.theme.current.error}>{`✕ ${formatCount(counts().error)} ${t('err')}`}</text>
         <text fg={props.api.theme.current.textMuted}> · </text>
         <text fg={props.api.theme.current.text}>{`Σ ${formatCount(props.totalExecuted())}`}</text>
@@ -168,6 +176,18 @@ export const SidebarView = (props: {
                 tone={props.api.theme.current.warning}
               >
                 <For each={sections().active}>
+                  {(child) => <ChildRow api={props.api} child={child} onNavigateToChild={props.onNavigateToChild} />}
+                </For>
+              </SidebarSection>
+            </Show>
+            <Show when={sections().zombies.length > 0}>
+              <SidebarSection
+                api={props.api}
+                label={t('zombies')}
+                count={sections().zombies.length}
+                tone={props.api.theme.current.warning}
+              >
+                <For each={sections().zombies}>
                   {(child) => <ChildRow api={props.api} child={child} onNavigateToChild={props.onNavigateToChild} />}
                 </For>
               </SidebarSection>
@@ -197,7 +217,7 @@ export const HomeBottomView = (props: {
   totalExecuted: () => number;
 }) => {
   const counts = () => props.snapshot().counts;
-  if (counts().running + counts().done + counts().error === 0) return undefined;
+  if (counts().running + counts().done + counts().stale + counts().error === 0) return undefined;
 
   return (
     <box paddingLeft={1} paddingRight={1}>
@@ -205,6 +225,8 @@ export const HomeBottomView = (props: {
         <text fg={props.api.theme.current.warning}>{`● ${formatCount(counts().running)}`}</text>
         <text fg={props.api.theme.current.textMuted}> · </text>
         <text fg={props.api.theme.current.success}>{`✓ ${formatCount(counts().done)}`}</text>
+        <text fg={props.api.theme.current.textMuted}> · </text>
+        <text fg={props.api.theme.current.warning}>{`☠ ${formatCount(counts().stale)}`}</text>
         <text fg={props.api.theme.current.textMuted}> · </text>
         <text fg={props.api.theme.current.error}>{`✕ ${formatCount(counts().error)}`}</text>
         <text fg={props.api.theme.current.textMuted}> · </text>
