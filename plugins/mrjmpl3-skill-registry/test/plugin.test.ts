@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const execFileMock = vi.fn();
+const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
 vi.mock('node:child_process', () => ({
   execFile: execFileMock,
@@ -9,6 +10,7 @@ vi.mock('node:child_process', () => ({
 describe('mrjmpl3-skill-registry plugin', () => {
   beforeEach(() => {
     execFileMock.mockReset();
+    consoleErrorSpy.mockClear();
   });
 
   it('refreshes the skill registry once from the system transform hook', async () => {
@@ -18,7 +20,6 @@ describe('mrjmpl3-skill-registry plugin', () => {
       },
     );
 
-    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const { SkillRegistryPlugin } = await import('../index.ts');
     const plugin = await SkillRegistryPlugin({ directory: '/tmp/project' } as never);
 
@@ -32,31 +33,25 @@ describe('mrjmpl3-skill-registry plugin', () => {
       { timeout: 10_000 },
       expect.any(Function),
     );
-    expect(info).toHaveBeenCalledWith('[mrjmpl3-skill-registry] skill-registry refresh completed');
-
-    info.mockRestore();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
-  it('logs a warning when the refresh command fails', async () => {
+  it('logs refresh command failures without throwing', async () => {
+    const refreshError = new Error('spawn gentle-ai ENOENT');
+
     execFileMock.mockImplementation(
       (_file: string, _args: string[], _options: { timeout: number }, callback: (error: Error | null) => void) => {
-        callback(new Error('spawn gentle-ai ENOENT'));
+        callback(refreshError);
       },
     );
 
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { refreshSkillRegistry } = await import('../index.ts');
 
-    await refreshSkillRegistry('/tmp/project', (level, message) => {
-      if (level === 'warn') {
-        console.warn(`[mrjmpl3-skill-registry] ${message}`);
-      }
-    });
-
-    expect(warn).toHaveBeenCalledWith(
-      '[mrjmpl3-skill-registry] skill-registry refresh skipped: spawn gentle-ai ENOENT',
+    await expect(refreshSkillRegistry('/tmp/project')).resolves.toBeUndefined();
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'mrjmpl3-skill-registry: failed to refresh skill registry',
+      refreshError,
     );
-
-    warn.mockRestore();
   });
 });
