@@ -57,7 +57,7 @@
       "description": "Adversarial code reviewer — blind judge A for judgment-day protocol",
       "hidden": true,
       "mode": "subagent",
-      "model": "openrouter/deepseek/deepseek-v4-flash",
+      "model": "openai/gpt-5.4-mini",
       "prompt": "You are a judgment-day adversarial reviewer. Execute the review instructions provided in the task prompt exactly. Do NOT delegate further. Do NOT modify any code — your job is ONLY to find problems.",
       "tools": {
         "bash": true,
@@ -69,7 +69,7 @@
       "description": "Adversarial code reviewer — blind judge B for judgment-day protocol",
       "hidden": true,
       "mode": "subagent",
-      "model": "openrouter/deepseek/deepseek-v4-flash",
+      "model": "openai/gpt-5.4-mini",
       "prompt": "You are a judgment-day adversarial reviewer. Execute the review instructions provided in the task prompt exactly. Do NOT delegate further. Do NOT modify any code — your job is ONLY to find problems.",
       "tools": {
         "bash": true,
@@ -95,7 +95,7 @@
       "description": "Archive completed change artifacts",
       "hidden": true,
       "mode": "subagent",
-      "model": "openrouter/deepseek/deepseek-v4-flash",
+      "model": "openai/gpt-5.4-mini",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-archive.md}",
       "tools": {
         "bash": true,
@@ -109,7 +109,7 @@
       "description": "Create technical design from proposals",
       "hidden": true,
       "mode": "subagent",
-      "model": "openrouter/deepseek/deepseek-v4-pro",
+      "model": "openai/gpt-5.4",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-design.md}",
       "tools": {
         "bash": true,
@@ -123,7 +123,7 @@
       "description": "Investigate codebase and think through ideas",
       "hidden": true,
       "mode": "subagent",
-      "model": "openrouter/deepseek/deepseek-v4-flash",
+      "model": "openai/gpt-5.4-mini",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-explore.md}",
       "tools": {
         "bash": true,
@@ -137,7 +137,7 @@
       "description": "Bootstrap SDD context and project configuration",
       "hidden": true,
       "mode": "subagent",
-      "model": "openrouter/deepseek/deepseek-v4-flash",
+      "model": "openai/gpt-5.4-mini",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-init.md}",
       "tools": {
         "bash": true,
@@ -151,7 +151,7 @@
       "description": "Guide user through a complete SDD cycle using their real codebase",
       "hidden": true,
       "mode": "subagent",
-      "model": "openrouter/deepseek/deepseek-v4-flash",
+      "model": "openai/gpt-5.4-mini",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-onboard.md}",
       "tools": {
         "bash": true,
@@ -179,7 +179,7 @@
       "description": "Write detailed specifications from proposals",
       "hidden": true,
       "mode": "subagent",
-      "model": "openrouter/deepseek/deepseek-v4-pro",
+      "model": "openai/gpt-5.4",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-spec.md}",
       "tools": {
         "bash": true,
@@ -193,7 +193,7 @@
       "description": "Break down specs and designs into implementation tasks",
       "hidden": true,
       "mode": "subagent",
-      "model": "openrouter/deepseek/deepseek-v4-flash",
+      "model": "openai/gpt-5.4-mini",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-tasks.md}",
       "tools": {
         "bash": true,
