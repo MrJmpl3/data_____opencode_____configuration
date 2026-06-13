@@ -57,7 +57,7 @@
       "description": "Adversarial code reviewer — blind judge A for judgment-day protocol",
       "hidden": true,
       "mode": "subagent",
-      "model": "openai/gpt-5.4-mini",
+      "model": "openrouter/xiaomi/mimo-v2.5",
       "prompt": "You are a judgment-day adversarial reviewer. Execute the review instructions provided in the task prompt exactly. Do NOT delegate further. Do NOT modify any code — your job is ONLY to find problems.",
       "tools": {
         "bash": true,
