@@ -6,7 +6,7 @@
     [
       "/home/mrjmpl3/.config/opencode/tui-plugins/mrjmpl3-quota",
       {
-        "visibleProviders": ["opencode-go", "openai", "ollama-cloud", "github-copilot", "openrouter"]
+        "visibleProviders": ["openai", "opencode-go", "openrouter", "github-copilot"]
       }
     ]
   ],
