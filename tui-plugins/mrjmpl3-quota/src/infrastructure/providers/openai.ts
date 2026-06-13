@@ -1,10 +1,18 @@
-import type { OpenAIAdditionalRateLimit, OpenAIResult, OpenAIWindow } from '../../domain/types.ts';
+import type { QuotaLine } from '../../domain/lines.ts';
+import type { OpenAIAdditionalRateLimit, OpenAIResult, OpenAIWindow, QuotaDisplayMode } from '../../domain/types.ts';
+import {
+  formatOpenAIRateLimitStatus,
+  formatUsedPercentQuota,
+  isOpenAISparkRateLimit,
+  WEEK_SECONDS,
+} from '../../domain/format.ts';
+import { detailTextLine, headingLine, paceLine, windowLine } from '../../domain/lines.ts';
 import { OPENAI_USAGE_URL } from './constants.ts';
 import { readOauthAccessToken, readOpenAIAccountId } from './auth.ts';
 import { fetchWithTimeout, httpErrorMessage, readJsonResponse } from './http.ts';
 import { firstDefined, isRecord, readBooleanField, readNumericField, readStringField } from './shared.ts';
 
-export const readOpenAIToken = (): string | null => {
+const readOpenAIToken = (): string | null => {
   return readOauthAccessToken(['openai', 'chatgpt', 'codex', 'opencode']);
 };
 
@@ -191,6 +199,66 @@ export const parseAdditionalRateLimits = (value: unknown): OpenAIAdditionalRateL
     .filter((entry): entry is OpenAIAdditionalRateLimit => Boolean(entry));
 };
 
+export const formatOpenAILines = (
+  data: OpenAIResult,
+  displayMode: QuotaDisplayMode,
+  fetchedAtMs: number,
+): QuotaLine[] => {
+  const openAILines: QuotaLine[] = [];
+  const sparkLines: QuotaLine[] = [];
+
+  const addWindow = (
+    targetLines: QuotaLine[],
+    label: string,
+    window: OpenAIWindow | undefined,
+    paceWindowSeconds?: number,
+  ) => {
+    if (!window) return;
+
+    targetLines.push(
+      windowLine(label, formatUsedPercentQuota(window.usedPct, displayMode), window.resetSec, fetchedAtMs),
+    );
+
+    if (paceWindowSeconds) {
+      targetLines.push(paceLine(window, paceWindowSeconds, fetchedAtMs));
+    }
+  };
+
+  addWindow(openAILines, '5h', data.hourly);
+  addWindow(openAILines, 'Weekly', data.weekly, WEEK_SECONDS);
+  addWindow(openAILines, 'Code Review', data.codeReview);
+
+  for (const limit of data.additionalRateLimits ?? []) {
+    const status = formatOpenAIRateLimitStatus(limit);
+
+    if (isOpenAISparkRateLimit(limit)) {
+      addWindow(sparkLines, '5h', limit.primary);
+      addWindow(sparkLines, 'Weekly', limit.secondary, limit.secondary?.limitWindowSec || WEEK_SECONDS);
+      continue;
+    }
+
+    const primaryLabel = status ? `${limit.label} · ${status}` : limit.label;
+    addWindow(openAILines, primaryLabel, limit.primary);
+    addWindow(openAILines, limit.primary ? `${limit.label} Secondary` : `${primaryLabel} Secondary`, limit.secondary);
+  }
+
+  if (data.credits) {
+    openAILines.push(detailTextLine(`Credits · ${data.credits}`));
+  }
+
+  const lines: QuotaLine[] = [];
+
+  if (openAILines.length) {
+    lines.push(headingLine('OpenAI'), ...openAILines);
+  }
+
+  if (sparkLines.length) {
+    lines.push(headingLine('OpenAI Spark'), ...sparkLines);
+  }
+
+  return lines.length ? lines : [detailTextLine('No windows')];
+};
+
 export const fetchOpenAIQuota = async (): Promise<OpenAIResult | null | { error: string }> => {
   const token = readOpenAIToken();
   if (!token) return null;
@@ -203,16 +271,16 @@ export const fetchOpenAIQuota = async (): Promise<OpenAIResult | null | { error:
   };
   if (accountId) headers['ChatGPT-Account-Id'] = accountId;
 
-  const res = await fetchWithTimeout(OPENAI_USAGE_URL, { headers });
-  if (!res.ok) {
-    const text = await res.text().catch((error: unknown) => {
+  const response = await fetchWithTimeout(OPENAI_USAGE_URL, { headers });
+  if (!response.ok) {
+    const text = await response.text().catch((error: unknown) => {
       if (error instanceof Error) return error.message;
       return String(error);
     });
-    return { error: httpErrorMessage('OpenAI', res, text) };
+    return { error: httpErrorMessage('OpenAI', response, text) };
   }
 
-  const bodyResult = await readJsonResponse('OpenAI', res);
+  const bodyResult = await readJsonResponse('OpenAI', response);
   if ('error' in bodyResult) return bodyResult;
 
   const body: unknown = bodyResult.data;

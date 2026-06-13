@@ -178,13 +178,13 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
     visibleProviders,
     pollIntervalMs,
     minRefreshIntervalMs,
-    providerCacheTtlMs,
-    providerErrorBackoffMs,
+    providerCacheTtlMs: providerCacheTtlMilliseconds,
+    providerErrorBackoffMs: providerErrorBackoffMilliseconds,
   } = resolvedOptions;
-  const expiryRefreshIntervalMs = Math.max(minRefreshIntervalMs, providerCacheTtlMs);
+  const expiryRefreshIntervalMs = Math.max(minRefreshIntervalMs, providerCacheTtlMilliseconds);
   const { providerCache, getCachedProviderLines } = createQuotaProviderCache({
-    providerCacheTtlMs,
-    providerErrorBackoffMs,
+    providerCacheTtlMilliseconds,
+    providerErrorBackoffMilliseconds,
     fetchProviderLines: (providerId, goConfig) => fetchProviderLines(providerId, goConfig, displayMode, setNowMs),
   });
   let refreshPromise: Promise<void> | undefined;

@@ -1,4 +1,4 @@
-export interface RefreshSchedulerConfig {
+interface RefreshSchedulerConfig {
   subscribe: (eventName: string, handler: (payload?: unknown) => void) => () => void;
   onRefresh: (source?: string) => void;
   immediateEvents: RefreshEventConfig[];
@@ -7,12 +7,12 @@ export interface RefreshSchedulerConfig {
   refreshDelayMs?: number;
 }
 
-export interface RefreshEventSpec {
+interface RefreshEventSpec {
   name: string;
   shouldRefresh?: (payload: unknown) => boolean;
 }
 
-export type RefreshEventConfig = string | RefreshEventSpec;
+type RefreshEventConfig = string | RefreshEventSpec;
 
 const DEFAULT_REFRESH_DELAY_MS = 300;
 const DEFAULT_POLL_INTERVAL_MS = 10 * 60_000;
@@ -21,7 +21,7 @@ const normalizeEventSpec = (config: RefreshEventConfig): RefreshEventSpec => {
   return typeof config === 'string' ? { name: config } : config;
 };
 
-export interface RefreshScheduler {
+interface RefreshScheduler {
   scheduleRefresh(extraDelays?: number[], source?: string): void;
   dispose(): void;
 }

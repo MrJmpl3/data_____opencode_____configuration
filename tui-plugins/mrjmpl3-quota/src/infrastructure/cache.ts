@@ -3,25 +3,25 @@ import { isQuotaRateLimitError, retryAfterMsFromMessage } from './retry-policy.t
 import type { GoConfig, ProviderFetchResult } from '../domain/provider-results.ts';
 import type { QuotaProviderId } from '../domain/types.ts';
 
-const MAX_PROVIDER_BACKOFF_MS = 60 * 60_000;
+const MAX_PROVIDER_BACKOFF_MILLISECONDS = 60 * 60_000;
 
-export interface ProviderCacheEntry {
+interface ProviderCacheEntry {
   value?: ProviderFetchResult;
-  fetchedAtMs: number;
-  cooldownUntilMs?: number;
+  fetchedAtMilliseconds: number;
+  cooldownUntilMilliseconds?: number;
   consecutiveErrors: number;
   inFlight?: Promise<ProviderFetchResult>;
 }
 
 interface QuotaProviderCacheConfig {
-  providerCacheTtlMs: number;
-  providerErrorBackoffMs: number;
+  providerCacheTtlMilliseconds: number;
+  providerErrorBackoffMilliseconds: number;
   fetchProviderLines: (providerId: QuotaProviderId, goConfig: GoConfig) => Promise<ProviderFetchResult>;
 }
 
 export const createQuotaProviderCache = ({
-  providerCacheTtlMs,
-  providerErrorBackoffMs,
+  providerCacheTtlMilliseconds,
+  providerErrorBackoffMilliseconds,
   fetchProviderLines,
 }: QuotaProviderCacheConfig): {
   providerCache: Map<QuotaProviderId, ProviderCacheEntry>;
@@ -29,11 +29,11 @@ export const createQuotaProviderCache = ({
 } => {
   const providerCache = new Map<QuotaProviderId, ProviderCacheEntry>();
 
-  const getErrorCooldownMs = (message: string, attempts: number): number => {
+  const getErrorCooldownMilliseconds = (message: string, attempts: number): number => {
     const retryAfterMs = retryAfterMsFromMessage(message);
-    const baseMs = isQuotaRateLimitError(message) ? providerErrorBackoffMs : providerCacheTtlMs;
+    const baseMs = isQuotaRateLimitError(message) ? providerErrorBackoffMilliseconds : providerCacheTtlMilliseconds;
     const multipliedMs = baseMs * Math.min(4, Math.max(1, attempts));
-    return Math.max(retryAfterMs, Math.min(multipliedMs, MAX_PROVIDER_BACKOFF_MS));
+    return Math.max(retryAfterMs, Math.min(multipliedMs, MAX_PROVIDER_BACKOFF_MILLISECONDS));
   };
 
   const cacheProviderResult = (providerId: QuotaProviderId, value: ProviderFetchResult): ProviderFetchResult => {
@@ -47,9 +47,10 @@ export const createQuotaProviderCache = ({
     const consecutiveErrors = typeof value === 'string' ? (previous?.consecutiveErrors ?? 0) + 1 : 0;
     providerCache.set(providerId, {
       value,
-      fetchedAtMs: now,
+      fetchedAtMilliseconds: now,
       consecutiveErrors,
-      cooldownUntilMs: typeof value === 'string' ? now + getErrorCooldownMs(value, consecutiveErrors) : undefined,
+      cooldownUntilMilliseconds:
+        typeof value === 'string' ? now + getErrorCooldownMilliseconds(value, consecutiveErrors) : undefined,
     });
     return value;
   };
@@ -61,10 +62,13 @@ export const createQuotaProviderCache = ({
     const now = Date.now();
     const entry = providerCache.get(providerId);
     if (entry?.inFlight) return entry.inFlight;
-    if (entry?.cooldownUntilMs && entry.cooldownUntilMs > now) {
-      return entry.value ?? `Refresh paused · retry in ${fmtDuration(Math.ceil((entry.cooldownUntilMs - now) / 1000))}`;
+    if (entry?.cooldownUntilMilliseconds && entry.cooldownUntilMilliseconds > now) {
+      return (
+        entry.value ??
+        `Refresh paused · retry in ${fmtDuration(Math.ceil((entry.cooldownUntilMilliseconds - now) / 1000))}`
+      );
     }
-    if (entry?.value !== undefined && now - entry.fetchedAtMs < providerCacheTtlMs) {
+    if (entry?.value !== undefined && now - entry.fetchedAtMilliseconds < providerCacheTtlMilliseconds) {
       return entry.value;
     }
 
@@ -77,8 +81,8 @@ export const createQuotaProviderCache = ({
 
     providerCache.set(providerId, {
       value: entry?.value,
-      fetchedAtMs: entry?.fetchedAtMs ?? 0,
-      cooldownUntilMs: entry?.cooldownUntilMs,
+      fetchedAtMilliseconds: entry?.fetchedAtMilliseconds ?? 0,
+      cooldownUntilMilliseconds: entry?.cooldownUntilMilliseconds,
       consecutiveErrors: entry?.consecutiveErrors ?? 0,
       inFlight: request,
     });

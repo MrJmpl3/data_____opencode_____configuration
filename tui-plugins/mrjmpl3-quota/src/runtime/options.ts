@@ -13,17 +13,17 @@ export interface ResolvedQuotaPluginOptions {
   providerErrorBackoffMs: number;
 }
 
-export interface ResolvedQuotaPluginOptionsDiagnostics {
+interface ResolvedQuotaPluginOptionsDiagnostics {
   invalidVisibleProviderEntries: readonly string[];
   fellBackToDefaultVisibleProviders: boolean;
 }
 
-export interface InspectedQuotaPluginOptions {
+interface InspectedQuotaPluginOptions {
   options: ResolvedQuotaPluginOptions;
   diagnostics: ResolvedQuotaPluginOptionsDiagnostics;
 }
 
-export const PROVIDER_SPECS: readonly ProviderSpec[] = [
+const PROVIDER_SPECS: readonly ProviderSpec[] = [
   { id: 'opencode-go', label: 'OpenCode Go' },
   { id: 'github-copilot', label: 'GitHub Copilot' },
   { id: 'openrouter', label: 'OpenRouter' },
@@ -32,12 +32,12 @@ export const PROVIDER_SPECS: readonly ProviderSpec[] = [
 
 export const DEFAULT_VISIBLE_PROVIDERS: readonly QuotaProviderId[] = ['opencode-go', 'github-copilot', 'openrouter'];
 export const ALLOWED_VISIBLE_PROVIDER_IDS: readonly QuotaProviderId[] = PROVIDER_SPECS.map((spec) => spec.id);
-export const DEFAULT_POLL_INTERVAL_MS = 10 * 60_000;
-export const DEFAULT_MIN_REFRESH_INTERVAL_MS = 120_000;
-export const DEFAULT_PROVIDER_CACHE_TTL_MS = 5 * 60_000;
-export const DEFAULT_PROVIDER_ERROR_BACKOFF_MS = 15 * 60_000;
-export const MIN_SAFE_REFRESH_INTERVAL_MS = 60_000;
-export const MIN_SAFE_CACHE_TTL_MS = 60_000;
+const DEFAULT_POLL_INTERVAL_MS = 10 * 60_000;
+const DEFAULT_MIN_REFRESH_INTERVAL_MS = 120_000;
+const DEFAULT_PROVIDER_CACHE_TTL_MS = 5 * 60_000;
+const DEFAULT_PROVIDER_ERROR_BACKOFF_MS = 15 * 60_000;
+const MIN_SAFE_REFRESH_INTERVAL_MS = 60_000;
+const MIN_SAFE_CACHE_TTL_MS = 60_000;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -55,7 +55,7 @@ const formatInvalidVisibleProviderEntry = (value: unknown): string => {
   }
 };
 
-export const inspectVisibleProviders = (
+const inspectVisibleProviders = (
   options: unknown,
 ): {
   visibleProviders: readonly ProviderSpec[];
@@ -108,16 +108,12 @@ export const inspectVisibleProviders = (
   };
 };
 
-export const getVisibleProviders = (options: unknown): readonly ProviderSpec[] => {
-  return inspectVisibleProviders(options).visibleProviders;
-};
-
-export const getDisplayModeSetting = (options: unknown): QuotaDisplayMode => {
+const getDisplayModeSetting = (options: unknown): QuotaDisplayMode => {
   if (!isRecord(options)) return 'remaining';
   return options.displayMode === 'used' ? 'used' : 'remaining';
 };
 
-export const getNumberOption = (
+const getNumberOption = (
   options: unknown,
   key: keyof QuotaPluginOptions,
   fallback: number,

@@ -13,7 +13,7 @@ const resetAtMsFromSeconds = (resetSec: number, capturedAtMs: number): number =>
 
 const indentQuotaLine = (text: string): string => `  ${text}`;
 
-export const remainingSeconds = (resetAtMs: number, nowMs: number): number =>
+const remainingSeconds = (resetAtMs: number, nowMs: number): number =>
   Math.max(0, Math.ceil((resetAtMs - nowMs) / 1000));
 
 export const headingLine = (text: string): QuotaLine => ({ kind: 'heading', text });

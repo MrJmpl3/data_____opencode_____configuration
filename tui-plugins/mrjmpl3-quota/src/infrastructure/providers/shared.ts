@@ -1,7 +1,7 @@
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
-export const getNested = (obj: unknown, path: readonly string[]): unknown => {
+const getNested = (obj: unknown, path: readonly string[]): unknown => {
   let value: unknown = obj;
   for (const key of path) {
     if (!isRecord(value)) return undefined;

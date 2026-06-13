@@ -1,10 +1,14 @@
 import type { CopilotResult } from '../../domain/types.ts';
+import type { QuotaLine } from '../../domain/lines.ts';
+import type { QuotaDisplayMode } from '../../domain/types.ts';
+import { formatCountQuota, MONTH_SECONDS } from '../../domain/format.ts';
+import { detailTextLine, paceLine, windowLine } from '../../domain/lines.ts';
 import { readOauthAccessToken } from './auth.ts';
 import { GITHUB_API, USER_AGENT } from './constants.ts';
 import { fetchWithTimeout, httpErrorMessage, readJsonResponse } from './http.ts';
 import { findBoolean, findNumber, findString } from './shared.ts';
 
-export const readCopilotToken = (): string | null => {
+const readCopilotToken = (): string | null => {
   return readOauthAccessToken(['github-copilot', 'copilot', 'copilot-chat', 'github-copilot-chat']);
 };
 
@@ -93,11 +97,38 @@ const COPILOT_TIER_LIMITS: Record<string, number> = {
 export const normalizeCopilotResetAtMs = (resetAt: number): number =>
   resetAt > 1_000_000_000_000 ? resetAt : resetAt * 1000;
 
+export const formatCopilotLines = (
+  data: CopilotResult,
+  displayMode: QuotaDisplayMode,
+  fetchedAtMs: number,
+): QuotaLine[] => {
+  const value = formatCountQuota(data, displayMode);
+  const lines: QuotaLine[] = [];
+
+  if (data.resetSec) {
+    lines.push(windowLine('Monthly', value, data.resetSec, fetchedAtMs));
+
+    if (data.pctRemaining !== undefined) {
+      lines.push(
+        paceLine(
+          { usedPct: Math.max(0, 100 - data.pctRemaining), resetSec: data.resetSec },
+          MONTH_SECONDS,
+          fetchedAtMs,
+        ),
+      );
+    }
+  } else {
+    lines.push(detailTextLine(`Monthly · ${value}`));
+  }
+
+  return lines;
+};
+
 export const fetchCopilotQuota = async (): Promise<CopilotResult | null | { error: string }> => {
   const token = readCopilotToken();
   if (!token) return null;
 
-  const res = await fetchWithTimeout(`${GITHUB_API}/copilot_internal/user`, {
+  const response = await fetchWithTimeout(`${GITHUB_API}/copilot_internal/user`, {
     headers: {
       Accept: 'application/vnd.github+json',
       Authorization: `Bearer ${token}`,
@@ -105,9 +136,9 @@ export const fetchCopilotQuota = async (): Promise<CopilotResult | null | { erro
       'User-Agent': USER_AGENT,
     },
   });
-  if (!res.ok) return { error: httpErrorMessage('Copilot API', res) };
+  if (!response.ok) return { error: httpErrorMessage('Copilot API', response) };
 
-  const dataResult = await readJsonResponse('Copilot API', res);
+  const dataResult = await readJsonResponse('Copilot API', response);
   if ('error' in dataResult) return dataResult;
 
   const data: unknown = dataResult.data;

@@ -1,6 +1,7 @@
 import type { OpenAIAdditionalRateLimit, QuotaDisplayMode } from './types.ts';
 
 export const WEEK_SECONDS = 7 * 24 * 60 * 60;
+export const MONTH_SECONDS = 30 * 24 * 60 * 60;
 
 export const formatPercentQuota = (used: number, remaining: number, displayMode: QuotaDisplayMode): string => {
   if (displayMode === 'used') return `${used.toFixed(0)}%`;
@@ -19,19 +20,19 @@ export const formatResponsibleUsagePace = (
   },
   windowSeconds: number,
 ): string => {
-  const totalSec = Math.max(1, windowSeconds);
+  const totalSeconds = Math.max(1, windowSeconds);
   const usedPct = Math.max(0, Math.min(100, window.usedPct));
-  const remainingSec = Math.max(0, Math.min(totalSec, window.resetSec));
-  const elapsedSec = totalSec - remainingSec;
-  const responsibleUsedPct = (elapsedSec / totalSec) * 100;
-  const deltaPct = usedPct - responsibleUsedPct;
-  const absDelta = Math.abs(deltaPct).toFixed(2);
+  const remainingSeconds = Math.max(0, Math.min(totalSeconds, window.resetSec));
+  const elapsedSeconds = totalSeconds - remainingSeconds;
+  const responsibleUsedPercent = (elapsedSeconds / totalSeconds) * 100;
+  const deltaPercent = usedPct - responsibleUsedPercent;
+  const absoluteDelta = Math.abs(deltaPercent).toFixed(2);
 
-  if (deltaPct <= 0) {
-    return `✓ ok · ${absDelta}% below`;
+  if (deltaPercent <= 0) {
+    return `✓ ok · ${absoluteDelta}% below`;
   }
 
-  return `⚠ high · ${absDelta}% over`;
+  return `⚠ high · ${absoluteDelta}% over`;
 };
 
 export const formatResponsibleWeeklyUsage = (window: { usedPct: number; resetSec: number }): string =>

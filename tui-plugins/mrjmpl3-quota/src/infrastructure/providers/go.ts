@@ -1,6 +1,15 @@
-import type { GoWindow } from '../../domain/types.ts';
+import type { QuotaLine } from '../../domain/lines.ts';
+import type { GoWindow, QuotaDisplayMode } from '../../domain/types.ts';
+import { formatPercentQuota, MONTH_SECONDS } from '../../domain/format.ts';
+import { detailTextLine, paceLine, windowLine } from '../../domain/lines.ts';
 import { DASHBOARD_URL, USER_AGENT } from './constants.ts';
 import { fetchWithTimeout, httpErrorMessage } from './http.ts';
+
+type GoDashboard = {
+  rolling: GoWindow | null;
+  weekly: GoWindow | null;
+  monthly: GoWindow | null;
+};
 
 export const readGoConfig = (): {
   workspaceId: string;
@@ -12,25 +21,25 @@ export const readGoConfig = (): {
   return null;
 };
 
-const RE_NUM = String.raw`(-?\d+(?:\.\d+)?)`;
+const DECIMAL_PATTERN = String.raw`(-?\d+(?:\.\d+)?)`;
 
-const windowRegexes = (key: string): { pctFirst: RegExp; resetFirst: RegExp } => {
-  const pctFirst = new RegExp(
-    String.raw`${key}:\$R\[\d+\]=\{[^}]*usagePercent:${RE_NUM}[^}]*resetInSec:${RE_NUM}[^}]*\}`,
+const windowRegexes = (key: string): { usagePercentFirst: RegExp; resetFirst: RegExp } => {
+  const usagePercentFirst = new RegExp(
+    String.raw`${key}:\$R\[\d+\]=\{[^}]*usagePercent:${DECIMAL_PATTERN}[^}]*resetInSec:${DECIMAL_PATTERN}[^}]*\}`,
   );
   const resetFirst = new RegExp(
-    String.raw`${key}:\$R\[\d+\]=\{[^}]*resetInSec:${RE_NUM}[^}]*usagePercent:${RE_NUM}[^}]*\}`,
+    String.raw`${key}:\$R\[\d+\]=\{[^}]*resetInSec:${DECIMAL_PATTERN}[^}]*usagePercent:${DECIMAL_PATTERN}[^}]*\}`,
   );
-  return { pctFirst, resetFirst };
+  return { usagePercentFirst, resetFirst };
 };
 
 const parseGoWindow = (html: string, key: string): GoWindow | null => {
-  const { pctFirst, resetFirst } = windowRegexes(key);
+  const { usagePercentFirst, resetFirst } = windowRegexes(key);
 
-  const tryMatch = (pattern: RegExp, pctIndex: number, resetIndex: number): GoWindow | null => {
+  const tryMatch = (pattern: RegExp, usagePercentIndex: number, resetIndex: number): GoWindow | null => {
     const match = html.match(pattern);
     if (!match) return null;
-    const usagePercent = Number(match[pctIndex]);
+    const usagePercent = Number(match[usagePercentIndex]);
     const resetInSec = Number(match[resetIndex]);
     if (!Number.isFinite(usagePercent) || !Number.isFinite(resetInSec)) return null;
     const used = Math.max(0, usagePercent);
@@ -41,7 +50,30 @@ const parseGoWindow = (html: string, key: string): GoWindow | null => {
     };
   };
 
-  return tryMatch(pctFirst, 1, 2) ?? tryMatch(resetFirst, 2, 1);
+  return tryMatch(usagePercentFirst, 1, 2) ?? tryMatch(resetFirst, 2, 1);
+};
+
+export const formatGoLines = (data: GoDashboard, displayMode: QuotaDisplayMode, fetchedAtMs: number): QuotaLine[] => {
+  const lines: QuotaLine[] = [];
+
+  for (const [name, key] of [
+    ['5h window', 'rolling'],
+    ['Weekly', 'weekly'],
+    ['Monthly', 'monthly'],
+  ] as const) {
+    const window = data[key];
+    if (!window) continue;
+
+    lines.push(
+      windowLine(name, formatPercentQuota(window.used, window.remaining, displayMode), window.resetInSec, fetchedAtMs),
+    );
+
+    if (key === 'monthly') {
+      lines.push(paceLine({ usedPct: window.used, resetSec: window.resetInSec }, MONTH_SECONDS, fetchedAtMs));
+    }
+  }
+
+  return lines.length ? lines : [detailTextLine('No windows')];
 };
 
 export const fetchGoDashboard = async (
@@ -57,16 +89,16 @@ export const fetchGoDashboard = async (
     }
   | { error: string }
 > => {
-  const res = await fetchWithTimeout(DASHBOARD_URL(workspaceId), {
+  const response = await fetchWithTimeout(DASHBOARD_URL(workspaceId), {
     headers: {
       'User-Agent': USER_AGENT,
       Accept: 'text/html',
       Cookie: `auth=${authCookie}`,
     },
   });
-  if (!res.ok) return { error: httpErrorMessage('OpenCode Go', res) };
+  if (!response.ok) return { error: httpErrorMessage('OpenCode Go', response) };
 
-  const html = await res.text();
+  const html = await response.text();
   const data = {
     rolling: parseGoWindow(html, 'rollingUsage'),
     weekly: parseGoWindow(html, 'weeklyUsage'),

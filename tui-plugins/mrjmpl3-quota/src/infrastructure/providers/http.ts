@@ -2,14 +2,14 @@ import { FETCH_TIMEOUT_MS } from './constants.ts';
 
 export const fetchWithTimeout = async (
   url: string,
-  opts: RequestInit,
+  requestOptions: RequestInit,
   ms: number = FETCH_TIMEOUT_MS,
 ): Promise<Response> => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
 
   try {
-    return await fetch(url, { ...opts, signal: controller.signal });
+    return await fetch(url, { ...requestOptions, signal: controller.signal });
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error(`Request to ${url} timed out after ${ms}ms`);
@@ -35,14 +35,14 @@ export const httpErrorMessage = (label: string, res: Response, body?: string): s
   return details.join('; ');
 };
 
-const MAX_ERROR_PREVIEW_CHARS = 120;
-const ANSI_ESCAPE_SEQUENCE_RE = /\u001B\[[0-?]*[ -/]*[@-~]/g;
-const HTML_TITLE_RE = /<title[^>]*>([\s\S]*?)<\/title>/i;
-const HTML_MARKUP_RE = /<(?:!doctype\s+html|\/?[a-z][\w:-]*(?:\s[^<>]*?)?)>/i;
+const MAX_ERROR_PREVIEW_CHARACTERS = 120;
+const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001B\[[0-?]*[ -/]*[@-~]/g;
+const HTML_TITLE_PATTERN = /<title[^>]*>([\s\S]*?)<\/title>/i;
+const HTML_MARKUP_PATTERN = /<(?:!doctype\s+html|\/?[a-z][\w:-]*(?:\s[^<>]*?)?)>/i;
 
 const sanitizeErrorText = (value: string): string => {
   return value
-    .replace(ANSI_ESCAPE_SEQUENCE_RE, '')
+    .replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '')
     .replace(/[\u0000-\u001F\u007F]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -54,8 +54,8 @@ const stripHtmlTags = (value: string): string => {
 
 const previewErrorText = (value: string): string => {
   const sanitized = sanitizeErrorText(value);
-  if (sanitized.length <= MAX_ERROR_PREVIEW_CHARS) return sanitized;
-  return `${sanitized.slice(0, MAX_ERROR_PREVIEW_CHARS - 1).trimEnd()}…`;
+  if (sanitized.length <= MAX_ERROR_PREVIEW_CHARACTERS) return sanitized;
+  return `${sanitized.slice(0, MAX_ERROR_PREVIEW_CHARACTERS - 1).trimEnd()}…`;
 };
 
 const describeResponseBody = (body?: string): string | undefined => {
@@ -67,8 +67,8 @@ const describeResponseBody = (body?: string): string | undefined => {
   const sanitized = sanitizeErrorText(trimmed);
   if (!sanitized) return undefined;
 
-  if (HTML_MARKUP_RE.test(sanitized)) {
-    const title = sanitized.match(HTML_TITLE_RE)?.[1] ?? trimmed.match(HTML_TITLE_RE)?.[1];
+  if (HTML_MARKUP_PATTERN.test(sanitized)) {
+    const title = sanitized.match(HTML_TITLE_PATTERN)?.[1] ?? trimmed.match(HTML_TITLE_PATTERN)?.[1];
     const cleanTitle = title ? previewErrorText(stripHtmlTags(title)) : '';
     return cleanTitle ? `HTML response: ${cleanTitle}` : 'HTML response';
   }

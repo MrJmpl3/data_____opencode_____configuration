@@ -2,12 +2,15 @@ import { existsSync, readFileSync } from 'fs';
 import os from 'os';
 import { join } from 'path';
 
-import type { OpenRouterResult } from '../../domain/types.ts';
+import type { QuotaLine } from '../../domain/lines.ts';
+import type { QuotaDisplayMode, OpenRouterResult } from '../../domain/types.ts';
+import { formatCreditQuota } from '../../domain/format.ts';
+import { detailTextLine } from '../../domain/lines.ts';
 import { OPENROUTER_CREDITS_URL } from './constants.ts';
 import { fetchWithTimeout, httpErrorMessage, readJsonResponse } from './http.ts';
 import { isRecord } from './shared.ts';
 
-export const readOpenRouterKey = (): string | null => {
+const readOpenRouterKey = (): string | null => {
   const key = process.env.OPENROUTER_API_KEY?.trim();
   if (key) return key;
 
@@ -27,19 +30,23 @@ export const readOpenRouterKey = (): string | null => {
   return null;
 };
 
+export const formatOpenRouterLines = (data: OpenRouterResult, displayMode: QuotaDisplayMode): QuotaLine[] => {
+  return [detailTextLine(`Credits · ${formatCreditQuota(data, displayMode)}`)];
+};
+
 export const fetchOpenRouterQuota = async (): Promise<OpenRouterResult | null | { error: string }> => {
   const key = readOpenRouterKey();
   if (!key) return null;
 
-  const res = await fetchWithTimeout(OPENROUTER_CREDITS_URL, {
+  const response = await fetchWithTimeout(OPENROUTER_CREDITS_URL, {
     headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    return { error: httpErrorMessage('OpenRouter', res, text) };
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    return { error: httpErrorMessage('OpenRouter', response, text) };
   }
 
-  const bodyResult = await readJsonResponse('OpenRouter', res);
+  const bodyResult = await readJsonResponse('OpenRouter', response);
   if ('error' in bodyResult) return bodyResult;
 
   const body = bodyResult.data;
