@@ -117,6 +117,43 @@ describe('status hydration', () => {
     });
   });
 
+  it('does not reopen a terminal recovery row from newer TUI running evidence', () => {
+    const state = createEmptyState();
+    state.children.ses_child = {
+      id: 'ses_child',
+      title: 'Recovered child',
+      parentID: 'ses_parent',
+      source: 'session',
+      targetSessionID: 'ses_child',
+      status: 'done',
+      color: 'green',
+      startedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T12:00:00.000Z',
+      endedAt: '2026-06-04T12:00:00.000Z',
+    };
+    const runningEvidenceSessionIDs = new Set<string>();
+
+    const changed = hydrateChildStatusesFromTuiState(
+      createApi({
+        tuiStatus: { type: 'running' },
+        tuiMessages: [{ time: { updated: '2026-06-04T12:01:00.000Z' } }],
+      }),
+      state,
+      ['ses_child'],
+      runningEvidenceSessionIDs,
+      { terminalRecoverySessionIDs: new Set(['ses_child']) },
+    );
+
+    expect(changed).toBe(false);
+    expect(runningEvidenceSessionIDs.has('ses_child')).toBe(false);
+    expect(state.children.ses_child).toMatchObject({
+      status: 'done',
+      color: 'green',
+      updatedAt: '2026-06-04T12:00:00.000Z',
+      endedAt: '2026-06-04T12:00:00.000Z',
+    });
+  });
+
   it('reopens an errored row from newer client queued evidence', async () => {
     const state = createEmptyState();
     state.children.ses_child = {
@@ -150,6 +187,115 @@ describe('status hydration', () => {
       status: 'running',
       color: 'yellow',
       updatedAt: '2026-06-04T12:02:00.000Z',
+      endedAt: undefined,
+    });
+  });
+
+  it('does not reopen a terminal recovery row from newer client running evidence', async () => {
+    const state = createEmptyState();
+    state.children.ses_child = {
+      id: 'ses_child',
+      title: 'Recovered child',
+      parentID: 'ses_parent',
+      source: 'session',
+      targetSessionID: 'ses_child',
+      status: 'done',
+      color: 'green',
+      startedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T12:00:00.000Z',
+      endedAt: '2026-06-04T12:00:00.000Z',
+    };
+    const runningEvidenceSessionIDs = new Set<string>();
+
+    const changed = await hydrateChildStatusesFromClient(
+      createApi({
+        tuiMessages: [{ time: { updated: '2026-06-04T12:01:00.000Z' } }],
+        clientStatus: {
+          ses_child: {
+            type: 'running',
+          },
+        },
+        clientMessages: [{ time: { updated: '2026-06-04T12:01:00.000Z' } }],
+      }),
+      state,
+      ['ses_child'],
+      runningEvidenceSessionIDs,
+      { terminalRecoverySessionIDs: new Set(['ses_child']) },
+    );
+
+    expect(changed).toBe(false);
+    expect(runningEvidenceSessionIDs.has('ses_child')).toBe(false);
+    expect(state.children.ses_child).toMatchObject({
+      status: 'done',
+      color: 'green',
+      updatedAt: '2026-06-04T12:00:00.000Z',
+      endedAt: '2026-06-04T12:00:00.000Z',
+    });
+  });
+
+  it('reads client message history once for multiple rows targeting the same running session', async () => {
+    const state = createEmptyState();
+    state.children.ses_child = {
+      id: 'ses_child',
+      title: 'Recovered child',
+      parentID: 'ses_parent',
+      source: 'session',
+      targetSessionID: 'ses_child',
+      status: 'running',
+      color: 'yellow',
+      startedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T12:00:00.000Z',
+    };
+    state.children.row_child_alias = {
+      id: 'row_child_alias',
+      title: 'Recovered child alias',
+      parentID: 'ses_parent',
+      source: 'session',
+      targetSessionID: 'ses_child',
+      status: 'running',
+      color: 'yellow',
+      startedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T12:00:00.000Z',
+    };
+
+    const clientMessagesSpy = vi.fn(async () => ({
+      data: [{ time: { updated: '2026-06-04T12:01:00.000Z' } }],
+    }));
+    const tuiMessagesSpy = vi.fn(() => [{ time: { updated: '2026-06-04T12:02:00.000Z' } }]);
+
+    const changed = await hydrateChildStatusesFromClient(
+      {
+        client: {
+          session: {
+            status: vi.fn(async () => ({ data: { ses_child: { type: 'running' } } })),
+            messages: clientMessagesSpy,
+          },
+        },
+        state: {
+          path: {
+            directory: '/tmp/workspace',
+          },
+          session: {
+            status: vi.fn(() => ({ type: 'running' })),
+            messages: tuiMessagesSpy,
+          },
+        },
+      } as unknown as TuiPluginApi,
+      state,
+      ['ses_child'],
+    );
+
+    expect(changed).toBe(true);
+    expect(clientMessagesSpy).toHaveBeenCalledTimes(1);
+    expect(tuiMessagesSpy).not.toHaveBeenCalled();
+    expect(state.children.ses_child).toMatchObject({
+      status: 'running',
+      updatedAt: '2026-06-04T12:01:00.000Z',
+      endedAt: undefined,
+    });
+    expect(state.children.row_child_alias).toMatchObject({
+      status: 'running',
+      updatedAt: '2026-06-04T12:01:00.000Z',
       endedAt: undefined,
     });
   });
@@ -232,13 +378,25 @@ describe('status hydration', () => {
     });
   });
 
-  it('prefers strict done evidence when error and done arrive with the same terminal timestamp', () => {
+  it('ignores step-finish stop as terminal session evidence', () => {
     expect(
       summarizeMessages([
         {
           type: 'step-finish',
           reason: 'stop',
           time: { end: '2026-06-04T12:01:30.000Z' },
+        },
+      ]),
+    ).toEqual({});
+  });
+
+  it('prefers explicit done evidence when error and done arrive with the same terminal timestamp', () => {
+    expect(
+      summarizeMessages([
+        {
+          type: 'session.status',
+          state: { status: 'completed' },
+          time: { completed: '2026-06-04T12:01:30.000Z' },
         },
         {
           type: 'session.error',

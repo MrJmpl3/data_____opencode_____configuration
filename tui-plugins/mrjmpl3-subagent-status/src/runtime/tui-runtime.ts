@@ -133,7 +133,7 @@ export const createTuiRuntime = (
     }
   };
 
-  installEventBridge(api, refresh, (event) => {
+  const disposeEventBridge = installEventBridge(api, refresh, (event) => {
     lastEventType = isRecord(event) && typeof event.type === 'string' ? event.type : undefined;
     bufferedEvents.push(event);
   });
@@ -180,6 +180,7 @@ export const createTuiRuntime = (
 
     if (tickTimer) clearInterval(tickTimer);
     if (reconcileTimer) clearInterval(reconcileTimer);
+    disposeEventBridge();
   };
 
   return {

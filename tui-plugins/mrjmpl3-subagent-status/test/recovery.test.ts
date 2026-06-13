@@ -37,7 +37,7 @@ describe('sqlite recovery source', () => {
     }
   });
 
-  it('marks a real terminal stop sequence done even when final text is the latest part', async () => {
+  it('keeps step-finish-only SQLite evidence running when no explicit session terminal event exists', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'mrjmpl3-subagent-status-'));
     tempDirs.push(dir);
     const databasePath = join(dir, 'opencode.db');
@@ -92,18 +92,18 @@ describe('sqlite recovery source', () => {
     });
 
     expect(state.children.ses_1468147afffePt1H1Qt7VKwLho).toMatchObject({
-      status: 'done',
-      endedAt: '2026-06-04T05:20:00.000Z',
+      status: 'running',
       tokens: { input: 12, output: 8, total: 20 },
     });
+    expect(state.children.ses_1468147afffePt1H1Qt7VKwLho?.endedAt).toBeUndefined();
     expect(state.children['tool:ses_1468147afffePt1H1Qt7VKwLho']).toMatchObject({
-      status: 'done',
-      endedAt: '2026-06-04T05:20:00.000Z',
+      status: 'running',
     });
-    expect(getCounts(state)).toMatchObject({ done: 2, running: 0 });
+    expect(state.children['tool:ses_1468147afffePt1H1Qt7VKwLho']?.endedAt).toBeUndefined();
+    expect(getCounts(state)).toMatchObject({ done: 0, running: 2 });
   });
 
-  it('overrides newer persisted running rows when SQLite has terminal step-finish stop evidence', async () => {
+  it('does not override newer persisted running rows when SQLite only has step-finish evidence', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'mrjmpl3-subagent-status-'));
     tempDirs.push(dir);
     const databasePath = join(dir, 'opencode.db');
@@ -143,18 +143,18 @@ describe('sqlite recovery source', () => {
     });
 
     expect(state.children.ses_14584472affeE6HD4fNRxdM0oq).toMatchObject({
-      status: 'done',
-      updatedAt: '2026-06-04T05:20:00.000Z',
-      endedAt: '2026-06-04T05:20:00.000Z',
+      status: 'running',
+      updatedAt: '2026-06-04T05:24:30.000Z',
+      endedAt: undefined,
       tokens: { input: 12, output: 8, total: 20 },
     });
 
     const sections = splitSidebarVisibleSections(Object.values(state.children));
-    expect(sections.active).toHaveLength(0);
-    expect(sections.recent.map((child) => child.id)).toEqual(['ses_14584472affeE6HD4fNRxdM0oq']);
+    expect(sections.active.map((child) => child.id)).toEqual(['ses_14584472affeE6HD4fNRxdM0oq']);
+    expect(sections.recent).toHaveLength(0);
   });
 
-  it('recovers terminal status when large non-evidence parts would exceed the default process buffer', async () => {
+  it('keeps large step-finish-only recovery running while preserving token evidence', async () => {
     const largePayload = 'x'.repeat(256 * 1024);
     const largeParts = [
       ...Array.from({ length: 104 }, (_, index) =>
@@ -177,8 +177,8 @@ describe('sqlite recovery source', () => {
     const parsedParts = safeParseParts(largeParts);
     expect(parsedParts).toHaveLength(105);
     expect(resolveRecoveredStatus(parsedParts)).toMatchObject({
-      status: 'done',
-      endedAt: '2026-06-04T05:20:00.000Z',
+      status: 'running',
+      endedAt: undefined,
       tokens: { input: 12, output: 8, total: 20 },
     });
 
@@ -226,9 +226,9 @@ describe('sqlite recovery source', () => {
     });
 
     expect(state.children.ses_large_terminal).toMatchObject({
-      status: 'done',
-      updatedAt: '2026-06-04T05:20:00.000Z',
-      endedAt: '2026-06-04T05:20:00.000Z',
+      status: 'running',
+      updatedAt: '2026-06-04T05:20:00.101Z',
+      endedAt: undefined,
       tokens: { input: 12, output: 8, total: 20 },
     });
   });
@@ -294,7 +294,7 @@ describe('sqlite recovery source', () => {
         "cur.execute('CREATE TABLE session (id TEXT PRIMARY KEY, parent_id TEXT, title TEXT, agent TEXT, time_created INTEGER, time_updated INTEGER, tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER, tokens_cache_read INTEGER, tokens_cache_write INTEGER)')",
         "cur.execute('CREATE TABLE part (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, time_updated INTEGER, data TEXT)')",
         "cur.execute('INSERT INTO session VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', ('ses_child', 'ses_parent', 'Recovered child', 'sdd-apply', 1780550100000, 1780550400000, 12, 8, 0, 0, 0))",
-        'payload = json.dumps({"type": "step-finish", "reason": "stop", "tokens": {"input": 12, "output": 8, "total": 20}, "time": {"end": 1780550400000}})',
+        'payload = json.dumps({"type": "session.status", "state": {"status": "completed"}, "tokens": {"input": 12, "output": 8, "total": 20}, "time": {"completed": 1780550400000}})',
         "cur.execute('INSERT INTO part VALUES (?, ?, ?, ?, ?)', ('prt_1', 'ses_child', 1780550399000, 1780550400000, payload))",
         'conn.commit()',
       ].join('\n'),
@@ -383,6 +383,22 @@ describe('sqlite recovery source', () => {
     expect(state.children.ses_child).toMatchObject({
       status: 'done',
       endedAt: '2026-06-04T05:20:00.000Z',
+      tokens: { input: 12, output: 8, total: 20 },
+    });
+  });
+
+  it('does not terminalize generic completed part state without session-scoped evidence', () => {
+    expect(
+      resolveRecoveredStatus([
+        {
+          type: 'part.updated',
+          status: 'completed',
+          tokens: { input: 12, output: 8, total: 20 },
+          time: { updated: 1780550400000 },
+        },
+      ]),
+    ).toMatchObject({
+      status: 'running',
       tokens: { input: 12, output: 8, total: 20 },
     });
   });
@@ -526,7 +542,7 @@ describe('sqlite recovery source', () => {
     });
   });
 
-  it('merges SQLite row token counts with partial latest-part usage details', async () => {
+  it('merges SQLite row token counts with ambiguous latest-part usage details without terminalizing', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'mrjmpl3-subagent-status-'));
     tempDirs.push(dir);
     const databasePath = join(dir, 'opencode.db');
@@ -565,10 +581,11 @@ describe('sqlite recovery source', () => {
     });
 
     expect(state.children.ses_child).toMatchObject({
-      status: 'done',
-      endedAt: '2026-06-04T05:20:00.000Z',
+      status: 'running',
+      updatedAt: '2026-06-04T05:20:00.000Z',
       tokens: { input: 12, output: 8, contextPercent: 42.5 },
     });
+    expect(state.children.ses_child?.endedAt).toBeUndefined();
   });
 
   it('purges non-authoritative rows that are absent from SQLite recovery', async () => {

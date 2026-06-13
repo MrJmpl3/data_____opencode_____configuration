@@ -2,6 +2,7 @@ import {
   clearPurgedSession,
   isTerminalStatus,
   markChildStatus,
+  normalizeChild as normalizeStateChild,
   pruneOrphanedSyntheticRunningChildren,
   pruneTerminalChildren,
   upsertRunningChild,
@@ -33,7 +34,7 @@ const normalizeTokens = (value: unknown): SubagentTokens | undefined => {
   return { input, output, total, contextPercent };
 };
 
-const normalizeChild = (input: unknown): SubagentChild | undefined => {
+const normalizeResponseChild = (input: unknown): SubagentChild | undefined => {
   if (!isRecord(input)) return undefined;
 
   const id = asString(input.id);
@@ -72,11 +73,90 @@ const normalizeChild = (input: unknown): SubagentChild | undefined => {
 export const normalizeChildrenResponse = (response: unknown): SubagentChild[] => {
   const data = isRecord(response) ? response.data : response;
   if (!Array.isArray(data)) return [];
-  return data.map(normalizeChild).filter((child): child is SubagentChild => Boolean(child));
+  return data.map(normalizeResponseChild).filter((child): child is SubagentChild => Boolean(child));
+};
+
+type ReconcileChildrenStateOptions = {
+  recoverySessionIDs?: ReadonlySet<string>;
+  terminalRecoverySessionIDs?: ReadonlySet<string>;
 };
 
 const isRealSessionChild = (child: SubagentChild): boolean => {
   return child.source === 'session' || child.id.startsWith('ses_');
+};
+
+const resolveRealSessionID = (child: SubagentChild): string | undefined => {
+  if (!isRealSessionChild(child)) return undefined;
+  return child.targetSessionID ?? (child.id.startsWith('ses_') ? child.id : undefined);
+};
+
+const collectTerminalRecoveryChildren = (
+  state: SubagentState,
+  terminalRecoverySessionIDs: ReadonlySet<string> | undefined,
+): Map<string, SubagentChild> => {
+  const terminalRecoveryChildren = new Map<string, SubagentChild>();
+  if (!terminalRecoverySessionIDs?.size) return terminalRecoveryChildren;
+
+  for (const child of Object.values(state.children)) {
+    if (!isRealSessionChild(child) || !isTerminalStatus(child.status)) continue;
+
+    const sessionID = resolveRealSessionID(child);
+    if (!sessionID || !terminalRecoverySessionIDs.has(sessionID)) continue;
+
+    if (!terminalRecoveryChildren.has(sessionID) || child.id === sessionID) {
+      terminalRecoveryChildren.set(sessionID, child);
+    }
+  }
+
+  return terminalRecoveryChildren;
+};
+
+const inheritTerminalRecoveryStatus = (child: SubagentChild, terminalChild: SubagentChild): SubagentChild => {
+  if (!isTerminalStatus(terminalChild.status)) return child;
+
+  const endedAt = terminalChild.endedAt ?? terminalChild.updatedAt;
+
+  return {
+    ...child,
+    status: terminalChild.status,
+    updatedAt: endedAt,
+    endedAt,
+  };
+};
+
+const resolveIncomingChild = (
+  child: SubagentChild,
+  terminalRecoveryChildren: ReadonlyMap<string, SubagentChild>,
+): { child: SubagentChild; inheritedTerminalRecovery: boolean; sessionID?: string } => {
+  const sessionID = resolveRealSessionID(child);
+  const terminalRecoveryChild = sessionID ? terminalRecoveryChildren.get(sessionID) : undefined;
+
+  if (child.status !== 'running' || !terminalRecoveryChild) {
+    return { child, inheritedTerminalRecovery: false, sessionID };
+  }
+
+  return {
+    child: inheritTerminalRecoveryStatus(child, terminalRecoveryChild),
+    inheritedTerminalRecovery: true,
+    sessionID,
+  };
+};
+
+const canReopenTerminalChild = (
+  child: SubagentChild,
+  sessionID: string | undefined,
+  terminalRecoverySessionIDs: ReadonlySet<string> | undefined,
+): boolean => {
+  return !(child.status === 'running' && sessionID && terminalRecoverySessionIDs?.has(sessionID));
+};
+
+const isNewTerminalRecoveryAlias = (
+  existing: SubagentChild | undefined,
+  incomingChild: SubagentChild,
+  sessionID: string | undefined,
+  inheritedTerminalRecovery: boolean,
+): boolean => {
+  return !existing && inheritedTerminalRecovery && Boolean(sessionID && incomingChild.id !== sessionID);
 };
 
 const cloneState = (state: SubagentState): SubagentState => {
@@ -99,23 +179,71 @@ const sameChild = (left: SubagentChild | undefined, right: SubagentChild | undef
   return JSON.stringify(left) === JSON.stringify(right);
 };
 
-export const reconcileChildrenState = (
+const normalizeAt = (timestamp: string): number => {
+  const parsed = Date.parse(timestamp);
+  return Number.isNaN(parsed) ? Date.now() : parsed;
+};
+
+const applyTerminalRecoveryToExistingAliases = (
   state: SubagentState,
-  response: unknown,
+  terminalRecoveryChildren: ReadonlyMap<string, SubagentChild>,
+): boolean => {
+  if (terminalRecoveryChildren.size === 0) return false;
+
+  let changed = false;
+
+  for (const child of Object.values(state.children)) {
+    if (child.status !== 'running') continue;
+    if (!isRealSessionChild(child)) continue;
+
+    const sessionID = child.targetSessionID;
+    if (!sessionID || child.id === sessionID) continue;
+
+    const terminalChild = terminalRecoveryChildren.get(sessionID);
+    if (!terminalChild) continue;
+
+    const endedAt = terminalChild.endedAt ?? terminalChild.updatedAt;
+    const next = normalizeStateChild(inheritTerminalRecoveryStatus(child, terminalChild), normalizeAt(endedAt));
+    if (sameChild(child, next)) continue;
+
+    state.children[child.id] = next;
+    changed = true;
+  }
+
+  return changed;
+};
+
+export const reconcileNormalizedChildrenState = (
+  state: SubagentState,
+  incomingChildren: readonly SubagentChild[],
+  options: ReconcileChildrenStateOptions = {},
 ): { changed: boolean; nextState: SubagentState } => {
   const nextState = cloneState(state);
-  const incomingChildren = normalizeChildrenResponse(response);
   const incomingIDs = new Set(incomingChildren.map((child) => child.id));
+  const terminalRecoveryChildren = collectTerminalRecoveryChildren(nextState, options.terminalRecoverySessionIDs);
   const hadRealSessionChildren = Object.values(state.children).some(
     (child) => child.source === 'session' || child.id.startsWith('ses_'),
   );
   let changed = false;
 
-  for (const child of incomingChildren) {
-    const before = nextState.children[child.id];
-    changed = upsertRunningChild(nextState, child, { allowTerminalReopen: true }) || changed;
+  for (const incomingChild of incomingChildren) {
+    const before = nextState.children[incomingChild.id];
+    const { child, inheritedTerminalRecovery, sessionID } = resolveIncomingChild(
+      incomingChild,
+      terminalRecoveryChildren,
+    );
+    if (isNewTerminalRecoveryAlias(before, incomingChild, sessionID, inheritedTerminalRecovery)) {
+      continue;
+    }
+
+    const allowTerminalReopen = canReopenTerminalChild(incomingChild, sessionID, options.terminalRecoverySessionIDs);
+
+    changed = upsertRunningChild(nextState, child, { allowTerminalReopen }) || changed;
     if (isTerminalStatus(child.status)) {
-      changed = markChildStatus(nextState, child.id, child.status, child.endedAt ?? child.updatedAt) || changed;
+      changed =
+        markChildStatus(nextState, child.id, child.status, child.endedAt ?? child.updatedAt, {
+          allowOlderTerminalEvidence: inheritedTerminalRecovery,
+        }) || changed;
     }
 
     if (!sameChild(before, nextState.children[child.id])) {
@@ -123,9 +251,13 @@ export const reconcileChildrenState = (
     }
   }
 
+  changed = applyTerminalRecoveryToExistingAliases(nextState, terminalRecoveryChildren) || changed;
+
   for (const existing of Object.values(state.children)) {
     if (!isRealSessionChild(existing)) continue;
     if (incomingIDs.has(existing.id)) continue;
+    const existingSessionID = resolveRealSessionID(existing);
+    if (existingSessionID && options.recoverySessionIDs?.has(existingSessionID)) continue;
     if (existing.status === 'running') continue;
     nextState.purgedSessionIDs[existing.id] = true;
     delete nextState.children[existing.id];
@@ -145,4 +277,12 @@ export const reconcileChildrenState = (
     changed: changed || pruned || prunedSynthetic,
     nextState,
   };
+};
+
+export const reconcileChildrenState = (
+  state: SubagentState,
+  response: unknown,
+  options: ReconcileChildrenStateOptions = {},
+): { changed: boolean; nextState: SubagentState } => {
+  return reconcileNormalizedChildrenState(state, normalizeChildrenResponse(response), options);
 };

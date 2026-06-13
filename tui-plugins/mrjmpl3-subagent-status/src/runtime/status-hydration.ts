@@ -2,7 +2,7 @@ import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
 
 import { deriveSessionStatus, deriveTerminalSessionStatus } from '../domain/session-status.ts';
 import { markChildRunning, markChildStatus, mergeChildDetails } from '../domain/state.ts';
-import type { SubagentState } from '../domain/types.ts';
+import type { SubagentChild, SubagentState } from '../domain/types.ts';
 import { hasCompleteUsageMetrics } from '../domain/tokens.ts';
 import { hydrateDoneChildTokens } from '../infrastructure/logs.ts';
 import { isRecord, normalizedString, timestampFromUnknown } from '../shared/coercion.ts';
@@ -11,6 +11,22 @@ import { createSessionClientBoundary } from './boundaries/session-client.ts';
 import { isRealSessionRow, resolveSessionRowSessionId } from './session-row.ts';
 
 type RunningEvidenceCollector = Set<string>;
+
+type MessageSummary = { status?: 'done' | 'error'; endedAt?: string };
+
+type MessageActivity = {
+  summary: MessageSummary;
+  latestActivityAt?: string;
+  latestLiveActivityAt?: string;
+};
+
+type StatusHydrationOptions = {
+  terminalRecoverySessionIDs?: ReadonlySet<string>;
+};
+
+const isRecoveryProtectedFromRunning = (sessionId: string, options: StatusHydrationOptions | undefined): boolean => {
+  return options?.terminalRecoverySessionIDs?.has(sessionId) === true;
+};
 
 const messageInfo = (message: unknown): Record<string, unknown> | undefined => {
   const record = isRecord(message) ? message : undefined;
@@ -49,17 +65,15 @@ const messageLiveActivityAt = (message: unknown): string | undefined => {
   return messageTime(message, 'updated', 'created');
 };
 
-const latestMessagesActivityAt = (messages: readonly unknown[]): string | undefined => {
-  let latestMs = 0;
+const latestISOString = (timestampMs: number): string | undefined => {
+  return timestampMs > 0 ? new Date(timestampMs).toISOString() : undefined;
+};
 
-  for (const message of messages) {
-    const timestamp = messageLiveActivityAt(message);
-    if (!timestamp) continue;
+const maxTimestamp = (currentMs: number, timestamp: string | undefined): number => {
+  if (!timestamp) return currentMs;
 
-    latestMs = Math.max(latestMs, Date.parse(timestamp));
-  }
-
-  return latestMs > 0 ? new Date(latestMs).toISOString() : undefined;
+  const parsed = Date.parse(timestamp);
+  return Number.isNaN(parsed) ? currentMs : Math.max(currentMs, parsed);
 };
 
 const isNewerTimestamp = (candidate: string | undefined, baseline: string | undefined): boolean => {
@@ -68,35 +82,76 @@ const isNewerTimestamp = (candidate: string | undefined, baseline: string | unde
   return Date.parse(candidate) > Date.parse(baseline);
 };
 
-export const latestSessionActivityAt = (api: TuiPluginApi, sessionId: string): string | undefined => {
-  try {
-    let latestMs = 0;
-    for (const message of api.state.session.messages(sessionId)) {
-      const timestamp = messageActivityAt(message);
-      if (!timestamp) continue;
-      latestMs = Math.max(latestMs, Date.parse(timestamp));
+const emptyMessageActivity = (): MessageActivity => ({ summary: {} });
+
+const analyzeMessages = (messages: readonly unknown[]): MessageActivity => {
+  let latestActivityMs = 0;
+  let latestLiveActivityMs = 0;
+  let completedAtMs = 0;
+  let errorAtMs = 0;
+
+  for (const message of messages) {
+    latestActivityMs = maxTimestamp(latestActivityMs, messageActivityAt(message));
+    latestLiveActivityMs = maxTimestamp(latestLiveActivityMs, messageLiveActivityAt(message));
+
+    const record = isRecord(message) ? message : undefined;
+    const info = messageInfo(message);
+    const state = isRecord(record?.state) ? record.state : undefined;
+    const status =
+      deriveTerminalSessionStatus(state?.status ?? info?.status ?? record?.status ?? state ?? info ?? record) ??
+      (record?.error || info?.error || state?.error ? 'error' : undefined);
+    const type = normalizedString(record?.type ?? info?.type ?? state?.type);
+    const terminalAt =
+      messageTime(message, 'completed', 'end', 'ended', 'updated', 'created') ?? messageActivityAt(message);
+
+    if (status === 'error' && terminalAt) {
+      errorAtMs = maxTimestamp(errorAtMs, terminalAt);
+      continue;
     }
 
-    return latestMs > 0 ? new Date(latestMs).toISOString() : undefined;
+    const hasDoneSignal = status === 'done' && (type === 'session.status' || type === 'completed');
+    if (hasDoneSignal && terminalAt) {
+      completedAtMs = maxTimestamp(completedAtMs, terminalAt);
+    }
+  }
+
+  const summary: MessageSummary =
+    errorAtMs > completedAtMs
+      ? { status: 'error', endedAt: latestISOString(errorAtMs) }
+      : completedAtMs > 0
+        ? { status: 'done', endedAt: latestISOString(completedAtMs) }
+        : {};
+
+  return {
+    summary,
+    latestActivityAt: latestISOString(latestActivityMs),
+    latestLiveActivityAt: latestISOString(latestLiveActivityMs),
+  };
+};
+
+const readTuiMessageActivity = (api: TuiPluginApi, sessionId: string): MessageActivity => {
+  try {
+    return analyzeMessages(api.state.session.messages(sessionId));
   } catch {
-    return undefined;
+    return emptyMessageActivity();
   }
 };
 
-const latestLiveSessionActivityAt = (api: TuiPluginApi, sessionId: string): string | undefined => {
-  try {
-    let latestMs = 0;
-    for (const message of api.state.session.messages(sessionId)) {
-      const timestamp = messageLiveActivityAt(message);
-      if (!timestamp) continue;
+const createTuiMessageActivityCache = (api: TuiPluginApi): ((sessionId: string) => MessageActivity) => {
+  const cache = new Map<string, MessageActivity>();
 
-      latestMs = Math.max(latestMs, Date.parse(timestamp));
-    }
+  return (sessionId: string): MessageActivity => {
+    const cached = cache.get(sessionId);
+    if (cached) return cached;
 
-    return latestMs > 0 ? new Date(latestMs).toISOString() : undefined;
-  } catch {
-    return undefined;
-  }
+    const activity = readTuiMessageActivity(api, sessionId);
+    cache.set(sessionId, activity);
+    return activity;
+  };
+};
+
+export const latestSessionActivityAt = (api: TuiPluginApi, sessionId: string): string | undefined => {
+  return readTuiMessageActivity(api, sessionId).latestActivityAt;
 };
 
 export const sessionStatusEndedAt = (value: unknown): string | undefined => {
@@ -111,39 +166,29 @@ export const sessionStatusEndedAt = (value: unknown): string | undefined => {
   );
 };
 
-export const summarizeMessages = (messages: readonly unknown[]): { status?: 'done' | 'error'; endedAt?: string } => {
-  let completedAtMs = 0;
-  let errorAtMs = 0;
+export const summarizeMessages = (messages: readonly unknown[]): MessageSummary => analyzeMessages(messages).summary;
 
-  for (const message of messages) {
-    const record = isRecord(message) ? message : undefined;
-    const info = messageInfo(message);
-    const state = isRecord(record?.state) ? record.state : undefined;
-    const status =
-      deriveTerminalSessionStatus(state?.status ?? info?.status ?? record?.status ?? state ?? info ?? record) ??
-      (record?.error || info?.error || state?.error ? 'error' : undefined);
-    const type = normalizedString(record?.type ?? info?.type ?? state?.type);
-    const reason = normalizedString(record?.reason ?? info?.reason ?? state?.reason);
-    const terminalAt =
-      messageTime(message, 'completed', 'end', 'ended', 'updated', 'created') ?? messageActivityAt(message);
+const groupTargetRowsBySessionID = (
+  state: SubagentState,
+  targetSessionIDSet: ReadonlySet<string>,
+): Map<string, SubagentChild[]> => {
+  const groups = new Map<string, SubagentChild[]>();
 
-    if (status === 'error' && terminalAt) {
-      errorAtMs = Math.max(errorAtMs, Date.parse(terminalAt));
-      continue;
-    }
+  for (const child of Object.values(state.children)) {
+    if (!isRealSessionRow(child)) continue;
 
-    const hasDoneSignal =
-      (status === 'done' && (type === 'session.status' || type === 'completed')) ||
-      (type === 'step-finish' && reason === 'stop');
-    if (hasDoneSignal && terminalAt) {
-      completedAtMs = Math.max(completedAtMs, Date.parse(terminalAt));
+    const sessionId = resolveSessionRowSessionId(child);
+    if (!sessionId || !targetSessionIDSet.has(sessionId)) continue;
+
+    const group = groups.get(sessionId);
+    if (group) {
+      group.push(child);
+    } else {
+      groups.set(sessionId, [child]);
     }
   }
 
-  if (errorAtMs > completedAtMs) return { status: 'error', endedAt: new Date(errorAtMs).toISOString() };
-  if (completedAtMs > 0) return { status: 'done', endedAt: new Date(completedAtMs).toISOString() };
-
-  return {};
+  return groups;
 };
 
 export const hydrateChildStatusesFromClient = async (
@@ -151,15 +196,15 @@ export const hydrateChildStatusesFromClient = async (
   state: SubagentState,
   targetSessionIDs: readonly string[],
   runningEvidenceSessionIDs?: RunningEvidenceCollector,
+  options?: StatusHydrationOptions,
 ): Promise<boolean> => {
-  const sessionClient = createSessionClientBoundary(api);
+  if (targetSessionIDs.length === 0) return false;
 
-  const targets = Object.values(state.children).filter((child) => {
-    if (!isRealSessionRow(child)) return false;
-    const sessionId = resolveSessionRowSessionId(child);
-    return Boolean(sessionId && targetSessionIDs.includes(sessionId));
-  });
-  if (targets.length === 0) return false;
+  const sessionClient = createSessionClientBoundary(api);
+  const targetSessionIDSet = new Set(targetSessionIDs);
+
+  const targetsBySessionID = groupTargetRowsBySessionID(state, targetSessionIDSet);
+  if (targetsBySessionID.size === 0) return false;
 
   let statusBySessionID: Record<string, unknown> = {};
 
@@ -170,51 +215,69 @@ export const hydrateChildStatusesFromClient = async (
   }
 
   let changed = false;
+  const getTuiMessageActivity = createTuiMessageActivityCache(api);
 
   await Promise.all(
-    targets.map(async (child) => {
-      const sessionId = resolveSessionRowSessionId(child);
-      if (!sessionId) return;
-
+    [...targetsBySessionID.entries()].map(async ([sessionId, children]) => {
       const clientSessionStatus = statusBySessionID[sessionId];
       const clientStatus = deriveSessionStatus(clientSessionStatus);
       const clientTerminalStatus = deriveTerminalSessionStatus(clientSessionStatus);
-      let messageSummary: { status?: 'done' | 'error'; endedAt?: string } = {};
-      let latestClientActivityAt: string | undefined;
+      const blockRunningEvidence = isRecoveryProtectedFromRunning(sessionId, options);
 
-      try {
-        const messages = await sessionClient.readMessages(sessionId);
-        messageSummary = summarizeMessages(messages);
-        latestClientActivityAt = latestMessagesActivityAt(messages);
-      } catch {
-        messageSummary = {};
-        latestClientActivityAt = undefined;
-      }
+      if (clientStatus === 'running') {
+        if (blockRunningEvidence) return;
 
-      const nextStatus = clientStatus === 'running' ? 'running' : (clientTerminalStatus ?? messageSummary.status);
-      if (!nextStatus) {
-        if (isNewerTimestamp(latestClientActivityAt, child.updatedAt)) {
-          runningEvidenceSessionIDs?.add(sessionId);
-          changed = markChildRunning(state, child.id, latestClientActivityAt) || changed;
+        let clientActivity = emptyMessageActivity();
+
+        try {
+          clientActivity = analyzeMessages(await sessionClient.readMessages(sessionId));
+        } catch {
+          clientActivity = emptyMessageActivity();
+        }
+
+        const latestActivityAt =
+          clientActivity.latestLiveActivityAt ?? getTuiMessageActivity(sessionId).latestLiveActivityAt;
+
+        runningEvidenceSessionIDs?.add(sessionId);
+        for (const child of children) {
+          changed = markChildRunning(state, child.id, latestActivityAt ?? child.updatedAt) || changed;
         }
 
         return;
       }
 
-      if (nextStatus === 'running') {
-        runningEvidenceSessionIDs?.add(sessionId);
-        changed =
-          markChildRunning(state, child.id, latestLiveSessionActivityAt(api, sessionId) ?? child.updatedAt) || changed;
+      let clientActivity = emptyMessageActivity();
+
+      try {
+        clientActivity = analyzeMessages(await sessionClient.readMessages(sessionId));
+      } catch {
+        clientActivity = emptyMessageActivity();
+      }
+
+      const nextStatus = clientTerminalStatus ?? clientActivity.summary.status;
+      if (!nextStatus) {
+        if (blockRunningEvidence) return;
+
+        for (const child of children) {
+          if (!isNewerTimestamp(clientActivity.latestLiveActivityAt, child.updatedAt)) continue;
+
+          runningEvidenceSessionIDs?.add(sessionId);
+          changed = markChildRunning(state, child.id, clientActivity.latestLiveActivityAt) || changed;
+        }
+
         return;
       }
 
-      const endedAt =
-        sessionStatusEndedAt(clientSessionStatus) ??
-        messageSummary.endedAt ??
-        latestSessionActivityAt(api, sessionId) ??
-        child.endedAt ??
-        child.updatedAt;
-      changed = markChildStatus(state, child.id, nextStatus, endedAt) || changed;
+      const tuiActivity = getTuiMessageActivity(sessionId);
+      for (const child of children) {
+        const endedAt =
+          sessionStatusEndedAt(clientSessionStatus) ??
+          clientActivity.summary.endedAt ??
+          tuiActivity.latestActivityAt ??
+          child.endedAt ??
+          child.updatedAt;
+        changed = markChildStatus(state, child.id, nextStatus, endedAt) || changed;
+      }
     }),
   );
 
@@ -228,51 +291,63 @@ export const hydrateChildStatusesFromTuiState = (
   state: SubagentState,
   targetSessionIDs: readonly string[],
   runningEvidenceSessionIDs?: RunningEvidenceCollector,
+  options?: StatusHydrationOptions,
 ): boolean => {
   if (targetSessionIDs.length === 0) return false;
 
+  const targetSessionIDSet = new Set(targetSessionIDs);
+  const targetsBySessionID = groupTargetRowsBySessionID(state, targetSessionIDSet);
+  const getTuiMessageActivity = createTuiMessageActivityCache(api);
   let changed = false;
 
-  for (const child of Object.values(state.children)) {
-    if (!isRealSessionRow(child)) continue;
-
-    const sessionId = resolveSessionRowSessionId(child);
-    if (!sessionId) continue;
-    if (!targetSessionIDs.includes(sessionId)) continue;
-
-    const latestActivityAt = latestLiveSessionActivityAt(api, sessionId);
+  for (const [sessionId, children] of targetsBySessionID) {
     const sessionStatus = api.state.session.status(sessionId);
     const status = deriveSessionStatus(sessionStatus);
     const terminalStatus = deriveTerminalSessionStatus(sessionStatus);
-    const messageSummary = summarizeMessages(api.state.session.messages(sessionId));
+    const blockRunningEvidence = isRecoveryProtectedFromRunning(sessionId, options);
 
     if (status === 'running') {
+      if (blockRunningEvidence) continue;
+
+      const latestActivityAt = getTuiMessageActivity(sessionId).latestLiveActivityAt;
       runningEvidenceSessionIDs?.add(sessionId);
-      changed = markChildRunning(state, child.id, latestActivityAt ?? child.updatedAt) || changed;
+      for (const child of children) {
+        changed = markChildRunning(state, child.id, latestActivityAt ?? child.updatedAt) || changed;
+      }
       continue;
     }
 
     if (status === 'error') {
-      const endedAt = latestActivityAt ?? child.endedAt ?? child.updatedAt;
-      changed = markChildStatus(state, child.id, 'error', endedAt) || changed;
+      const latestActivityAt = getTuiMessageActivity(sessionId).latestLiveActivityAt;
+      for (const child of children) {
+        const endedAt = latestActivityAt ?? child.endedAt ?? child.updatedAt;
+        changed = markChildStatus(state, child.id, 'error', endedAt) || changed;
+      }
       continue;
     }
 
-    const nextStatus = terminalStatus ?? messageSummary.status;
+    const messageActivity = getTuiMessageActivity(sessionId);
+    const nextStatus = terminalStatus ?? messageActivity.summary.status;
     if (nextStatus) {
-      const endedAt =
-        sessionStatusEndedAt(sessionStatus) ??
-        messageSummary.endedAt ??
-        latestSessionActivityAt(api, sessionId) ??
-        child.endedAt ??
-        child.updatedAt;
-      changed = markChildStatus(state, child.id, nextStatus, endedAt) || changed;
+      for (const child of children) {
+        const endedAt =
+          sessionStatusEndedAt(sessionStatus) ??
+          messageActivity.summary.endedAt ??
+          messageActivity.latestActivityAt ??
+          child.endedAt ??
+          child.updatedAt;
+        changed = markChildStatus(state, child.id, nextStatus, endedAt) || changed;
+      }
       continue;
     }
 
-    if (isNewerTimestamp(latestActivityAt, child.updatedAt)) {
+    if (blockRunningEvidence) continue;
+
+    for (const child of children) {
+      if (!isNewerTimestamp(messageActivity.latestLiveActivityAt, child.updatedAt)) continue;
+
       runningEvidenceSessionIDs?.add(sessionId);
-      changed = markChildRunning(state, child.id, latestActivityAt) || changed;
+      changed = markChildRunning(state, child.id, messageActivity.latestLiveActivityAt) || changed;
     }
   }
 

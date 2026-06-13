@@ -23,6 +23,8 @@ export const installEventBridge = (
     return () => undefined;
   }
 
+  let disposed = false;
+
   for (const eventName of RELEVANT_EVENTS) {
     unsubs.push(
       subscribe(eventName as never, (event) => {
@@ -33,6 +35,9 @@ export const installEventBridge = (
   }
 
   const dispose = (): void => {
+    if (disposed) return;
+    disposed = true;
+
     for (const unsub of unsubs) {
       try {
         unsub();

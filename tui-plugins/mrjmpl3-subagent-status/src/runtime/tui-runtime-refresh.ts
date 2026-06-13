@@ -16,11 +16,11 @@ import {
 import type { PersistSnapshotMeta } from './persisted-snapshot.ts';
 import { normalizeEventPayload } from './boundaries/event-payload.ts';
 import { createSessionClientBoundary } from './boundaries/session-client.ts';
-import { pruneTerminalChildren } from '../domain/state.ts';
-import { normalizeChildrenResponse, reconcileChildrenState } from '../domain/reconcile.ts';
-import type { SubagentState } from '../domain/types.ts';
+import { isTerminalStatus, pruneTerminalChildren } from '../domain/state.ts';
+import { normalizeChildrenResponse, reconcileNormalizedChildrenState } from '../domain/reconcile.ts';
+import type { SubagentChild, SubagentState } from '../domain/types.ts';
 import { hydrateStateFromRecoverySources } from '../infrastructure/recovery.ts';
-import type { RecoverySource } from '../infrastructure/recovery.ts';
+import type { RecoveryResult, RecoverySource } from '../infrastructure/recovery.ts';
 import type { ResolvedSubagentStatusPluginOptions } from './options.ts';
 import type { createRuntimeSessionScopeHelpers } from './session-scope.ts';
 import { isRealSessionRow, resolveSessionRowSessionId } from './session-row.ts';
@@ -37,6 +37,66 @@ type CreatePersistMeta = (source: PersistSnapshotMeta['source']) => PersistSnaps
 type RefreshRequest = {
   sessionId: string;
   sessionToken: number;
+};
+
+const createEmptyRecoveryResult = (): RecoveryResult => ({
+  changed: false,
+  authoritativeSessionIDs: [],
+});
+
+const resolveTerminalRecoverySessionIDs = (
+  state: SubagentState,
+  authoritativeSessionIDs: ReadonlySet<string>,
+): Set<string> => {
+  const terminalSessionIDs = new Set<string>();
+
+  for (const child of Object.values(state.children)) {
+    if (!isRealSessionRow(child) || !isTerminalStatus(child.status)) continue;
+
+    const sessionId = resolveSessionRowSessionId(child);
+    if (sessionId && authoritativeSessionIDs.has(sessionId)) {
+      terminalSessionIDs.add(sessionId);
+    }
+  }
+
+  return terminalSessionIDs;
+};
+
+const hydrateRecoverySourcesSafely = async (input: {
+  state: SubagentState;
+  directory: string;
+  parentSessionID: string;
+  recoverySources: RecoverySource[];
+}): Promise<RecoveryResult> => {
+  try {
+    return await hydrateStateFromRecoverySources(
+      input.state,
+      { directory: input.directory, parentSessionID: input.parentSessionID },
+      input.recoverySources,
+    );
+  } catch {
+    return createEmptyRecoveryResult();
+  }
+};
+
+const resolveClientSnapshotSessionIDs = (children: readonly SubagentChild[]): string[] => {
+  return children
+    .filter((child) => isRealSessionRow(child))
+    .map((child) => resolveSessionRowSessionId(child))
+    .filter((candidate): candidate is string => Boolean(candidate));
+};
+
+const mergeAuthoritativeSessionIDs = (
+  recoverySessionIDs: ReadonlySet<string>,
+  children: readonly SubagentChild[],
+): Set<string> => {
+  const authoritativeSessionIDs = new Set(recoverySessionIDs);
+
+  for (const childSessionID of resolveClientSnapshotSessionIDs(children)) {
+    authoritativeSessionIDs.add(childSessionID);
+  }
+
+  return authoritativeSessionIDs;
 };
 
 export const createTuiRuntimeRefresh = (
@@ -87,16 +147,37 @@ export const createTuiRuntimeRefresh = (
     try {
       if (!sessionId) return;
 
-      const response = await sessionClient.listChildren(sessionId);
+      let nextState = structuredClone(input.state.getState());
+      const directory = api.state.path.directory;
+      const recovered = await hydrateRecoverySourcesSafely({
+        state: nextState,
+        directory,
+        parentSessionID: sessionId,
+        recoverySources: input.recoverySources,
+      });
       if (isInactiveSessionToken(sessionToken)) return;
 
-      const authoritativeSessionIDs = new Set(
-        normalizeChildrenResponse(response)
-          .filter((child) => isRealSessionRow(child))
-          .map((child) => resolveSessionRowSessionId(child))
-          .filter((candidate): candidate is string => Boolean(candidate)),
-      );
-      const { changed, nextState } = reconcileChildrenState(input.state.getState(), response);
+      const recoverySessionIDs = new Set(recovered.authoritativeSessionIDs);
+      const terminalRecoverySessionIDs = resolveTerminalRecoverySessionIDs(nextState, recoverySessionIDs);
+      let response: unknown;
+      try {
+        response = await sessionClient.listChildren(sessionId);
+      } catch {
+        if (recovered.changed) {
+          await input.syncState(nextState, input.createPersistMeta('refresh'));
+        }
+        return;
+      }
+      if (isInactiveSessionToken(sessionToken)) return;
+
+      const incomingChildren = normalizeChildrenResponse(response);
+      const authoritativeSessionIDs = mergeAuthoritativeSessionIDs(recoverySessionIDs, incomingChildren);
+      const { changed, nextState: reconciledState } = reconcileNormalizedChildrenState(nextState, incomingChildren, {
+        recoverySessionIDs,
+        terminalRecoverySessionIDs,
+      });
+      nextState = reconciledState;
+
       const staleRunningProbeTargets = resolveStaleRunningProbeTargets(
         nextState,
         input.staleRunningProbeStateBySessionId,
@@ -109,12 +190,14 @@ export const createTuiRuntimeRefresh = (
         nextState,
         staleRunningProbeTargets,
         runningEvidenceSessionIDs,
+        { terminalRecoverySessionIDs },
       );
       const clientStatusHydrated = await hydrateChildStatusesFromClient(
         api,
         nextState,
         staleRunningProbeTargets,
         runningEvidenceSessionIDs,
+        { terminalRecoverySessionIDs },
       );
       const staleRunningSettled = settleStaleRunningProbeTargets(
         nextState,
@@ -127,7 +210,14 @@ export const createTuiRuntimeRefresh = (
       );
       const pruned = pruneTerminalChildren(nextState);
       if (isInactiveSessionToken(sessionToken)) return;
-      if (!changed && !tuiStatusHydrated && !clientStatusHydrated && !staleRunningSettled && !pruned) {
+      if (
+        !recovered.changed &&
+        !changed &&
+        !tuiStatusHydrated &&
+        !clientStatusHydrated &&
+        !staleRunningSettled &&
+        !pruned
+      ) {
         return;
       }
 
@@ -137,7 +227,7 @@ export const createTuiRuntimeRefresh = (
     }
   });
 
-  const recoveryHydrationRunner = createCoalescedTaskRunner(async (request: RefreshRequest): Promise<void> => {
+  const tokenBackfillRunner = createCoalescedTaskRunner(async (request: RefreshRequest): Promise<void> => {
     const { sessionId, sessionToken } = request;
     if (isInactiveSessionToken(sessionToken)) return;
 
@@ -145,24 +235,16 @@ export const createTuiRuntimeRefresh = (
       if (!sessionId) return;
 
       const nextState = structuredClone(input.state.getState());
-      const directory = api.state.path.directory;
-      const recovered = await hydrateStateFromRecoverySources(
-        nextState,
-        { directory, parentSessionID: sessionId },
-        input.recoverySources,
-      );
-      if (isInactiveSessionToken(sessionToken)) return;
-
       const hydrated = await hydrateChildTokensFromLogs(nextState);
       const pruned = pruneTerminalChildren(nextState);
       if (isInactiveSessionToken(sessionToken)) return;
-      if (!recovered.changed && !hydrated && !pruned) {
+      if (!hydrated && !pruned) {
         return;
       }
 
       await input.syncState(nextState, input.createPersistMeta('refresh'));
     } catch {
-      // Recovery hydration is best-effort.
+      // Token backfill is best-effort.
     }
   });
 
@@ -180,7 +262,7 @@ export const createTuiRuntimeRefresh = (
     );
     if (isInactiveSessionToken(sessionToken)) return;
 
-    void recoveryHydrationRunner({ sessionId, sessionToken });
+    void tokenBackfillRunner({ sessionId, sessionToken });
   };
 
   return {

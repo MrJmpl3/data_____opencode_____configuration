@@ -267,6 +267,150 @@ describe('reconcile', () => {
     });
   });
 
+  it('does not create a running session alias targeting a terminal recovered child', () => {
+    const initial = createEmptyState();
+    initial.children.ses_child = {
+      id: 'ses_child',
+      title: 'Recovered child',
+      parentID: 'ses_parent',
+      source: 'session',
+      targetSessionID: 'ses_child',
+      status: 'done',
+      color: 'green',
+      startedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T11:56:00.000Z',
+      endedAt: '2026-06-04T11:56:00.000Z',
+    };
+
+    const result = reconcileChildrenState(
+      initial,
+      {
+        data: [
+          {
+            id: 'row_child_alias',
+            parentID: 'ses_parent',
+            title: 'Recovered child alias',
+            source: 'session',
+            targetSessionID: 'ses_child',
+            status: 'running',
+            startedAt: '2026-06-04T11:55:00.000Z',
+            updatedAt: '2026-06-04T12:00:00.000Z',
+          },
+        ],
+      },
+      { terminalRecoverySessionIDs: new Set(['ses_child']) },
+    );
+
+    expect(result.nextState.children.row_child_alias).toBeUndefined();
+  });
+
+  it('copies terminal recovery evidence to existing session aliases targeting the recovered child', () => {
+    const initial = createEmptyState();
+    initial.children.ses_child = {
+      id: 'ses_child',
+      title: 'Recovered child',
+      parentID: 'ses_parent',
+      source: 'session',
+      targetSessionID: 'ses_child',
+      status: 'done',
+      color: 'green',
+      startedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T11:56:00.000Z',
+      endedAt: '2026-06-04T11:56:00.000Z',
+    };
+    initial.children.row_child_alias = {
+      id: 'row_child_alias',
+      parentID: 'ses_parent',
+      title: 'Recovered child alias',
+      source: 'session',
+      targetSessionID: 'ses_child',
+      status: 'running',
+      startedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T12:00:00.000Z',
+    };
+
+    const result = reconcileChildrenState(
+      initial,
+      {
+        data: [
+          {
+            id: 'row_child_alias',
+            parentID: 'ses_parent',
+            title: 'Recovered child alias',
+            source: 'session',
+            targetSessionID: 'ses_child',
+            status: 'running',
+            startedAt: '2026-06-04T11:55:00.000Z',
+            updatedAt: '2026-06-04T12:00:00.000Z',
+          },
+        ],
+      },
+      { terminalRecoverySessionIDs: new Set(['ses_child']) },
+    );
+
+    expect(result.nextState.children.row_child_alias).toMatchObject({
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T11:56:00.000Z',
+      updatedAt: '2026-06-04T11:56:00.000Z',
+    });
+  });
+
+  it('copies terminal recovery evidence to persisted aliases omitted from the client snapshot', () => {
+    const initial = createEmptyState();
+    initial.updatedAt = '2026-06-04T12:00:00.000Z';
+    initial.children.ses_child = {
+      id: 'ses_child',
+      title: 'Recovered child',
+      parentID: 'ses_parent',
+      source: 'session',
+      targetSessionID: 'ses_child',
+      status: 'done',
+      color: 'green',
+      startedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T11:56:00.000Z',
+      endedAt: '2026-06-04T11:56:00.000Z',
+    };
+    initial.children.row_child_alias = {
+      id: 'row_child_alias',
+      parentID: 'ses_parent',
+      title: 'Persisted child alias',
+      source: 'session',
+      targetSessionID: 'ses_child',
+      status: 'running',
+      startedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T12:00:00.000Z',
+    };
+
+    const result = reconcileChildrenState(
+      initial,
+      {
+        data: [
+          {
+            id: 'ses_child',
+            parentID: 'ses_parent',
+            title: 'Recovered child',
+            source: 'session',
+            status: 'running',
+            startedAt: '2026-06-04T11:55:00.000Z',
+            updatedAt: '2026-06-04T12:00:00.000Z',
+          },
+        ],
+      },
+      {
+        recoverySessionIDs: new Set(['ses_child']),
+        terminalRecoverySessionIDs: new Set(['ses_child']),
+      },
+    );
+
+    expect(result.nextState.children.row_child_alias).toMatchObject({
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T11:56:00.000Z',
+      updatedAt: '2026-06-04T11:56:00.000Z',
+    });
+  });
+
   it('reopens a done child when a newer live snapshot reports it as running', () => {
     const initial = createEmptyState();
     initial.children.ses_child = {

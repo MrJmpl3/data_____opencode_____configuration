@@ -23,7 +23,10 @@ describe('tui bootstrap buffering', () => {
         ...actual,
         installEventBridge: vi.fn((api, _refresh, onEvent) => {
           capturedOnEvent = onEvent;
+          let disposed = false;
           const dispose = () => {
+            if (disposed) return;
+            disposed = true;
             bridgeDisposeCount += 1;
             capturedOnEvent = undefined;
           };

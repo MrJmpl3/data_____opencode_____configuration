@@ -2,6 +2,8 @@ import { createEmptyState } from '../domain/state.ts';
 import type { SubagentState } from '../domain/types.ts';
 import type { PersistSnapshotMeta } from './persisted-snapshot.ts';
 
+export const MAX_DEFERRED_STARTUP_SCOPED_EVENTS = 512;
+
 export const createRuntimeSessionScopeHelpers = (input: {
   getSessionId: () => string;
   setSessionId: (sessionId: string) => void;
@@ -11,6 +13,7 @@ export const createRuntimeSessionScopeHelpers = (input: {
   let activeSessionToken = 0;
   let bufferingStartupScopedEvents = true;
   const deferredStartupScopedEvents = new Map<string, unknown[]>();
+  let deferredStartupScopedEventCount = 0;
 
   const currentSessionToken = (): number => activeSessionToken;
 
@@ -36,14 +39,31 @@ export const createRuntimeSessionScopeHelpers = (input: {
     return token;
   };
 
+  const dropOldestDeferredStartupScopedEvent = (): void => {
+    const oldest = deferredStartupScopedEvents.entries().next().value;
+    if (!oldest) return;
+
+    const [sessionId, events] = oldest;
+    events.shift();
+    deferredStartupScopedEventCount = Math.max(0, deferredStartupScopedEventCount - 1);
+
+    if (events.length === 0) {
+      deferredStartupScopedEvents.delete(sessionId);
+    }
+  };
+
   const bufferStartupScopedEvent = (sessionId: string, event: unknown): void => {
     const events = deferredStartupScopedEvents.get(sessionId);
     if (events) {
       events.push(event);
-      return;
+    } else {
+      deferredStartupScopedEvents.set(sessionId, [event]);
     }
 
-    deferredStartupScopedEvents.set(sessionId, [event]);
+    deferredStartupScopedEventCount += 1;
+    while (deferredStartupScopedEventCount > MAX_DEFERRED_STARTUP_SCOPED_EVENTS) {
+      dropOldestDeferredStartupScopedEvent();
+    }
   };
 
   const replayDeferredStartupScopedEvents = async (
@@ -58,6 +78,7 @@ export const createRuntimeSessionScopeHelpers = (input: {
     if (!events || events.length === 0) return;
 
     deferredStartupScopedEvents.delete(sessionId);
+    deferredStartupScopedEventCount = Math.max(0, deferredStartupScopedEventCount - events.length);
 
     for (const event of events) {
       if (isDisposed() || sessionToken !== activeSessionToken || input.getSessionId() !== sessionId) return;

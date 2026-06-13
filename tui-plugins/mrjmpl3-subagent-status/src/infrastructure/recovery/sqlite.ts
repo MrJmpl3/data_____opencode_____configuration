@@ -6,7 +6,7 @@ import os from 'node:os';
 import type { SubagentChild, SubagentState, SubagentTokens } from '../../domain/types.ts';
 import { normalizeSubagentTokens } from '../../domain/tokens.ts';
 import { deriveTerminalSessionStatus } from '../../domain/session-status.ts';
-import { asString, isRecord, timestampFromUnknown, toFiniteNumber } from '../../shared/coercion.ts';
+import { asString, isRecord, normalizedString, timestampFromUnknown, toFiniteNumber } from '../../shared/coercion.ts';
 import { DEFAULT_STALE_RUNNING_PROBE_POLICY } from '../../runtime/options.ts';
 
 import { applyRecoveredChildren } from '../recovery.ts';
@@ -26,6 +26,7 @@ type SQLiteRecoveryRow = {
 };
 
 const NEVER_STARTED_HARD_STALE_AFTER_MS = 30 * 60_000;
+const SQLITE_RECOVERY_TIMEOUT_MS = 2_000;
 
 const mergeTokens = (
   existing: SubagentTokens | undefined,
@@ -165,6 +166,22 @@ const resolvePartTerminalTimestamp = (part: Record<string, unknown>): string | u
   );
 };
 
+const resolveExplicitSessionTerminalStatus = (
+  part: Record<string, unknown>,
+  state: Record<string, unknown> | undefined,
+): Exclude<SubagentChild['status'], 'running'> | undefined => {
+  const type = normalizedString(part.type);
+  if (type === 'session.error') return 'error';
+
+  const isSessionScopedTerminal = Boolean(type && (type.startsWith('session.') || type === 'completed'));
+  if (!isSessionScopedTerminal) return undefined;
+
+  return (
+    deriveTerminalSessionStatus(state?.status ?? part.status ?? state ?? part) ??
+    (part.error || state?.error ? 'error' : undefined)
+  );
+};
+
 export const resolveRecoveredStatus = (
   parts: readonly unknown[],
 ): {
@@ -192,11 +209,7 @@ export const resolveRecoveredStatus = (
     const rawTokens = normalizeSubagentTokens(part.tokens);
     latestTokens = mergeTokens(latestTokens, rawTokens);
 
-    const terminalStatus =
-      deriveTerminalSessionStatus(state?.status ?? part.status ?? state ?? part) ??
-      (part.error || state?.error ? 'error' : undefined);
-    const isNormalStop = part.type === 'step-finish' && part.reason === 'stop';
-    const status = isNormalStop ? 'done' : terminalStatus;
+    const status = resolveExplicitSessionTerminalStatus(part, state);
     if (!status) continue;
 
     const endedAt = resolvePartTerminalTimestamp(part);
@@ -265,6 +278,7 @@ const runSQLiteRecoveryScript = (databasePath: string, parentSessionID: string):
   const result = spawnSync('python3', ['-c', READ_SQLITE_RECOVERY_SCRIPT, databasePath, parentSessionID], {
     encoding: 'utf8',
     maxBuffer: 16 * 1024 * 1024,
+    timeout: SQLITE_RECOVERY_TIMEOUT_MS,
   });
 
   return result.status === 0 && result.stdout.trim() ? result.stdout : undefined;
