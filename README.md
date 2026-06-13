@@ -73,12 +73,12 @@ ROOT
 
 The [`plugins/`](./plugins) directory contains custom OpenCode plugin adapters.
 
-| Plugin | What it adds |
-|---|---|
-| [`mrjmpl3-engram`](./plugins/mrjmpl3-engram) | Engram memory integration: starts/connects to the local memory server, captures prompts, injects memory instructions, and avoids subagent session inflation. |
-| [`mrjmpl3-model-variants`](./plugins/mrjmpl3-model-variants) | Reads model/provider variant data from OpenCode and writes a local cache for Gentle AI. |
-| [`mrjmpl3-rtk`](./plugins/mrjmpl3-rtk) | Rewrites shell commands through `rtk rewrite` when available to reduce token usage. |
-| [`mrjmpl3-skill-registry`](./plugins/mrjmpl3-skill-registry) | Keeps the skill registry refresh behavior available through the same `mrjmpl3-*` plugin layout. |
+| Plugin                                                       | What it adds                                                                                                                                                 |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`mrjmpl3-engram`](./plugins/mrjmpl3-engram)                 | Engram memory integration: starts/connects to the local memory server, captures prompts, injects memory instructions, and avoids subagent session inflation. |
+| [`mrjmpl3-model-variants`](./plugins/mrjmpl3-model-variants) | Reads model/provider variant data from OpenCode and writes a local cache for Gentle AI.                                                                      |
+| [`mrjmpl3-rtk`](./plugins/mrjmpl3-rtk)                       | Rewrites shell commands through `rtk rewrite` when available to reduce token usage.                                                                          |
+| [`mrjmpl3-skill-registry`](./plugins/mrjmpl3-skill-registry) | Keeps the skill registry refresh behavior available through the same `mrjmpl3-*` plugin layout.                                                              |
 
 Each plugin has its own README with install, exports, and development notes.
 
@@ -88,12 +88,12 @@ Each plugin has its own README with install, exports, and development notes.
 
 The [`tui-plugins/`](./tui-plugins) directory contains OpenCode TUI extensions.
 
-| Plugin | Purpose |
-|---|---|
-| `mrjmpl3-cache` | Cache-related status information. |
-| `mrjmpl3-gentle-logo` | Gentle AI branding for the TUI. |
-| `mrjmpl3-limits` | Limit-related status information. |
-| `mrjmpl3-quota` | Provider quota display. |
+| Plugin                    | Purpose                                               |
+| ------------------------- | ----------------------------------------------------- |
+| `mrjmpl3-cache`           | Cache-related status information.                     |
+| `mrjmpl3-gentle-logo`     | Gentle AI branding for the TUI.                       |
+| `mrjmpl3-limits`          | Limit-related status information.                     |
+| `mrjmpl3-quota`           | Provider quota display.                               |
 | `mrjmpl3-subagent-status` | Subagent status, idle state, and recovery visibility. |
 
 These extensions are wired from [`tui.json`](./tui.json).
@@ -124,15 +124,15 @@ The [`commands/`](./commands) directory defines user-facing workflow commands.
 
 Important SDD-related commands include:
 
-| Command file | Purpose |
-|---|---|
-| [`sdd-new.md`](./commands/sdd-new.md) | Start a new SDD change. |
-| [`sdd-explore.md`](./commands/sdd-explore.md) | Explore an idea before committing to a change. |
-| [`sdd-ff.md`](./commands/sdd-ff.md) | Fast-forward planning phases. |
-| [`sdd-continue.md`](./commands/sdd-continue.md) | Continue the next dependency-ready phase. |
-| [`sdd-apply.md`](./commands/sdd-apply.md) | Apply implementation tasks. |
-| [`sdd-verify.md`](./commands/sdd-verify.md) | Verify implementation against specs and tasks. |
-| [`sdd-archive.md`](./commands/sdd-archive.md) | Archive completed change artifacts. |
+| Command file                                    | Purpose                                        |
+| ----------------------------------------------- | ---------------------------------------------- |
+| [`sdd-new.md`](./commands/sdd-new.md)           | Start a new SDD change.                        |
+| [`sdd-explore.md`](./commands/sdd-explore.md)   | Explore an idea before committing to a change. |
+| [`sdd-ff.md`](./commands/sdd-ff.md)             | Fast-forward planning phases.                  |
+| [`sdd-continue.md`](./commands/sdd-continue.md) | Continue the next dependency-ready phase.      |
+| [`sdd-apply.md`](./commands/sdd-apply.md)       | Apply implementation tasks.                    |
+| [`sdd-verify.md`](./commands/sdd-verify.md)     | Verify implementation against specs and tasks. |
+| [`sdd-archive.md`](./commands/sdd-archive.md)   | Archive completed change artifacts.            |
 
 The detailed phase prompts live in [`prompts/sdd/`](./prompts/sdd).
 
