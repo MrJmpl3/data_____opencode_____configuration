@@ -133,7 +133,7 @@
       "description": "Implement code changes from task definitions",
       "hidden": true,
       "mode": "subagent",
-      "model": "opencode-go/deepseek-v4-flash",
+      "model": "openrouter/deepseek/deepseek-v4-pro",
       "prompt": "{file:/home/mrjmpl3/.config/opencode/prompts/sdd/sdd-apply.md}",
       "tools": {
         "bash": true,
@@ -141,7 +141,7 @@
         "read": true,
         "write": true
       },
-      "variant": "max"
+      "variant": "high"
     },
     "sdd-archive": {
       "description": "Archive completed change artifacts",
