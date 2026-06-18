@@ -10,7 +10,7 @@
     "gentle-orchestrator": {
       "description": "Gentle AI SDD Orchestrator - coordinates sub-agents, never does work inline",
       "mode": "primary",
-      "model": "openai/gpt-5.5",
+      "model": "openai/gpt-5.4",
       "permission": {
         "task": {
           "*": "deny",
@@ -41,7 +41,7 @@
         "task": true,
         "write": true
       },
-      "variant": "xhigh"
+      "variant": "none"
     },
     "jd-fix-agent": {
       "description": "Surgical fix agent for judgment-day protocol",
@@ -61,13 +61,13 @@
       "description": "Adversarial code reviewer — blind judge A for judgment-day protocol",
       "hidden": true,
       "mode": "subagent",
-      "model": "openai/gpt-5.4",
+      "model": "openai/gpt-5.4-mini",
       "prompt": "You are a judgment-day adversarial reviewer. Execute the review instructions provided in the task prompt exactly. Do NOT delegate further. Do NOT modify any code — your job is ONLY to find problems.",
       "tools": {
         "bash": true,
         "read": true
       },
-      "variant": "xhigh"
+      "variant": "medium"
     },
     "jd-judge-b": {
       "description": "Adversarial code reviewer — blind judge B for judgment-day protocol",
@@ -375,81 +375,30 @@
       "*": "allow",
       "git commit *": "ask",
       "git push": "ask",
-      "git push --force *": "ask",
       "git push *": "ask",
+      "git push --force *": "ask",
       "git rebase *": "ask",
       "git reset --hard *": "ask"
     },
     "read": {
       "*": "allow",
-      "*.env": "deny",
-      "*.env.*": "deny",
+      "**/*.key": "deny",
+      "**/*.pem": "deny",
       "**/.aws/credentials": "deny",
       "**/.config/gh/hosts.yml": "deny",
       "**/.credentials/**": "deny",
       "**/.env": "deny",
       "**/.env.*": "deny",
       "**/.ssh/**": "deny",
-      "**/*.key": "deny",
-      "**/*.pem": "deny",
-      "**/credentials.json": "deny",
       "**/Library/Keychains/**": "deny",
-      "**/secrets/**": "deny"
+      "**/credentials.json": "deny",
+      "**/secrets/**": "deny",
+      "*.env": "deny",
+      "*.env.*": "deny"
     }
   },
   "provider": {
     "openai": {
-      "models": {
-        "gpt-5.4": {
-          "limit": {
-            "context": 272000,
-            "input": 272000,
-            "output": 128000
-          }
-        },
-        "gpt-5.4-fast": {
-          "limit": {
-            "context": 272000,
-            "input": 272000,
-            "output": 128000
-          }
-        },
-        "gpt-5.4-mini": {
-          "limit": {
-            "context": 272000,
-            "input": 272000,
-            "output": 128000
-          }
-        },
-        "gpt-5.4-mini-fast": {
-          "limit": {
-            "context": 272000,
-            "input": 272000,
-            "output": 128000
-          }
-        },
-        "gpt-5.5": {
-          "limit": {
-            "context": 272000,
-            "input": 272000,
-            "output": 128000
-          }
-        },
-        "gpt-5.5-fast": {
-          "limit": {
-            "context": 272000,
-            "input": 272000,
-            "output": 128000
-          }
-        },
-        "gpt-5.5-pro": {
-          "limit": {
-            "context": 272000,
-            "input": 272000,
-            "output": 128000
-          }
-        }
-      },
       "options": {
         "setCacheKey": true
       }
