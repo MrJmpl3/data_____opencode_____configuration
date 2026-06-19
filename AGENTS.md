@@ -4,13 +4,8 @@ Global base behavior policy for OpenCode.
 
 ## Code Comments
 
-- This rule is mandatory. If a request touches code comments in any way, load `mrjmpl3-add-educational-comments` before editing anything.
-- Write comments in Spanish unless the user explicitly asks for another language for that artifact.
-- Any request to add, improve, restructure, or rewrite comments means you must review the entire affected block, not patch isolated lines.
-- You may rewrite, merge, or remove existing comments if they are redundant, noisy, or not educational.
-- Do not comment everything. Only annotate code where an explanation is needed for intent, design, non-obvious syntax, or hidden tradeoffs.
-- Keep comments lean. Do not explain the obvious, repeat what the code already says, or add filler.
-- When improving an existing comment, replace it with a complete version. Do not append incremental edits.
+- Mandatory gate: if the request adds, edits, audits, restructures, translates, or removes code comments, load `mrjmpl3-add-educational-comments` before touching the file.
+- Follow the skill defaults for language, brevity, review-first editing, and high-signal educational value.
 
 <!-- gentle-ai:persona -->
 

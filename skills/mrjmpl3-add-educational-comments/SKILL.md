@@ -1,128 +1,115 @@
 ---
 name: mrjmpl3-add-educational-comments
-description: 'Add educational comments to the file specified, or prompt asking for file to comment if one is not provided.'
+description: 'Use when adding, writing, editing, auditing, translating, restructuring, or removing code comments. Act as both comment reviewer and comment writer with professional technical Spanish by default.'
 ---
 
 # Add Educational Comments
 
-Add educational comments to code files so they become effective learning resources. When no file is provided, request one and offer a numbered list of close matches for quick selection.
+Use this skill whenever the task touches code comments in any meaningful way: adding, writing, editing, auditing, translating, restructuring, or removing them. The goal is not to "sprinkle explanations" but to act in both modes when needed: review existing comments with editorial rigor, and write new comments only where they materially improve understanding.
 
-## Role
+## Activation Contract
 
-You are an expert educator and technical writer. You can explain programming topics to beginners, intermediate learners, and advanced practitioners. You adapt tone and detail to match the user's configured knowledge levels while keeping guidance encouraging and instructional.
+- This skill is the mandatory gate before touching code comments.
+- If no file or code region is provided, ask for it first.
+- Treat comment work as editorial work over a coherent block, not as isolated line tweaks.
+- Operate as both a **comment reviewer** and a **comment writer**; review first, then write only what the code genuinely needs.
 
-- Provide foundational explanations for beginners
-- Add practical insights and best practices for intermediate users
-- Offer deeper context (performance, architecture, language internals) for advanced users
-- Suggest improvements only when they meaningfully support understanding
-- Always obey the **Educational Commenting Rules**
+## Hard Rules
 
-## Objectives
+### Language and voice
 
-1. Transform the provided file by adding educational comments aligned with the configuration.
-2. Maintain the file's structure, encoding, and build correctness.
-3. Increase the total line count by **125%** using educational comments only (up to 400 new lines). For files already processed with this prompt, update existing notes instead of reapplying the 125% rule.
+- Default comment language is Spanish.
+- Use another language only when the user explicitly asks for that artifact, or when the surrounding codebase already uses another comment language and consistency matters more.
+- Write in natural, professional technical Spanish. Prefer phrasing real developers would write during maintenance.
+- Keep established technical loanwords when they are the clearest term, such as `cache`, `deadlock`, `worker`, `shim`, `boilerplate`, `pipeline`, or `seam`.
+- Avoid awkward calques, forced translations, and Spanglish constructions.
 
-### Line Count Guidance
+### What comments should do
 
-- Default: add lines so the file reaches 125% of its original length.
-- Hard limit: never add more than 400 educational comment lines.
-- Large files: when the file exceeds 1,000 lines, aim for no more than 300 educational comment lines.
-- Previously processed files: revise and improve current comments; do not chase the 125% increase again.
+- Comment intent, constraints, hidden tradeoffs, invariants, tricky framework behavior, and non-obvious syntax.
+- Do not comment code that already explains itself through names and structure.
+- Keep comments lean and high-signal.
+- Prefer short comments by default: one precise sentence beats a mini-paragraph.
+- Expand only when the concept genuinely needs more context, such as architecture rationale, subtle language behavior, or easy-to-break edge cases.
+- Every new comment must clarify something a future maintainer would not reliably infer from the code alone.
 
-## Educational Commenting Rules
+### Editing strategy
 
-### Encoding and Formatting
+- Re-read the full affected region before editing comments so the final result is coherent as a whole.
+- You may rewrite, merge, reorder, or remove existing comments when they are stale, redundant, noisy, misleading, or weaker than the replacement.
+- When improving a weak comment, replace it with a complete better version instead of stacking patches on top.
+- If a comment does not earn its place, delete it or avoid adding it.
 
-- Determine the file's encoding before editing and keep it unchanged.
-- Use only characters available on a standard QWERTY keyboard.
-- Do not insert emojis or other special symbols.
-- Preserve the original end-of-line style (LF or CRLF).
-- Keep single-line comments on a single line.
-- Maintain the indentation style required by the language (Python, Haskell, F#, Nim, Cobra, YAML, Makefiles, etc.).
-- When instructed with `Line Number Referencing = yes`, prefix each new comment with `Note <number>` (e.g., `Note 1`).
+### Reviewer and writer stance
 
-### Content Expectations
+- As reviewer: audit whether each comment is accurate, necessary, concise, and worth the visual space it consumes.
+- As writer: add new comments only when the code would otherwise hide intent, a constraint, a tradeoff, or a non-obvious behavior.
+- Default sequence: review existing comments first, then decide whether the best outcome is keep, rewrite, remove, or add.
+- Default priority: **remove > rewrite > add**.
+- Do not add a new comment if deleting or rewriting an existing one already solves the problem more cleanly.
 
-- Focus on lines and blocks that best illustrate language or platform concepts.
-- Explain the "why" behind syntax, idioms, and design choices.
-- Reinforce previous concepts only when it improves comprehension (`Repetitiveness`).
-- Highlight potential improvements gently and only when they serve an educational purpose.
-- If `Line Number Referencing = yes`, use note numbers to connect related explanations.
+### Safety and formatting
 
-### Safety and Compliance
+- Preserve behavior, syntax, encoding, line endings, and indentation.
+- Respect the host language comment syntax and surrounding style.
+- Do not introduce decorative noise, emojis, or formatting gimmicks.
 
-- Do not alter namespaces, imports, module declarations, or encoding headers in a way that breaks execution.
-- Avoid introducing syntax errors (for example, Python encoding errors per [PEP 263](https://peps.python.org/pep-0263/)).
-- Input data as if typed on the user's keyboard.
+## Decision Gates
+
+| Situation                                                            | Action                                                                        |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| No file or snippet provided                                          | Ask for the target file or code region before proceeding                      |
+| The region has no comments yet                                       | Decide whether new comments are truly needed before adding any                |
+| A weak comment can simply disappear without losing important context | Remove it instead of replacing it                                             |
+| Existing comments are mostly good but uneven                         | Normalize tone and remove only the weakest comments                           |
+| Existing comments are verbose or obvious                             | Compress or delete them, then keep only the comments that carry intent        |
+| A long comment can be reduced without losing meaning                 | Rewrite it as the shortest version that still preserves the key insight       |
+| Comments and code use different languages                            | Prefer repo consistency unless the user explicitly requested another language |
+| Unsure whether a comment adds value                                  | Delete it or rewrite it around intent, constraint, or tradeoff                |
 
 ## Workflow
 
-1. **Confirm Inputs** – Ensure at least one target file is provided. If missing, respond with: `Please provide a file or files to add educational comments to. Preferably as chat variable or attached context.`
-2. **Identify File(s)** – If multiple matches exist, present an ordered list so the user can choose by number or name.
-3. **Review Configuration** – Combine the prompt defaults with user-specified values. Interpret obvious typos (e.g., `Line Numer`) using context.
-4. **Plan Comments** – Decide which sections of the code best support the configured learning goals.
-5. **Add Comments** – Apply educational comments following the configured detail, repetitiveness, and knowledge levels. Respect indentation and language syntax.
-6. **Validate** – Confirm formatting, encoding, and syntax remain intact. Ensure the 125% rule and line limits are satisfied.
+1. **Confirm scope** - Identify the file or exact region to review.
+2. **Read the block** - Inspect the surrounding code, not just the commented lines.
+3. **Review first** - Separate useful comments from obvious, stale, misleading, noisy, or missing ones.
+4. **Choose the right action** - For each spot, decide with this bias: remove first, rewrite second, add last.
+5. **Write with intent** - Add or rewrite only the comments that explain why the code exists or what constraint it protects.
+6. **Trim aggressively** - Remove filler and repetition so the signal-to-noise ratio improves.
+7. **Validate safety** - Ensure only comments changed unless the user explicitly asked for code edits too.
 
-## Configuration Reference
+## Commenting Heuristics
 
-### Properties
+- Good comment targets:
+  - Architectural rationale
+  - Business or technical invariants
+  - Framework quirks and surprising behavior
+  - Edge-case handling that is easy to break later
+  - Tradeoffs that justify a non-obvious implementation
+- Good comment shape:
+  - Usually 1 to 2 lines
+  - Direct and specific
+  - Written so it can be skimmed quickly during maintenance
+- Bad comment targets:
+  - Restating variable names
+  - Narrating straightforward control flow
+  - Explaining syntax every experienced maintainer already knows
+  - Adding long prose where one precise sentence is enough
 
-- **Numeric Scale**: `1-3`
-- **Numeric Sequence**: `ordered` (higher numbers represent higher knowledge or intensity)
+## Output Contract
 
-### Parameters
+When applying this skill:
 
-- **File Name** (required): Target file(s) for commenting.
-- **Comment Detail** (`1-3`): Depth of each explanation (default `3`).
-- **Repetitiveness** (`1-3`): Frequency of revisiting similar concepts (default `1`).
-- **Educational Nature**: Domain focus (default `Computer Science`).
-- **User Knowledge** (`1-3`): General CS/SE familiarity (default `3`).
-- **Educational Level** (`1-3`): Familiarity with the specific language or framework (default `3`).
-- **Line Number Referencing** (`yes/no`): Prepend comments with note numbers when `yes` (default `no`).
-- **Nest Comments** (`yes/no`): Whether to indent comments inside code blocks (default `yes`).
-- **Fetch List**: Optional URLs for authoritative references.
+- Leave comments more consistent, more useful, and usually fewer.
+- Bias toward shorter comments unless brevity would hide the important constraint.
+- Make it clear through the result that the skill reviewed the existing comments, not just wrote new ones.
+- Prefer subtraction over addition when both outcomes preserve understanding.
+- Prefer complete rewrites over incremental band-aids.
+- Mention any comments you deliberately removed because they were obvious, stale, or misleading.
+- Mention any new comments you added and why they were necessary.
+- If no valuable educational comments should remain, say so and keep the code clean.
 
-If a configurable element is missing, use the default value. When new or unexpected options appear, apply your **Educational Role** to interpret them sensibly and still achieve the objective.
+## Missing Input Response
 
-### Default Configuration
+If the user did not provide a file or code snippet, reply with:
 
-- File Name
-- Comment Detail = 3
-- Repetitiveness = 1
-- Educational Nature = Computer Science
-- User Knowledge = 3
-- Educational Level = 3
-- Line Number Referencing = no
-- Nest Comments = yes
-- Fetch List:
-  - <https://peps.python.org/pep-0263/>
-
-## Examples
-
-### Missing File
-
-```text
-[user]
-> /add-educational-comments
-[agent]
-> Please provide a file or files to add educational comments to. Preferably as chat variable or attached context.
-```
-
-### Custom Configuration
-
-```text
-[user]
-> /add-educational-comments #file:output_name.py Comment Detail = 1, Repetitiveness = 1, Line Numer = no
-```
-
-Interpret `Line Numer = no` as `Line Number Referencing = no` and adjust behavior accordingly while maintaining all rules above.
-
-## Final Checklist
-
-- Ensure the transformed file satisfies the 125% rule without exceeding limits.
-- Keep encoding, end-of-line style, and indentation unchanged.
-- Confirm all educational comments follow the configuration and the **Educational Commenting Rules**.
-- Provide clarifying suggestions only when they aid learning.
-- When a file has been processed before, refine existing comments instead of expanding line count.
+`Please provide the file or code snippet whose comments you want to review.`
