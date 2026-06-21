@@ -78,12 +78,12 @@ ROOT
 
 The [`plugins/`](./plugins) directory contains custom OpenCode plugin adapters.
 
-| Plugin                                 | What it adds                                                                                                                                                 |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`engram.ts`](./plugins/engram.ts)     | Engram memory integration: starts/connects to the local memory server, captures prompts, injects memory instructions, and avoids subagent session inflation. |
-| [`model-variants.ts`](./plugins/model-variants.ts) | Reads model/provider variant data from OpenCode and writes a local cache for Gentle AI.                                                          |
-| [`rtk.ts`](./plugins/rtk.ts)           | Rewrites shell commands through `rtk rewrite` when available to reduce token usage.                                                                          |
-| [`skill-registry.ts`](./plugins/skill-registry.ts) | Refreshes the local skill registry from the flattened plugin entrypoint layout.                                                               |
+| Plugin                                             | What it adds                                                                                                                                                 |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`engram.ts`](./plugins/engram.ts)                 | Engram memory integration: starts/connects to the local memory server, captures prompts, injects memory instructions, and avoids subagent session inflation. |
+| [`model-variants.ts`](./plugins/model-variants.ts) | Reads model/provider variant data from OpenCode and writes a local cache for Gentle AI.                                                                      |
+| [`rtk.ts`](./plugins/rtk.ts)                       | Rewrites shell commands through `rtk rewrite` when available to reduce token usage.                                                                          |
+| [`skill-registry.ts`](./plugins/skill-registry.ts) | Refreshes the local skill registry from the flattened plugin entrypoint layout.                                                                              |
 
 These plugins now live as flat runtime entrypoints under [`plugins/`](./plugins).
 
@@ -270,12 +270,12 @@ ROOT
 
 El directorio [`plugins/`](./plugins) contiene adaptadores de plugins personalizados para OpenCode.
 
-| Plugin                                         | Qué agrega                                                                                                                                                   |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`engram.ts`](./plugins/engram.ts)             | Integración con memoria Engram: inicia o conecta el servidor local, captura prompts, inyecta instrucciones de memoria y evita inflar sesiones de subagentes. |
-| [`model-variants.ts`](./plugins/model-variants.ts) | Lee datos de variantes de modelos/proveedores desde OpenCode y escribe una caché local para Gentle AI.                                                   |
-| [`rtk.ts`](./plugins/rtk.ts)                   | Reescribe comandos de shell mediante `rtk rewrite` cuando está disponible para reducir uso de tokens.                                                        |
-| [`skill-registry.ts`](./plugins/skill-registry.ts) | Actualiza el registro local de skills desde el layout aplanado de entrypoints de plugins.                                                               |
+| Plugin                                             | Qué agrega                                                                                                                                                   |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`engram.ts`](./plugins/engram.ts)                 | Integración con memoria Engram: inicia o conecta el servidor local, captura prompts, inyecta instrucciones de memoria y evita inflar sesiones de subagentes. |
+| [`model-variants.ts`](./plugins/model-variants.ts) | Lee datos de variantes de modelos/proveedores desde OpenCode y escribe una caché local para Gentle AI.                                                       |
+| [`rtk.ts`](./plugins/rtk.ts)                       | Reescribe comandos de shell mediante `rtk rewrite` cuando está disponible para reducir uso de tokens.                                                        |
+| [`skill-registry.ts`](./plugins/skill-registry.ts) | Actualiza el registro local de skills desde el layout aplanado de entrypoints de plugins.                                                                    |
 
 Estos plugins ahora viven como entrypoints planos de runtime dentro de [`plugins/`](./plugins).
 
