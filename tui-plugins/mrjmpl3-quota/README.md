@@ -16,7 +16,7 @@ For each provider, the plugin displays:
 
 | Provider         | Data shown                                                                                             | Auth                                                              |
 | ---------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| `opencode-go`    | Rolling 5h, Weekly, Monthly windows + Monthly pace                                                     | `OPENCODE_GO_WORKSPACE_ID` + `OPENCODE_GO_AUTH_COOKIE`            |
+| `opencode-go`    | Rolling 5h, Weekly, Monthly windows + Monthly pace                                                     | `OPENCODE_GO_AUTH_COOKIE` + local workspace source                |
 | `github-copilot` | Monthly window + Monthly pace                                                                          | `auth.json` (oauth entry `github-copilot`)                        |
 | `openrouter`     | Credit balance                                                                                         | `OPENROUTER_API_KEY` or `~/.config/opencode/openrouter-auth.json` |
 | `openai`         | 5h, Weekly, Code windows + Weekly pace + compact additional rate limits + Reset credits (experimental) | `auth.json` (oauth entry `openai`)                                |
@@ -130,12 +130,40 @@ Base backoff duration when a provider returns a **rate-limit error** (HTTP 429, 
 
 ### OpenCode Go
 
-Required to display the OpenCode Go provider:
+The auth cookie is always read from the environment:
+
+```bash
+export OPENCODE_GO_AUTH_COOKIE="Fe26.2**..."
+```
+
+Choose exactly one workspace source:
+
+1. Preferred: point `OPENCODE_GO_WORKSPACES_FILE` at a local JSON file with an array of `{ workspaceId, label }` entries.
+
+   ```bash
+   export OPENCODE_GO_WORKSPACES_FILE="$HOME/.config/opencode/go-workspaces.json"
+   ```
+
+   ```json
+   [
+     { "workspaceId": "wrk_123", "label": "Personal" },
+     { "workspaceId": "wrk_456", "label": "Team" }
+   ]
+   ```
+
+2. Fallback: set `OPENCODE_GO_WORKSPACES` to the same JSON array as a string.
+
+   ```bash
+   export OPENCODE_GO_WORKSPACES='[{"workspaceId":"wrk_123","label":"Personal"}]'
+   ```
+
+3. Legacy single-workspace fallback: set `OPENCODE_GO_WORKSPACE_ID`.
 
 ```bash
 export OPENCODE_GO_WORKSPACE_ID="wrk_..."
-export OPENCODE_GO_AUTH_COOKIE="Fe26.2**..."
 ```
+
+If the file or JSON source is present but empty or invalid, the plugin skips OpenCode Go rendering and does not fall back to `OPENCODE_GO_WORKSPACE_ID`.
 
 The workspace ID is visible in your dashboard URL: `https://opencode.ai/workspace/<ID>/go`
 

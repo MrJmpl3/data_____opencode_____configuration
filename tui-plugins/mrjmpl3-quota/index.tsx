@@ -12,6 +12,7 @@ import { registerQuotaTui } from './src/runtime/runtime.tsx';
 export { resolveQuotaPluginOptions, normalizeQuotaPluginOptions } from './src/runtime/options.ts';
 export type { QuotaPluginConfigEntry, QuotaPluginOptions, ResolvedQuotaPluginOptions } from './src/runtime/options.ts';
 export type {
+  OpenCodeGoWorkspaceConfig,
   OpenAIResetCredit,
   OpenAIResetCreditStatus,
   OpenAIResetCreditsResult,

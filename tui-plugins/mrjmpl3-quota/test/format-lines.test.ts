@@ -4,7 +4,7 @@ import { MONTH_SECONDS, WEEK_SECONDS } from '../src/domain/format.ts';
 import { detailTextLine, headingLine, paceLine, renderQuotaLine, windowLine } from '../src/domain/lines.ts';
 import type { OpenAIResetCreditsResult } from '../src/domain/types.ts';
 import { formatCopilotLines } from '../src/infrastructure/providers/copilot.ts';
-import { formatGoLines } from '../src/infrastructure/providers/go.ts';
+import { formatGoLines, formatGoWorkspaceLines } from '../src/infrastructure/providers/go.ts';
 import { formatOpenAILines } from '../src/infrastructure/providers/openai.ts';
 import { formatOpenRouterLines } from '../src/infrastructure/providers/openrouter.ts';
 
@@ -59,6 +59,23 @@ describe('formatGoLines', () => {
       windowLine('Mo', '75%', 3600, fetchedAtMs, 'neutral', 25),
       paceLine({ usedPct: 25, resetSec: 3600 }, MONTH_SECONDS, fetchedAtMs),
     ]);
+  });
+});
+
+describe('formatGoWorkspaceLines', () => {
+  it('prefixes workspace headings with the provider name', () => {
+    expect(
+      formatGoWorkspaceLines(
+        { workspaceId: 'wrk-team-a', label: 'Work 1' },
+        {
+          rolling: { used: 10, remaining: 90, resetInSec: 300 },
+          weekly: null,
+          monthly: null,
+        },
+        'used',
+        fetchedAtMs,
+      ),
+    ).toEqual([headingLine('OpenCode Go (Work 1)'), windowLine('5h', '10%', 300, fetchedAtMs, 'neutral', 10)]);
   });
 });
 

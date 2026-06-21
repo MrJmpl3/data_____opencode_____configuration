@@ -187,6 +187,8 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
     providerErrorBackoffMs: providerErrorBackoffMilliseconds,
     experimentalOpenAIResetCredits,
   } = resolvedOptions;
+  const goConfig = readGoConfig();
+  const shouldDisplayGoProvider = Boolean(goConfig && goConfig.workspaces.length > 0);
   const expiryRefreshIntervalMs = Math.max(minRefreshIntervalMs, providerCacheTtlMilliseconds);
   const { providerCache, getCachedProviderLines, invalidateVisibleData } = createQuotaProviderCache({
     providerCacheTtlMilliseconds,
@@ -227,6 +229,7 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
     for (const provider of visibleProviders) {
       const result = results.get(provider.id);
       if (result === undefined) continue;
+      if (Array.isArray(result) && result.length === 0) continue;
       if (result === null) {
         items.push(headingLine(provider.label));
         items.push(detailTextLine('Refreshing…'));
@@ -245,6 +248,7 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
     const refreshingResults = new Map<QuotaProviderId, ProviderResult>();
 
     for (const provider of visibleProviders) {
+      if (provider.id === 'opencode-go' && !shouldDisplayGoProvider) continue;
       refreshingResults.set(provider.id, null);
     }
 
@@ -325,10 +329,9 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
     const currentVersion = ++inFlightVersion;
     const currentGeneration = refreshGeneration;
     const results = new Map<QuotaProviderId, ProviderResult>();
-    const goConfig = readGoConfig();
 
     for (const provider of visibleProviders) {
-      if (provider.id === 'opencode-go' && !goConfig) continue;
+      if (provider.id === 'opencode-go' && !shouldDisplayGoProvider) continue;
       results.set(provider.id, providerCache.get(provider.id)?.value ?? null);
     }
 
