@@ -1,9 +1,15 @@
 import type { QuotaLine } from './lines.ts';
 import type { QuotaDisplayMode, QuotaProviderId } from './types.ts';
 import { fetchCopilotQuota, formatCopilotLines } from '../infrastructure/providers/copilot.ts';
-import { fetchGoDashboard, formatGoLines, readGoConfig } from '../infrastructure/providers/go.ts';
+import {
+  fetchGoDashboard,
+  formatGoWorkspaceHeading,
+  formatGoWorkspaceLines,
+  readGoConfig,
+} from '../infrastructure/providers/go.ts';
 import { fetchOpenAIQuota, formatOpenAILines } from '../infrastructure/providers/openai.ts';
 import { fetchOpenRouterQuota, formatOpenRouterLines } from '../infrastructure/providers/openrouter.ts';
+import { detailTextLine, headingLine } from './lines.ts';
 
 export type GoConfig = ReturnType<typeof readGoConfig>;
 type CachedProviderValue = QuotaLine[] | string;
@@ -23,14 +29,33 @@ export const fetchProviderLines = async (args: FetchProviderLinesArgs): Promise<
 
   switch (providerId) {
     case 'opencode-go': {
-      if (!goConfig) return undefined;
-
-      const result = await fetchGoDashboard(goConfig.workspaceId, goConfig.authCookie);
-      if (!('data' in result)) return result.error;
+      if (!goConfig || goConfig.workspaces.length === 0) return [];
 
       const fetchedAtMs = Date.now();
+      const settledWorkspaces = await Promise.all(
+        goConfig.workspaces.map(async (workspace) => {
+          try {
+            return {
+              workspace,
+              result: await fetchGoDashboard(workspace.workspaceId, goConfig.authCookie),
+            };
+          } catch (error: unknown) {
+            return {
+              workspace,
+              result: { error: error instanceof Error ? error.message : String(error) },
+            };
+          }
+        }),
+      );
+
       setNowMs(fetchedAtMs);
-      return formatGoLines(result.data, displayMode, fetchedAtMs);
+      return settledWorkspaces.flatMap(({ workspace, result }) => {
+        if ('data' in result) {
+          return formatGoWorkspaceLines(workspace, result.data, displayMode, fetchedAtMs);
+        }
+
+        return [headingLine(formatGoWorkspaceHeading(workspace.label)), detailTextLine(result.error, 'error')];
+      });
     }
 
     case 'github-copilot': {

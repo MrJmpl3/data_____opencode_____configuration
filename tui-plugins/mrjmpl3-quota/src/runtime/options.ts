@@ -1,4 +1,9 @@
-import type { ProviderSpec, QuotaDisplayMode, QuotaPluginOptions, QuotaProviderId } from '../domain/types.ts';
+import type {
+  ProviderSpec,
+  QuotaDisplayMode,
+  QuotaPluginOptions,
+  QuotaProviderId,
+} from '../domain/types.ts';
 
 export type { QuotaPluginOptions } from '../domain/types.ts';
 
@@ -136,37 +141,39 @@ const getBooleanOption = (options: unknown, key: keyof QuotaPluginOptions): bool
 export const inspectQuotaPluginOptions = (options: unknown): InspectedQuotaPluginOptions => {
   const visibleProviders = inspectVisibleProviders(options);
 
+  const resolvedOptions: ResolvedQuotaPluginOptions = {
+    displayMode: getDisplayModeSetting(options),
+    visibleProviders: visibleProviders.visibleProviders,
+    pollIntervalMs: getNumberOption(
+      options,
+      'pollIntervalMs',
+      DEFAULT_POLL_INTERVAL_MS,
+      MIN_SAFE_REFRESH_INTERVAL_MS,
+      true,
+    ),
+    minRefreshIntervalMs: getNumberOption(
+      options,
+      'minRefreshIntervalMs',
+      DEFAULT_MIN_REFRESH_INTERVAL_MS,
+      MIN_SAFE_REFRESH_INTERVAL_MS,
+    ),
+    providerCacheTtlMs: getNumberOption(
+      options,
+      'providerCacheTtlMs',
+      DEFAULT_PROVIDER_CACHE_TTL_MS,
+      MIN_SAFE_CACHE_TTL_MS,
+    ),
+    providerErrorBackoffMs: getNumberOption(
+      options,
+      'providerErrorBackoffMs',
+      DEFAULT_PROVIDER_ERROR_BACKOFF_MS,
+      MIN_SAFE_CACHE_TTL_MS,
+    ),
+    experimentalOpenAIResetCredits: getBooleanOption(options, 'experimentalOpenAIResetCredits'),
+  };
+
   return {
-    options: {
-      displayMode: getDisplayModeSetting(options),
-      visibleProviders: visibleProviders.visibleProviders,
-      pollIntervalMs: getNumberOption(
-        options,
-        'pollIntervalMs',
-        DEFAULT_POLL_INTERVAL_MS,
-        MIN_SAFE_REFRESH_INTERVAL_MS,
-        true,
-      ),
-      minRefreshIntervalMs: getNumberOption(
-        options,
-        'minRefreshIntervalMs',
-        DEFAULT_MIN_REFRESH_INTERVAL_MS,
-        MIN_SAFE_REFRESH_INTERVAL_MS,
-      ),
-      providerCacheTtlMs: getNumberOption(
-        options,
-        'providerCacheTtlMs',
-        DEFAULT_PROVIDER_CACHE_TTL_MS,
-        MIN_SAFE_CACHE_TTL_MS,
-      ),
-      providerErrorBackoffMs: getNumberOption(
-        options,
-        'providerErrorBackoffMs',
-        DEFAULT_PROVIDER_ERROR_BACKOFF_MS,
-        MIN_SAFE_CACHE_TTL_MS,
-      ),
-      experimentalOpenAIResetCredits: getBooleanOption(options, 'experimentalOpenAIResetCredits'),
-    },
+    options: resolvedOptions,
     diagnostics: {
       invalidVisibleProviderEntries: visibleProviders.invalidVisibleProviderEntries,
       fellBackToDefaultVisibleProviders: visibleProviders.fellBackToDefaultVisibleProviders,

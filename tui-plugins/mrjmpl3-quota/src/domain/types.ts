@@ -2,6 +2,11 @@ export type QuotaProviderId = 'opencode-go' | 'github-copilot' | 'openrouter' | 
 export type QuotaDisplayMode = 'remaining' | 'used';
 export type QuotaLineTone = 'neutral' | 'success' | 'warning' | 'error';
 
+export interface OpenCodeGoWorkspaceConfig {
+  workspaceId: string;
+  label: string;
+}
+
 export interface QuotaPluginOptions {
   displayMode?: QuotaDisplayMode;
   visibleProviders?: readonly string[];
