@@ -4,176 +4,176 @@
 version: 2
 updates:
   # Root npm dependencies
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/Lima"
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'America/Lima'
     commit-message:
-      prefix: "chore"
-      include: "scope"
+      prefix: 'chore'
+      include: 'scope'
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
+      - 'dependencies'
     groups:
       opencode-ecosystem:
         patterns:
-          - "@opencode-ai/*"
-          - "@opentui/*"
+          - '@opencode-ai/*'
+          - '@opentui/*'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
       solid-ecosystem:
         patterns:
-          - "solid-js"
+          - 'solid-js'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
       dev-dependencies:
         patterns:
-          - "*"
+          - '*'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
 
   # TUI plugin: mrjmpl3-subagent-status
-  - package-ecosystem: "npm"
-    directory: "/tui-plugins/mrjmpl3-subagent-status"
+  - package-ecosystem: 'npm'
+    directory: '/tui-plugins/mrjmpl3-subagent-status'
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/Lima"
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'America/Lima'
     commit-message:
-      prefix: "chore"
-      include: "scope"
+      prefix: 'chore'
+      include: 'scope'
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
+      - 'dependencies'
     groups:
       opencode-ecosystem:
         patterns:
-          - "@opencode-ai/*"
-          - "@opentui/*"
+          - '@opencode-ai/*'
+          - '@opentui/*'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
       solid-ecosystem:
         patterns:
-          - "solid-js"
+          - 'solid-js'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
       dev-dependencies:
         patterns:
-          - "*"
+          - '*'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
 
   # TUI plugin: mrjmpl3-cache
-  - package-ecosystem: "npm"
-    directory: "/tui-plugins/mrjmpl3-cache"
+  - package-ecosystem: 'npm'
+    directory: '/tui-plugins/mrjmpl3-cache'
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/Lima"
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'America/Lima'
     commit-message:
-      prefix: "chore"
-      include: "scope"
+      prefix: 'chore'
+      include: 'scope'
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
+      - 'dependencies'
     groups:
       opencode-ecosystem:
         patterns:
-          - "@opencode-ai/*"
-          - "@opentui/*"
+          - '@opencode-ai/*'
+          - '@opentui/*'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
       solid-ecosystem:
         patterns:
-          - "solid-js"
+          - 'solid-js'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
       dev-dependencies:
         patterns:
-          - "*"
+          - '*'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
 
   # TUI plugin: mrjmpl3-limits
-  - package-ecosystem: "npm"
-    directory: "/tui-plugins/mrjmpl3-limits"
+  - package-ecosystem: 'npm'
+    directory: '/tui-plugins/mrjmpl3-limits'
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/Lima"
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'America/Lima'
     commit-message:
-      prefix: "chore"
-      include: "scope"
+      prefix: 'chore'
+      include: 'scope'
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
+      - 'dependencies'
     groups:
       opencode-ecosystem:
         patterns:
-          - "@opencode-ai/*"
-          - "@opentui/*"
+          - '@opencode-ai/*'
+          - '@opentui/*'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
       solid-ecosystem:
         patterns:
-          - "solid-js"
+          - 'solid-js'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
       dev-dependencies:
         patterns:
-          - "*"
+          - '*'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
 
   # TUI plugin: mrjmpl3-quota
-  - package-ecosystem: "npm"
-    directory: "/tui-plugins/mrjmpl3-quota"
+  - package-ecosystem: 'npm'
+    directory: '/tui-plugins/mrjmpl3-quota'
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "America/Lima"
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+      timezone: 'America/Lima'
     commit-message:
-      prefix: "chore"
-      include: "scope"
+      prefix: 'chore'
+      include: 'scope'
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
+      - 'dependencies'
     groups:
       opencode-ecosystem:
         patterns:
-          - "@opencode-ai/*"
-          - "@opentui/*"
+          - '@opencode-ai/*'
+          - '@opentui/*'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
       solid-ecosystem:
         patterns:
-          - "solid-js"
+          - 'solid-js'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
       dev-dependencies:
         patterns:
-          - "*"
+          - '*'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'

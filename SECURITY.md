@@ -2,15 +2,15 @@
 
 ## Supported Versions
 
-This repository is a personal OpenCode configuration workspace. There are no
-release versions — security updates are applied directly to `main` as
-dependencies are updated.
+This repository is a personal OpenCode configuration workspace. There are no release versions —
+security updates are applied directly to `main` as dependencies are updated.
 
 ## Reporting a Vulnerability
 
 This is a personal configuration repository. Security issues are handled via Dependabot PRs.
 
-If you find a vulnerability, open an [issue](https://github.com/MrJmpl3/opencode_____data_____configuration/issues).
+If you find a vulnerability, open an
+[issue](https://github.com/MrJmpl3/opencode_____data_____configuration/issues).
 
 ## Dependencies
 

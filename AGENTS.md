@@ -9,6 +9,31 @@ Global base behavior policy for OpenCode.
 - Follow the skill defaults for language, brevity, review-first editing, and high-signal educational
   value.
 
+## Commits
+
+- Mandatory gate: if the request involves committing, staging, amending, or creating a commit
+  (including `git commit`, staged changes, or equivalents), load `mrjmpl3-commit-staged` before
+  proceeding.
+- Follow the skill defaults for conventional commits, staged validation, and commit message
+  generation.
+
+## Init Deep
+
+- Mandatory gate: if the request involves generating, updating, or auditing AGENTS.md files,
+  hierarchical agent instructions, or project context initialization (including `init deep`,
+  `generar agents`, or equivalents), load `mrjmpl3-init-deep` before proceeding.
+- Follow the skill defaults for codebase scanning, delta detection, and structured AGENTS.md
+  generation.
+
+## Browser Automation
+
+- Mandatory gate: if the request involves interacting with websites, browser automation, scraping,
+  web app testing, taking screenshots, filling forms, or automating any web-related task (including
+  "open a website", "fill a form", "click a button", "take a screenshot", "scrape data", "test this
+  web app", "login to a site", or equivalents), load `agent-browser` before proceeding.
+- Follow the skill defaults for browser-based workflows, preferring agent-browser over any built-in
+  browser automation.
+
 <!-- gentle-ai:persona -->
 
 ## Rules

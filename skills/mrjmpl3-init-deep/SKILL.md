@@ -19,23 +19,23 @@ Do NOT use it for modifying application code — this skill only generates instr
 
 ## Critical Rules
 
-| Rule | Explanation |
-| --- | --- |
-| Identify project root first | If inside `~/.config/opencode`, only proceed if the user explicitly confirms. Otherwise ask which project to scan. |
-| OpenCode repo is special | If the target IS this OpenCode config repo, read `oh-my-opencode-slim.json`, `opencode.jsonc`, and `tui.jsonc` before drafting. |
-| Read before writing | Inspect existing `AGENTS.md`, `.opencode/AGENTS.md`, `README*`, contributing docs, manifests, and config files. |
-| Do not modify application code | This command generates instruction files only — never touch source code. |
-| Preserve useful content | Merge with existing `AGENTS.md` content instead of blindly replacing it. |
-| No invention | Do not invent conventions; if something is inferred, state it as an inference or leave it out. |
+| Rule                           | Explanation                                                                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Identify project root first    | If inside `~/.config/opencode`, only proceed if the user explicitly confirms. Otherwise ask which project to scan.              |
+| OpenCode repo is special       | If the target IS this OpenCode config repo, read `oh-my-opencode-slim.json`, `opencode.jsonc`, and `tui.jsonc` before drafting. |
+| Read before writing            | Inspect existing `AGENTS.md`, `.opencode/AGENTS.md`, `README*`, contributing docs, manifests, and config files.                 |
+| Do not modify application code | This command generates instruction files only — never touch source code.                                                        |
+| Preserve useful content        | Merge with existing `AGENTS.md` content instead of blindly replacing it.                                                        |
+| No invention                   | Do not invent conventions; if something is inferred, state it as an inference or leave it out.                                  |
 
 ## Execution Steps
 
 1. Identify the real project root. If the current directory is `~/.config/opencode`, ask the user
    which project to scan unless the request explicitly targets this OpenCode config repo.
-2. Load matching skills before writing: load `customize-opencode` when the target is OpenCode config;
-   load `scan` when it clearly fits broad AGENTS generation.
-3. Read existing instruction files: `AGENTS.md`, `.opencode/AGENTS.md`, `README*`, contributing docs,
-   package manifests, framework config, build/test scripts, and any existing per-directory
+2. Load matching skills before writing: load `customize-opencode` when the target is OpenCode
+   config; load `scan` when it clearly fits broad AGENTS generation.
+3. Read existing instruction files: `AGENTS.md`, `.opencode/AGENTS.md`, `README*`, contributing
+   docs, package manifests, framework config, build/test scripts, and any existing per-directory
    `AGENTS.md`.
 4. If the target is this OpenCode config repo, also read `oh-my-opencode-slim.json`,
    `opencode.jsonc`, and `tui.jsonc` as source-of-truth files.

@@ -2,8 +2,8 @@
 name: mrjmpl3-commit-staged
 description:
   'Trigger: commit staged, staged commit, commit staged changes, git commit, validar cambios staged.
-  Validate staged changes, check for whitespace errors and conflict markers, and create a conventional
-  commit with a generated message.'
+  Validate staged changes, check for whitespace errors and conflict markers, and create a
+  conventional commit with a generated message.'
 license: Apache-2.0
 metadata:
   author: mrjmpl3
@@ -18,13 +18,13 @@ or amending commits.
 
 ## Critical Rules
 
-| Rule                                    | Explanation                                                                        |
-| --------------------------------------- | ---------------------------------------------------------------------------------- |
-| Stop on empty staged                    | If nothing is staged, report and stop — do not commit.                             |
-| Stop on whitespace/conflict errors      | Run `diff --cached --check`. If it reports errors, show output and stop.           |
-| No unstaged files                       | Only commit what is staged — never `git add` extra files.                          |
-| No amend                                | Never use `--amend`. Create a new commit.                                          |
-| Must confirm commit success             | Run `git status` after committing to verify.                                       |
+| Rule                               | Explanation                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| Stop on empty staged               | If nothing is staged, report and stop — do not commit.                   |
+| Stop on whitespace/conflict errors | Run `diff --cached --check`. If it reports errors, show output and stop. |
+| No unstaged files                  | Only commit what is staged — never `git add` extra files.                |
+| No amend                           | Never use `--amend`. Create a new commit.                                |
+| Must confirm commit success        | Run `git status` after committing to verify.                             |
 
 ## Execution Steps
 
@@ -32,8 +32,8 @@ or amending commits.
 2. If the output is empty, stop immediately and report: "No staged files found. Stage files with
    `git add` first."
 3. Run `git diff --cached --check` to catch whitespace errors and conflict markers.
-4. If `git diff --cached --check` reports any problems, stop immediately and report the exact output.
-   Do not commit.
+4. If `git diff --cached --check` reports any problems, stop immediately and report the exact
+   output. Do not commit.
 5. Run `git diff --cached` to read the full diff of staged changes.
 6. Generate a commit message following these rules:
    - Format: `<emoji> <type>(<scope>): <description>`
