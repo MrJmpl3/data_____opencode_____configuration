@@ -409,6 +409,5 @@ app/
 ## Related Skills
 
 - **[nuxt-models](../../0132-nuxt-models/SKILL.md)** - Models for hydration
-- **[nuxt-features](../../0129-nuxt-features/SKILL.md)** - Using repositories in
-  queries/mutations
+- **[nuxt-features](../../0129-nuxt-features/SKILL.md)** - Using repositories in queries/mutations
 - **[nuxt-config](../../0126-nuxt-config/SKILL.md)** - Repository configuration
