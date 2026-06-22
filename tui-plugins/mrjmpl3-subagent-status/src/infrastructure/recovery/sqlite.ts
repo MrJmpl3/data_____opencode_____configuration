@@ -4,15 +4,16 @@ import { join } from 'node:path';
 import os from 'node:os';
 
 import type { SubagentChild, SubagentState, SubagentTokens } from '../../domain/types.ts';
-import { normalizeSubagentTokens } from '../../domain/tokens.ts';
+import { mergeSubagentTokens, normalizeSubagentTokens } from '../../domain/tokens.ts';
 import { deriveTerminalSessionStatus } from '../../domain/session-status.ts';
+import { debugLog } from '../../shared/debug.ts';
 import { asString, isRecord, normalizedString, timestampFromUnknown, toFiniteNumber } from '../../shared/coercion.ts';
 import { DEFAULT_STALE_RUNNING_PROBE_POLICY } from '../../runtime/options.ts';
 
 import { applyRecoveredChildren } from '../recovery.ts';
 import type { RecoveryContext, RecoveryResult, RecoverySource } from '../recovery.ts';
 
-type SQLiteRecoveryRow = {
+export type SQLiteRecoveryRow = {
   id: string;
   parentID: string;
   title: string;
@@ -44,20 +45,6 @@ type MappedRecoveredChild = {
 
 const NEVER_STARTED_HARD_STALE_AFTER_MS = 30 * 60_000;
 const SQLITE_RECOVERY_TIMEOUT_MS = 2_000;
-
-const mergeTokens = (
-  existing: SubagentTokens | undefined,
-  incoming: SubagentTokens | undefined,
-): SubagentTokens | undefined => {
-  if (!existing && !incoming) return undefined;
-
-  return {
-    input: incoming?.input ?? existing?.input,
-    output: incoming?.output ?? existing?.output,
-    total: incoming?.total ?? existing?.total,
-    contextPercent: incoming?.contextPercent ?? existing?.contextPercent,
-  };
-};
 
 const READ_SQLITE_RECOVERY_SCRIPT = `
 import json, sqlite3, sys
@@ -460,7 +447,7 @@ export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStat
 
     const state = isRecord(part.state) ? part.state : undefined;
     const rawTokens = normalizeSubagentTokens(part.tokens);
-    latestTokens = mergeTokens(latestTokens, rawTokens);
+    latestTokens = mergeSubagentTokens(latestTokens, rawTokens);
 
     if (normalizedString(part.type) === 'step-start') {
       const startedAt = resolvePartStartTimestamp(part);
@@ -486,14 +473,14 @@ export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStat
       if (ambiguousStatus === 'error') {
         if (endedAtMs >= ambiguousErrorAtMs) {
           ambiguousErrorAtMs = endedAtMs;
-          errorTokens = mergeTokens(errorTokens, rawTokens);
+          errorTokens = mergeSubagentTokens(errorTokens, rawTokens);
         }
         continue;
       }
 
       if (endedAtMs >= ambiguousCompletedAtMs) {
         ambiguousCompletedAtMs = endedAtMs;
-        completedTokens = mergeTokens(completedTokens, rawTokens);
+        completedTokens = mergeSubagentTokens(completedTokens, rawTokens);
       }
       continue;
     }
@@ -501,7 +488,7 @@ export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStat
     const endedAt = resolvePartTerminalTimestamp(part);
     if (!endedAt) {
       fallbackTerminalStatus = status;
-      fallbackTerminalTokens = mergeTokens(fallbackTerminalTokens, rawTokens);
+      fallbackTerminalTokens = mergeSubagentTokens(fallbackTerminalTokens, rawTokens);
       continue;
     }
 
@@ -509,7 +496,7 @@ export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStat
     if (status === 'error') {
       if (endedAtMs >= errorAtMs) {
         errorAtMs = endedAtMs;
-        errorTokens = mergeTokens(errorTokens, rawTokens);
+        errorTokens = mergeSubagentTokens(errorTokens, rawTokens);
       }
 
       continue;
@@ -517,7 +504,7 @@ export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStat
 
     if (endedAtMs >= completedAtMs) {
       completedAtMs = endedAtMs;
-      completedTokens = mergeTokens(completedTokens, rawTokens);
+      completedTokens = mergeSubagentTokens(completedTokens, rawTokens);
     }
   }
 
@@ -528,7 +515,7 @@ export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStat
       status: 'error',
       updatedAt: endedAt,
       endedAt,
-      tokens: mergeTokens(latestTokens, errorTokens),
+      tokens: mergeSubagentTokens(latestTokens, errorTokens),
       evidence: 'explicit',
     };
   }
@@ -540,7 +527,7 @@ export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStat
       status: 'done',
       updatedAt: endedAt,
       endedAt,
-      tokens: mergeTokens(latestTokens, completedTokens),
+      tokens: mergeSubagentTokens(latestTokens, completedTokens),
       evidence: 'explicit',
     };
   }
@@ -550,7 +537,7 @@ export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStat
       status: fallbackTerminalStatus,
       updatedAt: undefined,
       endedAt: undefined,
-      tokens: mergeTokens(latestTokens, fallbackTerminalTokens),
+      tokens: mergeSubagentTokens(latestTokens, fallbackTerminalTokens),
       evidence: 'explicit',
     };
   }
@@ -564,7 +551,7 @@ export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStat
       status: ambiguousStatus,
       updatedAt: endedAt,
       endedAt,
-      tokens: mergeTokens(latestTokens, ambiguousStatus === 'error' ? errorTokens : completedTokens),
+      tokens: mergeSubagentTokens(latestTokens, ambiguousStatus === 'error' ? errorTokens : completedTokens),
       evidence: 'ambiguous',
     };
   }
@@ -578,14 +565,14 @@ export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStat
 };
 
 const runSQLiteRecoveryScript = (databasePath: string, parentSessionID: string): string | undefined => {
-  console.log(`[subagent-status] runSQLiteRecoveryScript called: db=${databasePath} parent=${parentSessionID}`);
+  debugLog(`[subagent-status] runSQLiteRecoveryScript called: db=${databasePath} parent=${parentSessionID}`);
   const result = spawnSync('python3', ['-c', READ_SQLITE_RECOVERY_SCRIPT, databasePath, parentSessionID], {
     encoding: 'utf8',
     maxBuffer: 16 * 1024 * 1024,
     timeout: SQLITE_RECOVERY_TIMEOUT_MS,
   });
 
-  console.log(
+  debugLog(
     `[subagent-status] python result: status=${result.status} stdout_len=${result.stdout?.length ?? 0} stderr=${result.stderr?.slice(0, 200) ?? ''}`,
   );
   return result.status === 0 && result.stdout.trim() ? result.stdout : undefined;
@@ -627,7 +614,10 @@ const normalizeSQLiteRecoveryRow = (input: unknown): SQLiteRecoveryRow | undefin
   };
 };
 
-const readSQLiteRecoveryRows = async (databasePath: string, parentSessionID: string): Promise<SQLiteRecoveryRow[]> => {
+export const readSQLiteRecoveryRows = async (
+  databasePath: string,
+  parentSessionID: string,
+): Promise<SQLiteRecoveryRow[]> => {
   if (!existsSync(databasePath)) return [];
 
   const stdout = runSQLiteRecoveryScript(databasePath, parentSessionID);
@@ -704,18 +694,18 @@ export const createSQLiteRecoverySource = (
     hydrateState: async (state: SubagentState, context: RecoveryContext): Promise<RecoveryResult | undefined> => {
       const parentSessionID = context.parentSessionID;
       if (!parentSessionID) {
-        console.log('[subagent-status] hydrateState: no parentSessionID, skipping');
+        debugLog('[subagent-status] hydrateState: no parentSessionID, skipping');
         return undefined;
       }
 
-      console.log(`[subagent-status] hydrateState: parent=${parentSessionID} db=${databasePath}`);
+      debugLog(`[subagent-status] hydrateState: parent=${parentSessionID} db=${databasePath}`);
       const rows = await readSQLiteRecoveryRows(databasePath, parentSessionID);
-      console.log(`[subagent-status] hydrateState: rows=${rows.length}`);
+      debugLog(`[subagent-status] hydrateState: rows=${rows.length}`);
       if (rows.length === 0) return undefined;
 
       const mappedChildren = rows.map((row) => mapRecoveredChild(row, hardStaleAfterMs));
       const statuses = mappedChildren.map(({ child }) => child.status);
-      console.log(`[subagent-status] hydrateState: statuses=${JSON.stringify(statuses)}`);
+      debugLog(`[subagent-status] hydrateState: statuses=${JSON.stringify(statuses)}`);
 
       return applyRecoveredChildren(
         state,

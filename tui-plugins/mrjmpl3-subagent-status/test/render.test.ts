@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { collapseSubagentWorkItems } from '../src/ui/view-model/collapse.ts';
 import { buildSubagentSnapshotView } from '../src/ui/view-model/snapshot-view.ts';
-import { renderStatusLine } from '../src/ui/view-model/status-line.ts';
+import { renderStatusLine, renderStatusSnapshotLine } from '../src/ui/view-model/status-line.ts';
 import { splitSidebarVisibleSections, visibleSubagentWorkItems } from '../src/ui/view-model/visibility.ts';
 import { DEFAULT_SUBAGENT_VISIBILITY_POLICY } from '../src/shared/visibility.ts';
+import { hydrateSnapshotChild } from '../src/runtime/snapshot.ts';
 import {
   formatContextCompact,
   formatCount,
@@ -390,7 +391,10 @@ describe('render', () => {
       endedAt: '2026-06-04T09:30:00.000Z',
     });
 
-    const view = buildSubagentSnapshotView([recentDone, staleDone], nowMs);
+    const view = buildSubagentSnapshotView(
+      [recentDone, staleDone].map((c) => hydrateSnapshotChild(c, nowMs)),
+      nowMs,
+    );
 
     expect(view.trackedCounts).toEqual({ running: 0, done: 2, stale: 0, error: 0 });
     expect(view.visibleCounts).toEqual({ running: 0, done: 1, stale: 0, error: 0 });
@@ -414,5 +418,107 @@ describe('render', () => {
     expect(statusColor('done')).toBe('green');
     expect(statusColor('stale')).toBe('red');
     expect(statusColor('error')).toBe('red');
+  });
+
+  it('returns syncing indicator from renderStatusLine when state.recovering is true', () => {
+    const state: SubagentState = {
+      children: {},
+      countedChildIDs: {},
+      purgedSessionIDs: {},
+      totalExecuted: 0,
+      updatedAt: '2026-06-04T12:00:00.000Z',
+      recovering: true,
+    };
+
+    const result = renderStatusLine(state);
+    expect(result).toBe('⟳ syncing...');
+  });
+
+  it('returns syncing indicator from renderStatusSnapshotLine when state.recovering is true', () => {
+    const state: SubagentState = {
+      children: {},
+      countedChildIDs: {},
+      purgedSessionIDs: {},
+      totalExecuted: 0,
+      updatedAt: '2026-06-04T12:00:00.000Z',
+      recovering: true,
+    };
+
+    const result = renderStatusSnapshotLine(state);
+    expect(result).toBe('⟳ syncing...');
+  });
+
+  it('returns normal aggregate when state.recovering is false', () => {
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+    const state: SubagentState = {
+      children: {},
+      countedChildIDs: {},
+      purgedSessionIDs: {},
+      totalExecuted: 0,
+      updatedAt: '2026-06-04T12:00:00.000Z',
+      recovering: false,
+    };
+
+    const result = renderStatusLine(state, nowMs);
+    expect(result).toContain('Subagents:');
+  });
+
+  it('renders localized aggregate labels in Spanish for renderStatusLine', async () => {
+    vi.resetModules();
+    process.env.LANG = 'es_AR.UTF-8';
+
+    const { renderStatusLine: renderEs } = await import('../src/ui/view-model/status-line.ts');
+
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+    const state: SubagentState = {
+      children: {
+        ses_running: child({ id: 'ses_running', status: 'running', color: 'yellow' }),
+        ses_done: child({
+          id: 'ses_done',
+          status: 'done',
+          color: 'green',
+          endedAt: '2026-06-04T11:59:00.000Z',
+          updatedAt: '2026-06-04T11:59:00.000Z',
+        }),
+        ses_error: child({
+          id: 'ses_error',
+          status: 'error',
+          color: 'red',
+          endedAt: '2026-06-04T11:58:00.000Z',
+          updatedAt: '2026-06-04T11:58:00.000Z',
+        }),
+      },
+      countedChildIDs: {},
+      purgedSessionIDs: {},
+      totalExecuted: 3,
+      updatedAt: '2026-06-04T12:00:00.000Z',
+    };
+
+    const result = renderEs(state, nowMs);
+    expect(result).toContain('Subagentes:');
+    expect(result).toContain('act');
+    expect(result).toContain('listo');
+    expect(result).toContain('err');
+  });
+
+  it('renders localized snapshot aggregate labels in Spanish for renderStatusSnapshotLine', async () => {
+    vi.resetModules();
+    process.env.LANG = 'es_AR.UTF-8';
+
+    const { renderStatusSnapshotLine: renderSnapshotEs } = await import('../src/ui/view-model/status-line.ts');
+
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+    const state: SubagentState = {
+      children: {
+        ses_running: child({ id: 'ses_running', status: 'running', color: 'yellow' }),
+      },
+      countedChildIDs: {},
+      purgedSessionIDs: {},
+      totalExecuted: 1,
+      updatedAt: '2026-06-04T12:00:00.000Z',
+    };
+
+    const result = renderSnapshotEs(state, nowMs);
+    expect(result).toContain('Subagentes snapshot:');
   });
 });

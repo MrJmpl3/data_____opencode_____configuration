@@ -5,6 +5,7 @@ import { markChildRunning, markChildStatus, mergeChildDetails } from '../domain/
 import type { SubagentChild, SubagentState } from '../domain/types.ts';
 import { hasCompleteUsageMetrics } from '../domain/tokens.ts';
 import { hydrateDoneChildTokens } from '../infrastructure/logs.ts';
+import { debugLog } from '../shared/debug.ts';
 import { isRecord, normalizedString, timestampFromUnknown } from '../shared/coercion.ts';
 
 import { createSessionClientBoundary } from './boundaries/session-client.ts';
@@ -22,6 +23,15 @@ type MessageActivity = {
 
 type StatusHydrationOptions = {
   terminalRecoverySessionIDs?: ReadonlySet<string>;
+};
+
+/**
+ * Strategy for reading session status and message activity from different sources.
+ * Used by wrapper functions to abstract how status/activity data is obtained.
+ */
+type HydrationStrategy = {
+  readSessionStatus: (sessionId: string) => unknown;
+  readMessageActivity: (sessionId: string) => MessageActivity;
 };
 
 const isRecoveryProtectedFromRunning = (sessionId: string, options: StatusHydrationOptions | undefined): boolean => {
@@ -232,6 +242,76 @@ const groupTargetRowsBySessionID = (
   return groups;
 };
 
+/**
+ * Shared per-session hydration logic.
+ *
+ * Determines whether a set of children targeting the same session should be
+ * marked running or terminal based on the session status and message activity.
+ * Returns true if any child state was modified.
+ *
+ * Callers (wrapper functions) are responsible for reading the session status
+ * and message activity according to their source (client API vs TUI state),
+ * and for handling any source-specific special cases (e.g. TUI error early
+ * path, client running timestamp enrichment).
+ */
+const hydrateChildFromSessionActivity = (
+  sessionId: string,
+  children: SubagentChild[],
+  sessionStatus: unknown,
+  messageActivity: MessageActivity,
+  state: SubagentState,
+  runningEvidenceIDs: RunningEvidenceCollector | undefined,
+  options: StatusHydrationOptions | undefined,
+): boolean => {
+  const status = deriveSessionStatus(sessionStatus);
+  const terminalStatus = deriveTerminalSessionStatus(sessionStatus);
+  const blockRunningEvidence = isRecoveryProtectedFromRunning(sessionId, options);
+
+  // Running path
+  if (status === 'running') {
+    if (blockRunningEvidence) return false;
+
+    runningEvidenceIDs?.add(sessionId);
+    let changed = false;
+    for (const child of children) {
+      changed = markChildRunning(state, child.id, messageActivity.latestLiveActivityAt ?? child.updatedAt) || changed;
+    }
+    return changed;
+  }
+
+  // Terminal / validation path
+  const nextStatus = terminalStatus ?? messageActivity.summary.status;
+  if (nextStatus) {
+    if (!terminalStatus && messageActivity.summary.evidence === 'ambiguous' && runningEvidenceIDs?.has(sessionId)) {
+      return false;
+    }
+
+    let changed = false;
+    for (const child of children) {
+      const endedAt =
+        sessionStatusEndedAt(sessionStatus) ??
+        messageActivity.summary.endedAt ??
+        messageActivity.latestActivityAt ??
+        child.endedAt ??
+        child.updatedAt;
+      changed = markChildStatus(state, child.id, nextStatus, endedAt) || changed;
+    }
+    return changed;
+  }
+
+  // No terminal status — check for running evidence from newer activity
+  if (blockRunningEvidence) return false;
+
+  let changed = false;
+  for (const child of children) {
+    if (!isNewerTimestamp(messageActivity.latestLiveActivityAt, child.updatedAt)) continue;
+
+    runningEvidenceIDs?.add(sessionId);
+    changed = markChildRunning(state, child.id, messageActivity.latestLiveActivityAt) || changed;
+  }
+  return changed;
+};
+
 export const hydrateChildStatusesFromClient = async (
   api: TuiPluginApi,
   state: SubagentState,
@@ -262,12 +342,13 @@ export const hydrateChildStatusesFromClient = async (
     [...targetsBySessionID.entries()].map(async ([sessionId, children]) => {
       const clientSessionStatus = statusBySessionID[sessionId];
       const clientStatus = deriveSessionStatus(clientSessionStatus);
-      const clientTerminalStatus = deriveTerminalSessionStatus(clientSessionStatus);
       const blockRunningEvidence = isRecoveryProtectedFromRunning(sessionId, options);
+      const clientTerminalStatus = deriveTerminalSessionStatus(clientSessionStatus);
 
+      // Running path — client-specific: enriches timestamp with TUI live activity fallback
       if (clientStatus === 'running') {
         if (blockRunningEvidence) {
-          console.log(`[subagent-status] hydration-client: ${sessionId} protected from running (recovery terminal)`);
+          debugLog(`[subagent-status] hydration-client: ${sessionId} protected from running (recovery terminal)`);
           return;
         }
 
@@ -290,6 +371,7 @@ export const hydrateChildStatusesFromClient = async (
         return;
       }
 
+      // Non-running — read client messages and build activity
       let clientActivity = emptyMessageActivity();
 
       try {
@@ -299,40 +381,30 @@ export const hydrateChildStatusesFromClient = async (
       }
 
       const nextStatus = clientTerminalStatus ?? clientActivity.summary.status;
-      console.log(
+      debugLog(
         `[subagent-status] hydration-client: ${sessionId} clientStatus=${clientStatus} clientTerminal=${clientTerminalStatus} nextStatus=${nextStatus}`,
       );
-      if (!nextStatus) {
-        if (blockRunningEvidence) return;
 
-        for (const child of children) {
-          if (!isNewerTimestamp(clientActivity.latestLiveActivityAt, child.updatedAt)) continue;
-
-          runningEvidenceSessionIDs?.add(sessionId);
-          changed = markChildRunning(state, child.id, clientActivity.latestLiveActivityAt) || changed;
-        }
-
-        return;
-      }
-
-      if (
-        !clientTerminalStatus &&
-        clientActivity.summary.evidence === 'ambiguous' &&
-        runningEvidenceSessionIDs?.has(sessionId)
-      ) {
-        return;
-      }
-
+      // Enrich latestActivityAt with TUI fallback (for terminal path endedAt)
+      // latestLiveActivityAt is NOT enriched (no-status running evidence uses client-only timestamps)
       const tuiActivity = getTuiMessageActivity(sessionId);
-      for (const child of children) {
-        const endedAt =
-          sessionStatusEndedAt(clientSessionStatus) ??
-          clientActivity.summary.endedAt ??
-          tuiActivity.latestActivityAt ??
-          child.endedAt ??
-          child.updatedAt;
-        changed = markChildStatus(state, child.id, nextStatus, endedAt) || changed;
-      }
+      const enrichedActivity: MessageActivity = {
+        summary: clientActivity.summary,
+        latestActivityAt: clientActivity.latestActivityAt ?? tuiActivity.latestActivityAt,
+        latestLiveActivityAt: clientActivity.latestLiveActivityAt,
+      };
+
+      // Delegate all non-running paths (no-status running evidence, terminal, ambiguous guard) to shared function
+      changed =
+        hydrateChildFromSessionActivity(
+          sessionId,
+          children,
+          clientSessionStatus,
+          enrichedActivity,
+          state,
+          runningEvidenceSessionIDs,
+          options,
+        ) || changed;
     }),
   );
 
@@ -357,22 +429,13 @@ export const hydrateChildStatusesFromTuiState = (
 
   for (const [sessionId, children] of targetsBySessionID) {
     const sessionStatus = api.state.session.status(sessionId);
-    const status = deriveSessionStatus(sessionStatus);
-    const terminalStatus = deriveTerminalSessionStatus(sessionStatus);
-    const blockRunningEvidence = isRecoveryProtectedFromRunning(sessionId, options);
 
-    if (status === 'running') {
+    // TUI-specific early error path: uses latestLiveActivityAt for endedAt
+    // (different from the standard endedAt chain used by the shared function)
+    if (deriveSessionStatus(sessionStatus) === 'error') {
+      const blockRunningEvidence = isRecoveryProtectedFromRunning(sessionId, options);
       if (blockRunningEvidence) continue;
 
-      const latestActivityAt = getTuiMessageActivity(sessionId).latestLiveActivityAt;
-      runningEvidenceSessionIDs?.add(sessionId);
-      for (const child of children) {
-        changed = markChildRunning(state, child.id, latestActivityAt ?? child.updatedAt) || changed;
-      }
-      continue;
-    }
-
-    if (status === 'error') {
       const latestActivityAt = getTuiMessageActivity(sessionId).latestLiveActivityAt;
       for (const child of children) {
         const endedAt = latestActivityAt ?? child.endedAt ?? child.updatedAt;
@@ -381,37 +444,18 @@ export const hydrateChildStatusesFromTuiState = (
       continue;
     }
 
+    // All other paths (running, terminal from messages, running evidence) handled by shared logic
     const messageActivity = getTuiMessageActivity(sessionId);
-    const nextStatus = terminalStatus ?? messageActivity.summary.status;
-    if (nextStatus) {
-      if (
-        !terminalStatus &&
-        messageActivity.summary.evidence === 'ambiguous' &&
-        runningEvidenceSessionIDs?.has(sessionId)
-      ) {
-        continue;
-      }
-
-      for (const child of children) {
-        const endedAt =
-          sessionStatusEndedAt(sessionStatus) ??
-          messageActivity.summary.endedAt ??
-          messageActivity.latestActivityAt ??
-          child.endedAt ??
-          child.updatedAt;
-        changed = markChildStatus(state, child.id, nextStatus, endedAt) || changed;
-      }
-      continue;
-    }
-
-    if (blockRunningEvidence) continue;
-
-    for (const child of children) {
-      if (!isNewerTimestamp(messageActivity.latestLiveActivityAt, child.updatedAt)) continue;
-
-      runningEvidenceSessionIDs?.add(sessionId);
-      changed = markChildRunning(state, child.id, messageActivity.latestLiveActivityAt) || changed;
-    }
+    changed =
+      hydrateChildFromSessionActivity(
+        sessionId,
+        children,
+        sessionStatus,
+        messageActivity,
+        state,
+        runningEvidenceSessionIDs,
+        options,
+      ) || changed;
   }
 
   if (changed) state.updatedAt = new Date().toISOString();

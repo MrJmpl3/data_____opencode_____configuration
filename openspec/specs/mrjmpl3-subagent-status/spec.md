@@ -59,10 +59,11 @@ completion or error evidence is present.
 - THEN the row MUST update to `error`
 - AND the row MUST NOT remain stuck in a false done state
 
-### Requirement: Token and context hydration
+### Requirement: Token and context hydration (internal merge tokens consolidated)
 
 The system MUST hydrate completed child rows with token totals or context percentage when
-recoverable. If no usable token data exists, the row MUST still render without token metadata.
+recoverable. If no usable token data exists, the row MUST still render without token metadata. All
+token-merge logic SHALL use the canonical `mergeSubagentTokens` from `domain/tokens.ts`.
 
 #### Scenario: Completed row shows token metadata
 
@@ -81,8 +82,8 @@ recoverable. If no usable token data exists, the row MUST still render without t
 ### Requirement: Recovery hydration prefers authoritative state
 
 The system MUST hydrate missing state and token metadata from the best available recovery source.
-When recovery data conflicts with stale local legacy rows, the recovery state MUST win and the stale
-row SHOULD be replaced or removed.
+Recovery state MUST win over stale local rows. Recovery SQL MUST use parameterized placeholders.
+(Previously: No SQL injection prevention specified)
 
 #### Scenario: Recovery fills missing token metadata
 
@@ -97,6 +98,13 @@ row SHOULD be replaced or removed.
 - WHEN recovery data shows the same row as terminal
 - THEN the terminal recovery state MUST win
 - AND the stale running state MUST NOT be restored
+
+#### Scenario: parentSessionID is always parameterized
+
+- GIVEN the recovery SQLite script runs
+- WHEN querying sessions by parent ID
+- THEN the query MUST use a `?` placeholder
+- AND the value passes in the execute parameters tuple
 
 ### Requirement: Stale-row retention is bounded
 
@@ -136,3 +144,134 @@ expose keyboard shortcuts, focus restoration, or command-palette controls.
 - WHEN the plugin renders the status area or the user presses keyboard keys
 - THEN the aggregate counters MUST match the visible rows
 - AND no keyboard-driven control or focus behavior MUST be available
+
+### Requirement: Token merge uses canonical implementation
+
+The system MUST consolidate all `mergeTokens` logic into the domain-layer `mergeSubagentTokens`.
+Duplicates in infrastructure SHALL be removed and rewired to the canonical source.
+
+#### Scenario: All token merging uses domain import
+
+- GIVEN `logs.ts` and `sqlite.ts` define local `mergeTokens` copies
+- WHEN the code is refactored
+- THEN both MUST import `mergeSubagentTokens` from `domain/tokens.ts`
+- AND local copies MUST be removed
+
+### Requirement: Recovery SQL queries use parameterized placeholders
+
+Recovery SQLite integration MUST use `?` parameterized placeholders instead of string interpolation
+for `parentSessionID` to prevent injection.
+
+#### Scenario: parentSessionID is parameterized
+
+- GIVEN the Python recovery script receives a `parentSessionID`
+- WHEN it executes the SQL query
+- THEN the value MUST pass via the `(parent_id,)` parameter tuple
+- AND the query MUST NOT use f-string interpolation
+
+### Requirement: Snapshot hydration is called once per child
+
+`buildSubagentSnapshotView` in `snapshot-view.ts` MUST accept pre-hydrated children and MUST NOT
+call `hydrateSnapshotChild` internally. All callers (`buildTuiSnapshot`, `renderStatusLine`,
+`renderStatusSnapshotLine`) SHALL hydrate children before calling `buildSubagentSnapshotView`. There
+SHALL be exactly ONE canonical definition of `hydrateSnapshotChild` (with full `color` + `elapsedMs`
+resolution). The duplicate definition in `snapshot-view.ts` MUST be removed.
+
+#### Scenario: No duplicate hydration call
+
+- GIVEN `snapshot.ts` builds a snapshot from children
+- WHEN `buildTuiSnapshot` is invoked
+- THEN `hydrateSnapshotChild` MUST be called once per child via `.map()`
+- AND `buildSubagentSnapshotView` MUST NOT hydrate children internally
+
+#### Scenario: Single canonical hydrateSnapshotChild definition
+
+- GIVEN the codebase after consolidation
+- WHEN searching for `hydrateSnapshotChild` function definitions
+- THEN exactly ONE definition MUST exist (in `snapshot.ts`)
+- AND it MUST resolve both `color` via `statusColor()` and `elapsedMs` via `resolveElapsedMs()`
+- AND the duplicate in `snapshot-view.ts` MUST be removed
+
+#### Scenario: renderStatusLine hydrates before building view
+
+- GIVEN `renderStatusLine` is called with raw `state.children`
+- WHEN it builds the snapshot view
+- THEN it MUST hydrate children via the canonical `hydrateSnapshotChild` BEFORE passing to
+  `buildSubagentSnapshotView`
+- AND `buildSubagentSnapshotView` MUST receive children with both `color` and `elapsedMs` resolved
+
+#### Scenario: buildTuiSnapshot path passes pre-hydrated children
+
+- GIVEN `buildTuiSnapshot` is called
+- WHEN it hydrates children with `hydrateSnapshotChild`
+- THEN the hydrated children MUST be passed to `buildSubagentSnapshotView`
+- AND `buildSubagentSnapshotView` MUST NOT hydrate them a second time
+
+### Requirement: Status line aggregate uses i18n keys
+
+`renderAggregate` and `renderSnapshotAggregate` in `status-line.ts` MUST use `t()`-based i18n
+lookups instead of hardcoded English strings. The `subagents_snapshot` i18n key SHALL be added to
+`runtime/i18n.ts` for the "Subagents snapshot:" prefix. The `renderSnapshotAggregate` function MUST
+NOT rely on regex `.replace()` on a hardcoded English prefix.
+
+#### Scenario: Status line renders localized aggregate labels
+
+- GIVEN the system locale is `es`
+- WHEN `renderStatusLine(state, nowMs)` is called with a non-empty state
+- THEN the aggregate prefix MUST use `t('subagents')` ("Subagentes")
+- AND the status suffixes MUST use `t('run')`, `t('done')`, `t('err')` instead of hardcoded "run",
+  "done", "err"
+
+#### Scenario: Snapshot aggregate uses dedicated i18n key
+
+- GIVEN the system locale is `es`
+- WHEN `renderStatusSnapshotLine(state, nowMs)` is called
+- THEN the aggregate prefix MUST use `t('subagents_snapshot')` (e.g., "Subagentes snapshot:")
+- AND no regex-based string replacement on English text SHALL exist in `renderSnapshotAggregate`
+
+#### Scenario: i18n keys exist for all aggregate labels
+
+- GIVEN the `Translations` object in `runtime/i18n.ts`
+- WHEN the locale is `en` or `es`
+- THEN `t('subagents')`, `t('subagents_snapshot')`, `t('run')`, `t('done')`, `t('err')` MUST all
+  return non-empty strings
+
+#### Scenario: Existing tests still pass with i18n-aware rendering
+
+- GIVEN the test suite runs with locale `en`
+- WHEN `renderStatusLine` is invoked in tests that assert `.toContain('Subagents:')`
+- THEN those assertions MUST still pass because English i18n keys produce identical output
+
+### Requirement: Test fixtures use shared exports
+
+`createChild` MUST be exported from `test/fixtures/subagent-state.ts`. Test files SHALL import from
+there instead of defining inline copies.
+
+#### Scenario: createChild imported, not duplicated
+
+- GIVEN a test file needs `createChild`
+- WHEN the test suite runs
+- THEN it MUST import from `test/fixtures/subagent-state.ts`
+- AND MUST NOT define its own copy
+
+### Requirement: Persistence round-trip integration test
+
+The persistence layer MUST have a save-to-disk → load-from-disk integration test validating
+structural integrity of children, counts, and timestamps.
+
+#### Scenario: State round-trip preserves all data
+
+- GIVEN a populated `SubagentState` with children and counts
+- WHEN saved to a temp file and loaded back
+- THEN loaded state MUST match original children, counts, `totalExecuted`, and `updatedAt`
+
+### Requirement: SQLite recovery end-to-end integration test
+
+The SQLite recovery source MUST have an integration test creating a real DB via `python3`,
+populating session/part rows, and verifying recovery output.
+
+#### Scenario: Recovery produces correct rows from real DB
+
+- GIVEN a temp SQLite DB with session and part rows for a known `parentSessionID`
+- WHEN `readSQLiteRecoveryRows` is called
+- THEN returned rows MUST have correct `id`, `parentID`, `title`, and `status`

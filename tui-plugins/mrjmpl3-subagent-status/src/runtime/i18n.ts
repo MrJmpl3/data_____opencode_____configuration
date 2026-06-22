@@ -9,6 +9,8 @@ const translations = {
     run: 'run',
     done: 'done',
     err: 'err',
+    syncing: '⟳ syncing...',
+    subagents_snapshot: 'Subagents snapshot',
   },
   es: {
     subagents: 'Subagentes',
@@ -18,6 +20,8 @@ const translations = {
     run: 'act',
     done: 'listo',
     err: 'err',
+    syncing: '⟳ sincronizando...',
+    subagents_snapshot: 'Subagentes snapshot',
   },
 } as const;
 

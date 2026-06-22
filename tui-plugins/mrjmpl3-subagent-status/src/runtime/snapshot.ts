@@ -22,7 +22,7 @@ export interface TuiSnapshot {
   };
 }
 
-const hydrateSnapshotChild = (child: SubagentChild, nowMs: number): SubagentChild => {
+export const hydrateSnapshotChild = (child: SubagentChild, nowMs: number): SubagentChild => {
   return {
     ...child,
     color: child.color ?? resolveRenderStatusColor(child.status),

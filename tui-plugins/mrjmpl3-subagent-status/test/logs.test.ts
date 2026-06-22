@@ -15,7 +15,7 @@ vi.mock('node:fs/promises', async () => {
   };
 });
 
-import { readdir } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 
 import { hydrateDoneChildTokens, readOpenCodeLogFileIfSmall } from '../src/infrastructure/logs.ts';
 
@@ -162,5 +162,12 @@ describe('logs', () => {
     await expect(hydrateDoneChildTokens('ses_partial', logDir)).resolves.toEqual({ total: 20, contextPercent: 42.5 });
 
     vi.useRealTimers();
+  });
+
+  it('uses mergeSubagentTokens from domain/tokens instead of a local mergeTokens definition', async () => {
+    const source = await readFile(new URL('../src/infrastructure/logs.ts', import.meta.url), 'utf8');
+
+    expect(source).not.toMatch(/const mergeTokens\s*=\s*\(/);
+    expect(source).toMatch(/import\s*\{[^}]*mergeSubagentTokens[^}]*\}\s*from\s['"]\.\.\/domain\/tokens\.ts['"]/);
   });
 });

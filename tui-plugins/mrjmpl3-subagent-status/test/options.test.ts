@@ -22,6 +22,7 @@ describe('subagent status options', () => {
       recovery: {
         sqliteDatabasePath: undefined,
       },
+      debug: false,
     });
   });
 
@@ -66,6 +67,7 @@ describe('subagent status options', () => {
       recovery: {
         sqliteDatabasePath: '/tmp/opencode.db',
       },
+      debug: false,
     });
   });
 
@@ -96,6 +98,22 @@ describe('subagent status options', () => {
         doneRetentionMs: 900_450,
         staleRetentionMs: DEFAULT_STALE_RETENTION_MS,
       },
+    });
+  });
+
+  it('defaults debug to false when omitted', () => {
+    expect(resolveSubagentStatusPluginOptions({})).toMatchObject({
+      debug: false,
+    });
+  });
+
+  it('accepts explicit debug: true', () => {
+    expect(
+      resolveSubagentStatusPluginOptions({
+        debug: true,
+      }),
+    ).toMatchObject({
+      debug: true,
     });
   });
 

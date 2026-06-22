@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createEmptyState } from '../src/domain/state.ts';
 import type { SubagentState } from '../src/domain/types.ts';
@@ -9,6 +9,7 @@ import {
   resolveStaleRunningProbeTargets,
   settleStaleRunningProbeTargets,
 } from '../src/runtime/stale-probe.ts';
+import { setDebugEnabled } from '../src/shared/debug.ts';
 
 const runningState = (children: SubagentState['children']): SubagentState => {
   return {
@@ -580,5 +581,66 @@ describe('stale running probe helpers', () => {
     expect(changed).toBe(false);
     expect(state.children.ses_child).toMatchObject({ status: 'running' });
     expect(probeState.get('ses_child')).toMatchObject({ missingRunningEvidenceAttempts: 1 });
+  });
+});
+
+describe('debug gating for stale-probe console.log replacements', () => {
+  afterEach(() => {
+    setDebugEnabled(false);
+    vi.restoreAllMocks();
+  });
+
+  it('does not call console.log for stale-probe decisions when debug is disabled', () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    const probeState = new Map<string, StaleRunningProbeState>();
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+    const policy = resolveSubagentStatusPluginOptions({
+      staleRunningProbePolicy: { baseBackoffMs: 1_000, maxBackoffMs: 4_000, maxAttempts: 0 },
+    }).staleRunningProbePolicy;
+    const state = runningState({
+      ses_child: {
+        id: 'ses_child',
+        title: 'Real session',
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'running',
+        startedAt: '2026-06-04T11:55:00.000Z',
+        updatedAt: '2026-06-04T11:59:00.000Z',
+      },
+    });
+
+    setDebugEnabled(false);
+    const targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
+    settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, nowMs);
+
+    expect(console.log).not.toHaveBeenCalled();
+  });
+
+  it('calls console.log for stale-probe decisions when debug is enabled', () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    const probeState = new Map<string, StaleRunningProbeState>();
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+    const policy = resolveSubagentStatusPluginOptions({
+      staleRunningProbePolicy: { baseBackoffMs: 1_000, maxBackoffMs: 4_000, maxAttempts: 0 },
+    }).staleRunningProbePolicy;
+    const state = runningState({
+      ses_child: {
+        id: 'ses_child',
+        title: 'Real session',
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'running',
+        startedAt: '2026-06-04T11:55:00.000Z',
+        updatedAt: '2026-06-04T11:59:00.000Z',
+      },
+    });
+
+    setDebugEnabled(true);
+    const targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
+    settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, nowMs);
+
+    expect(console.log).toHaveBeenCalled();
   });
 });

@@ -94,6 +94,7 @@ export interface SubagentStatusPluginOptions {
   visibility?: SubagentStatusVisibilityOptions;
   persistence?: SubagentStatusPersistenceOptions;
   recovery?: SubagentStatusRecoveryOptions;
+  debug?: boolean;
 }
 
 /**
@@ -113,6 +114,7 @@ export interface ResolvedSubagentStatusPluginOptions {
   recovery: {
     sqliteDatabasePath?: string;
   };
+  debug: boolean;
 }
 
 export const DEFAULT_STALE_RUNNING_PROBE_POLICY: StaleRunningProbePolicy = {
@@ -199,6 +201,7 @@ export const normalizeSubagentStatusPluginOptions = (options: unknown): Resolved
     recovery: {
       sqliteDatabasePath: stringOption(recovery.sqliteDatabasePath),
     },
+    debug: pluginOptions.debug === true,
   };
 };
 

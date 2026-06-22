@@ -148,6 +148,7 @@ export const createTuiRuntimeRefresh = (
       if (!sessionId) return;
 
       let nextState = structuredClone(input.state.getState());
+      nextState.recovering = true;
       const directory = api.state.path.directory;
       const recovered = await hydrateRecoverySourcesSafely({
         state: nextState,
@@ -166,6 +167,7 @@ export const createTuiRuntimeRefresh = (
       try {
         response = await sessionClient.listChildren(sessionId);
       } catch {
+        nextState.recovering = false;
         if (recovered.changed) {
           await input.syncState(nextState, input.createPersistMeta('refresh'));
         }
@@ -212,6 +214,7 @@ export const createTuiRuntimeRefresh = (
         Date.now(),
       );
       const pruned = pruneTerminalChildren(nextState);
+      nextState.recovering = false;
       if (isInactiveSessionToken(sessionToken)) return;
       if (
         !recovered.changed &&

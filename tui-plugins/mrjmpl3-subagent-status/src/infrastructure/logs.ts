@@ -2,7 +2,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import os from 'node:os';
 
-import { hasCompleteUsageMetrics } from '../domain/tokens.ts';
+import { hasCompleteUsageMetrics, mergeSubagentTokens } from '../domain/tokens.ts';
 import type { SubagentTokens } from '../domain/types.ts';
 import { isRecord, toFiniteNumber } from '../shared/coercion.ts';
 
@@ -47,19 +47,6 @@ const normalizePercent = (value: number): number => {
   }
 
   return value;
-};
-
-const mergeTokens = (
-  existing: SubagentTokens | undefined,
-  incoming: SubagentTokens | undefined,
-): SubagentTokens | undefined => {
-  if (!existing && !incoming) return undefined;
-  return {
-    input: incoming?.input ?? existing?.input,
-    output: incoming?.output ?? existing?.output,
-    total: incoming?.total ?? existing?.total,
-    contextPercent: incoming?.contextPercent ?? existing?.contextPercent,
-  };
 };
 
 const hasUsableTokens = (tokens: SubagentTokens | undefined): boolean => {
@@ -119,7 +106,7 @@ const extractTokenHints = (input: unknown): SubagentTokens | undefined => {
         if (typeof asNumber === 'number') {
           tokenHints.total = asNumber;
         } else {
-          Object.assign(tokenHints, mergeTokens(tokenHints, sanitizeTokens(rawValue)));
+          Object.assign(tokenHints, mergeSubagentTokens(tokenHints, sanitizeTokens(rawValue)));
         }
       }
 
@@ -174,7 +161,7 @@ const extractTokensFromLine = (line: string): SubagentTokens | undefined => {
   let tokens: SubagentTokens | undefined;
 
   for (const payload of extractJsonPayloads(line)) {
-    tokens = mergeTokens(tokens, extractTokenHints(payload));
+    tokens = mergeSubagentTokens(tokens, extractTokenHints(payload));
   }
 
   return hasUsableTokens(tokens) ? tokens : undefined;
@@ -226,7 +213,7 @@ export const hydrateDoneChildTokens = async (
 
     for (const line of contents.split('\n')) {
       if (!line.includes(sessionId)) continue;
-      tokens = mergeTokens(tokens, extractTokensFromLine(line));
+      tokens = mergeSubagentTokens(tokens, extractTokensFromLine(line));
     }
   }
 

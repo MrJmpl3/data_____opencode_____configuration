@@ -38,4 +38,5 @@ export interface SubagentState {
   purgedSessionIDs: Record<string, true>;
   totalExecuted: number;
   updatedAt: string;
+  recovering?: boolean;
 }

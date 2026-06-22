@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { setDebugEnabled } from '../src/shared/debug.ts';
 import { createEmptyState } from '../src/domain/state.ts';
 import type { SubagentState } from '../src/domain/types.ts';
 import { resolveSubagentStatusPluginOptions } from '../src/runtime/options.ts';
@@ -28,6 +29,8 @@ describe('refresh runtime', () => {
   });
 
   afterEach(() => {
+    setDebugEnabled(false);
+    vi.restoreAllMocks();
     vi.useRealTimers();
     vi.doUnmock('../src/runtime/events/bridge.ts');
     vi.doUnmock('../src/infrastructure/persistence.ts');
@@ -1875,5 +1878,245 @@ describe('refresh runtime', () => {
     });
 
     runtime.dispose();
+  });
+
+  it('bootstraps setDebugEnabled(true) from debug: true plugin option', async () => {
+    vi.resetModules();
+
+    const debugModule = await import('../src/shared/debug.ts');
+    const setDebugEnabledSpy = vi.spyOn(debugModule, 'setDebugEnabled');
+
+    const { createTuiRuntime } = await import('../src/runtime/tui-runtime.ts');
+
+    let state: SubagentState = createEmptyState();
+    let sessionID = '';
+    const api = {
+      client: {
+        session: {
+          children: vi.fn(async () => ({ data: [] })),
+        },
+      },
+      event: {},
+      lifecycle: {
+        onDispose: vi.fn(),
+      },
+      state: {
+        path: {
+          directory: '/tmp/workspace',
+        },
+        session: {
+          messages: vi.fn(() => []),
+          status: vi.fn(() => undefined),
+        },
+      },
+    } as unknown as TuiPluginApi;
+
+    const runtime = createTuiRuntime(
+      api,
+      {
+        getState: () => state,
+        setState: (nextState) => {
+          state = nextState;
+        },
+        getSessionId: () => sessionID,
+        setSessionId: (nextSessionID) => {
+          sessionID = nextSessionID;
+        },
+        setNowMs: vi.fn(),
+      },
+      resolveSubagentStatusPluginOptions({ debug: true }),
+    );
+
+    expect(setDebugEnabledSpy).toHaveBeenCalledWith(true);
+
+    runtime.dispose();
+  });
+
+  it('bootstraps setDebugEnabled(false) from debug: false plugin option', async () => {
+    vi.resetModules();
+
+    const debugModule = await import('../src/shared/debug.ts');
+    const setDebugEnabledSpy = vi.spyOn(debugModule, 'setDebugEnabled');
+
+    const { createTuiRuntime } = await import('../src/runtime/tui-runtime.ts');
+
+    let state: SubagentState = createEmptyState();
+    let sessionID = '';
+    const api = {
+      client: {
+        session: {
+          children: vi.fn(async () => ({ data: [] })),
+        },
+      },
+      event: {},
+      lifecycle: {
+        onDispose: vi.fn(),
+      },
+      state: {
+        path: {
+          directory: '/tmp/workspace',
+        },
+        session: {
+          messages: vi.fn(() => []),
+          status: vi.fn(() => undefined),
+        },
+      },
+    } as unknown as TuiPluginApi;
+
+    const runtime = createTuiRuntime(
+      api,
+      {
+        getState: () => state,
+        setState: (nextState) => {
+          state = nextState;
+        },
+        getSessionId: () => sessionID,
+        setSessionId: (nextSessionID) => {
+          sessionID = nextSessionID;
+        },
+        setNowMs: vi.fn(),
+      },
+      resolveSubagentStatusPluginOptions({ debug: false }),
+    );
+
+    expect(setDebugEnabledSpy).toHaveBeenCalledWith(false);
+
+    runtime.dispose();
+  });
+});
+
+describe('debug gating for tui-runtime console.log replacements', () => {
+  afterEach(() => {
+    setDebugEnabled(false);
+    vi.restoreAllMocks();
+    vi.doUnmock('../src/infrastructure/persistence.ts');
+  });
+
+  it('does not call console.log during bootstrap when debug is disabled', async () => {
+    vi.resetModules();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    vi.doMock('../src/infrastructure/persistence.ts', async () => {
+      const actual = await vi.importActual<typeof import('../src/infrastructure/persistence.ts')>(
+        '../src/infrastructure/persistence.ts',
+      );
+
+      return {
+        ...actual,
+        resolveStatePath: vi.fn(() => '/tmp/mrjmpl3-subagent-status-state.json'),
+        resolveTextPath: vi.fn(() => '/tmp/mrjmpl3-subagent-status-status.txt'),
+        loadState: vi.fn(async () => createEmptyState()),
+        shouldPreserveStateOnStartup: vi.fn(() => false),
+        createPersistQueue: vi.fn(() => async () => undefined),
+      };
+    });
+
+    const { createTuiRuntime } = await import('../src/runtime/tui-runtime.ts');
+
+    let state: SubagentState = createEmptyState();
+    let sessionID = '';
+    const api = {
+      client: {
+        session: {
+          children: vi.fn(async () => ({ data: [] })),
+        },
+      },
+      event: {},
+      lifecycle: {
+        onDispose: vi.fn(),
+      },
+      state: {
+        path: { directory: '/tmp/workspace' },
+        session: {
+          messages: vi.fn(() => []),
+          status: vi.fn(() => undefined),
+        },
+      },
+    } as unknown as TuiPluginApi;
+
+    const runtime = createTuiRuntime(
+      api,
+      {
+        getState: () => state,
+        setState: (nextState) => {
+          state = nextState;
+        },
+        getSessionId: () => sessionID,
+        setSessionId: (nextSessionID) => {
+          sessionID = nextSessionID;
+        },
+        setNowMs: vi.fn(),
+      },
+      resolveSubagentStatusPluginOptions({ debug: false }),
+    );
+
+    await runtime.bootstrap();
+    runtime.dispose();
+
+    expect(console.log).not.toHaveBeenCalled();
+  });
+
+  it('calls console.log during bootstrap when debug is enabled', async () => {
+    vi.resetModules();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    vi.doMock('../src/infrastructure/persistence.ts', async () => {
+      const actual = await vi.importActual<typeof import('../src/infrastructure/persistence.ts')>(
+        '../src/infrastructure/persistence.ts',
+      );
+
+      return {
+        ...actual,
+        resolveStatePath: vi.fn(() => '/tmp/mrjmpl3-subagent-status-state.json'),
+        resolveTextPath: vi.fn(() => '/tmp/mrjmpl3-subagent-status-status.txt'),
+        loadState: vi.fn(async () => createEmptyState()),
+        shouldPreserveStateOnStartup: vi.fn(() => false),
+        createPersistQueue: vi.fn(() => async () => undefined),
+      };
+    });
+
+    const { createTuiRuntime } = await import('../src/runtime/tui-runtime.ts');
+
+    let state: SubagentState = createEmptyState();
+    let sessionID = '';
+    const api = {
+      client: {
+        session: {
+          children: vi.fn(async () => ({ data: [] })),
+        },
+      },
+      event: {},
+      lifecycle: {
+        onDispose: vi.fn(),
+      },
+      state: {
+        path: { directory: '/tmp/workspace' },
+        session: {
+          messages: vi.fn(() => []),
+          status: vi.fn(() => undefined),
+        },
+      },
+    } as unknown as TuiPluginApi;
+
+    const runtime = createTuiRuntime(
+      api,
+      {
+        getState: () => state,
+        setState: (nextState) => {
+          state = nextState;
+        },
+        getSessionId: () => sessionID,
+        setSessionId: (nextSessionID) => {
+          sessionID = nextSessionID;
+        },
+        setNowMs: vi.fn(),
+      },
+      resolveSubagentStatusPluginOptions({ debug: true }),
+    );
+
+    await runtime.bootstrap();
+    runtime.dispose();
+
+    expect(console.log).toHaveBeenCalled();
   });
 });

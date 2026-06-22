@@ -3,6 +3,7 @@ import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
 import { installEventBridge } from './events/bridge.ts';
 import { createBufferedTaskQueue } from './queue.ts';
 import { normalizeSubagentStatusPluginOptions, type ResolvedSubagentStatusPluginOptions } from './options.ts';
+import { debugLog, setDebugEnabled } from '../shared/debug.ts';
 import { resolveSessionSlotTransition } from './navigation.ts';
 import { createRuntimeSessionScopeHelpers } from './session-scope.ts';
 import { childEvidenceTimestampMs, createEmptyState, markChildStatus } from '../domain/state.ts';
@@ -36,6 +37,8 @@ export const createTuiRuntime = (
   },
   options: ResolvedSubagentStatusPluginOptions = normalizeSubagentStatusPluginOptions(undefined),
 ): TuiRuntime => {
+  setDebugEnabled(options.debug);
+
   const statePath = resolveStatePath({
     workspaceDirectory: api.state.path.directory,
     statePath: options.persistence.statePath,
@@ -153,7 +156,7 @@ export const createTuiRuntime = (
       const preserveState = shouldPreserveStateOnStartup({
         preserveStateOnStartup: options.persistence.preserveStateOnStartup,
       });
-      console.log(`[subagent-status] bootstrap: preserveStateOnStartup=${preserveState} statePath=${statePath}`);
+      debugLog(`[subagent-status] bootstrap: preserveStateOnStartup=${preserveState} statePath=${statePath}`);
       if (!preserveState) {
         await syncState(createEmptyState(), createPersistMeta('startup'));
       } else {
@@ -168,7 +171,7 @@ export const createTuiRuntime = (
         await syncState(loadedState, createPersistMeta('load'));
       }
 
-      console.log(`[subagent-status] bootstrap: calling refresh with sessionId=${input.getSessionId()}`);
+      debugLog(`[subagent-status] bootstrap: calling refresh with sessionId=${input.getSessionId()}`);
       await refresh(input.getSessionId());
     } finally {
       await bufferedEvents.markReady();

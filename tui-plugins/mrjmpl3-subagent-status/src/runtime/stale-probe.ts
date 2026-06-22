@@ -3,6 +3,7 @@ import type { SubagentState } from '../domain/types.ts';
 import type { StaleRunningProbePolicy } from './options.ts';
 import { isRealSessionRow, resolveSessionRowSessionId } from './session-row.ts';
 import { childEvidenceTimestampMs, markChildStatus } from '../domain/state.ts';
+import { debugLog } from '../shared/debug.ts';
 
 export type StaleRunningProbeState = {
   attempts: number;
@@ -131,7 +132,7 @@ export const settleStaleRunningProbeTargets = (
       hasExceededHardStaleAge ||
       (!hasRunningEvidence && !hasAuthoritativePresenceGuard && missingRunningEvidenceAttempts >= policy.maxAttempts)
     ) {
-      console.log(
+      debugLog(
         `[subagent-status] stale-probe: marking ${sessionId} as error (hardStale=${hasExceededHardStaleAge} runningEvidence=${hasRunningEvidence} authGuard=${hasAuthoritativePresenceGuard} missingAttempts=${missingRunningEvidenceAttempts})`,
       );
       const errorAt = new Date(Math.max(nowMs, childEvidenceMs)).toISOString();

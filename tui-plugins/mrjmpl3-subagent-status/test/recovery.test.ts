@@ -3,8 +3,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
+import { readFile } from 'node:fs/promises';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { setDebugEnabled } from '../src/shared/debug.ts';
 import {
   createSQLiteRecoverySource,
   resolveRecoveredStatus,
@@ -27,6 +30,8 @@ describe('sqlite recovery source', () => {
   });
 
   afterEach(async () => {
+    setDebugEnabled(false);
+    vi.restoreAllMocks();
     vi.useRealTimers();
 
     while (tempDirs.length > 0) {
@@ -909,5 +914,45 @@ describe('sqlite recovery source', () => {
       tokens: { input: 12, output: 8 },
     });
     expect(state.children.ses_child?.tokens?.total).toBeUndefined();
+  });
+});
+
+describe('debug gating for sqlite recovery console.log replacements', () => {
+  afterEach(() => {
+    setDebugEnabled(false);
+    vi.restoreAllMocks();
+  });
+
+  it('does not call console.log for hydrateState skipping when debug is disabled', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    const state = createEmptyState();
+    const source = createSQLiteRecoverySource();
+
+    setDebugEnabled(false);
+    await source.hydrateState(state, { directory: '/tmp' });
+
+    expect(console.log).not.toHaveBeenCalled();
+  });
+
+  it('calls console.log for hydrateState skipping when debug is enabled', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    const state = createEmptyState();
+    const source = createSQLiteRecoverySource();
+
+    setDebugEnabled(true);
+    await source.hydrateState(state, { directory: '/tmp' });
+
+    expect(console.log).toHaveBeenCalled();
+  });
+});
+
+describe('mergeTokens cleanup', () => {
+  it('sqlite.ts uses mergeSubagentTokens from domain/tokens instead of a local mergeTokens', async () => {
+    const source = await readFile(new URL('../src/infrastructure/recovery/sqlite.ts', import.meta.url), 'utf8');
+
+    expect(source).not.toMatch(/const mergeTokens\s*=\s*\(/);
+    expect(source).toMatch(/import\s*\{[^}]*mergeSubagentTokens[^}]*\}\s*from\s['"]\.\.\/\.\.\/domain\/tokens\.ts['"]/);
   });
 });
