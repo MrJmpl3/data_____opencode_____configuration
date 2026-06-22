@@ -2,15 +2,17 @@ import type { SubagentChild, SubagentCounts, SubagentState } from '../../domain/
 
 import { DEFAULT_SUBAGENT_VISIBILITY_POLICY, type SubagentVisibilityPolicy } from '../../shared/visibility.ts';
 import { formatDuration, formatUsageCompact } from '../format.ts';
+import { t } from '../../runtime/i18n.ts';
+import { hydrateSnapshotChild } from '../../runtime/snapshot.ts';
 
 import { buildSubagentSnapshotView } from './snapshot-view.ts';
 import { formatAggregateNumber } from './sort.ts';
 
 const renderAggregate = (counts: SubagentCounts): string =>
-  `Subagents: ${counts.running} run · ${counts.done} done · ${counts.error + counts.stale} err`;
+  `${t('subagents')}: ${counts.running} ${t('run')} · ${counts.done} ${t('done')} · ${counts.error + counts.stale} ${t('err')}`;
 
 const renderSnapshotAggregate = (counts: SubagentCounts): string =>
-  renderAggregate(counts).replace(/^Subagents: /, 'Subagents snapshot: ');
+  `${t('subagents_snapshot')}: ${counts.running} ${t('run')} · ${counts.done} ${t('done')} · ${counts.error + counts.stale} ${t('err')}`;
 
 const renderStatusDetails = (children: readonly SubagentChild[]): string => {
   if (children.length === 0) return '';
@@ -28,7 +30,10 @@ export const renderStatusLine = (
   nowMs = Date.now(),
   visibilityPolicy: SubagentVisibilityPolicy = DEFAULT_SUBAGENT_VISIBILITY_POLICY,
 ): string => {
-  const view = buildSubagentSnapshotView(Object.values(state.children), nowMs, visibilityPolicy);
+  if (state.recovering) return t('syncing');
+
+  const hydratedChildren = Object.values(state.children).map((child) => hydrateSnapshotChild(child, nowMs));
+  const view = buildSubagentSnapshotView(hydratedChildren, nowMs, visibilityPolicy);
   const aggregate = `${renderAggregate(view.trackedCounts)} · Σ ${formatAggregateNumber(state.totalExecuted)}`;
   const details = renderStatusDetails(view.visibleChildren);
 
@@ -40,7 +45,10 @@ export const renderStatusSnapshotLine = (
   nowMs = Date.now(),
   visibilityPolicy: SubagentVisibilityPolicy = DEFAULT_SUBAGENT_VISIBILITY_POLICY,
 ): string => {
-  const view = buildSubagentSnapshotView(Object.values(state.children), nowMs, visibilityPolicy);
+  if (state.recovering) return t('syncing');
+
+  const hydratedChildren = Object.values(state.children).map((child) => hydrateSnapshotChild(child, nowMs));
+  const view = buildSubagentSnapshotView(hydratedChildren, nowMs, visibilityPolicy);
   const aggregate = `${renderSnapshotAggregate(view.trackedCounts)} · Σ ${formatAggregateNumber(state.totalExecuted)}`;
   const details = renderStatusDetails(view.visibleChildren);
 
