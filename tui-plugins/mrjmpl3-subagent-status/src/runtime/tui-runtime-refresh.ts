@@ -132,7 +132,12 @@ export const createTuiRuntimeRefresh = (
       return;
     }
 
-    const nextState = structuredClone(input.state.getState());
+    let nextState: SubagentState;
+    try {
+      nextState = structuredClone(input.state.getState());
+    } catch {
+      return;
+    }
     const changed = applySubagentEvent(nextState, normalizedEvent);
     if (!changed) return;
 

@@ -361,6 +361,7 @@ describe('render', () => {
     expect(formatSidebarCompactCount(1_250_000)).toBe('1.3M');
     expect(formatSidebarCompactCount(123_456_789_012_345)).toBe('123T');
     expect(formatSidebarCompactCount(Number.MAX_SAFE_INTEGER)).toBe('999T+');
+    expect(formatSidebarCompactCount(NaN)).toBe('0');
     expect(formatSidebarSectionHeading('Very Long Sidebar Section Name', 1234)).toBe('Very Long Sidebar Section Nam…');
   });
 

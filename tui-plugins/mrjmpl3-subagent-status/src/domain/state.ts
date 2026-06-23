@@ -27,4 +27,5 @@ export {
   upsertRunningChild,
 } from './state/mutations.ts';
 export { pruneOrphanedSyntheticRunningChildren, pruneTerminalChildren } from './state/pruning.ts';
-export { clearPurgedSession } from './state/session-identity.ts';
+export { clearPurgedSession, resolveSessionIdentity } from './state/session-identity.ts';
+export { isRealSessionChild } from './state/child-kind.ts';

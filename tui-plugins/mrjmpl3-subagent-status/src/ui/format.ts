@@ -147,6 +147,7 @@ const formatSidebarUsageCompact = (child: SubagentChild): string => {
 };
 
 export const formatSidebarCompactCount = (value: number): string => {
+  if (Number.isNaN(value)) return '0';
   if (!Number.isFinite(value)) return value > 0 ? '999T+' : '0';
 
   const count = Math.max(0, Math.round(value));

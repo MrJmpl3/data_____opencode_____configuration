@@ -31,14 +31,14 @@ export const buildSubagentSnapshotView = (
   nowMs = Date.now(),
   visibilityPolicy: SubagentVisibilityPolicy = DEFAULT_SUBAGENT_VISIBILITY_POLICY,
 ): SubagentSnapshotView => {
-  const hydratedChildren = [...children].sort(byPriority);
-  const trackedChildren = collapseSubagentWorkItems(hydratedChildren).sort(byPriority);
-  const visibleChildren = visibleSubagentWorkItems(hydratedChildren, nowMs, visibilityPolicy).sort(byPriority);
+  const sortedChildren = [...children].sort(byPriority);
+  const collapsedChildren = collapseSubagentWorkItems(sortedChildren);
+  const visibleChildren = visibleSubagentWorkItems(sortedChildren, nowMs, visibilityPolicy).sort(byPriority);
 
   return {
-    trackedChildren,
+    trackedChildren: collapsedChildren,
     visibleChildren,
-    trackedCounts: countsFromChildren(trackedChildren),
+    trackedCounts: countsFromChildren(collapsedChildren),
     visibleCounts: countsFromChildren(visibleChildren),
   };
 };

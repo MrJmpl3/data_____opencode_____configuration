@@ -1,7 +1,9 @@
 import {
   clearPurgedSession,
+  isRealSessionChild,
   markChildStatus,
   mergeChildDetails,
+  resolveSessionIdentity,
   syncExecutionState,
   upsertRunningChild,
 } from '../domain/state.ts';
@@ -24,17 +26,6 @@ export interface RecoverySource {
     context: RecoveryContext,
   ): Promise<RecoveryResult | undefined> | RecoveryResult | undefined;
 }
-
-const resolveSessionIdentity = (
-  child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'targetSessionID'>>,
-): string | undefined => {
-  if (child.id.startsWith('ses_')) return child.id;
-  return child.targetSessionID;
-};
-
-const isRealSessionChild = (child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'source'>>): boolean => {
-  return child.source === 'session' || child.id.startsWith('ses_');
-};
 
 export const inferParentSessionID = (state: SubagentState): string | undefined => {
   const parentIDs = new Set(Object.values(state.children).map((child) => child.parentID));

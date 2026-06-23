@@ -8,6 +8,7 @@ import {
   upsertRunningChild,
 } from './state.ts';
 import { deriveOpenCodeSessionStatus } from './session-status.ts';
+import { sameSubagentTokens } from './tokens.ts';
 import type { SubagentChild, SubagentState, SubagentTokens } from './types.ts';
 import { asString, isRecord, timestampFromUnknown } from '../shared/coercion.ts';
 
@@ -176,7 +177,26 @@ const cloneState = (state: SubagentState): SubagentState => {
 };
 
 const sameChild = (left: SubagentChild | undefined, right: SubagentChild | undefined): boolean => {
-  return JSON.stringify(left) === JSON.stringify(right);
+  if (left === right) return true;
+  if (!left || !right) return false;
+
+  return (
+    left.id === right.id &&
+    left.status === right.status &&
+    left.updatedAt === right.updatedAt &&
+    left.endedAt === right.endedAt &&
+    left.summary === right.summary &&
+    left.agentName === right.agentName &&
+    left.targetSessionID === right.targetSessionID &&
+    left.color === right.color &&
+    left.elapsedMs === right.elapsedMs &&
+    left.title === right.title &&
+    left.parentID === right.parentID &&
+    left.messageID === right.messageID &&
+    left.source === right.source &&
+    left.startedAt === right.startedAt &&
+    sameSubagentTokens(left.tokens, right.tokens)
+  );
 };
 
 const normalizeAt = (timestamp: string): number => {
