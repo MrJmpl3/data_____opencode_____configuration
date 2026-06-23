@@ -1449,8 +1449,9 @@
       "headers": {
         "Authorization": "Bearer {env:GITHUB_PAT}"
       },
+      "oauth": false,
       "type": "remote",
-      "url": "https://api.githubcopilot.com/mcp"
+      "url": "https://api.githubcopilot.com/mcp/"
     },
     "grep_app": {
       "enabled": true,
