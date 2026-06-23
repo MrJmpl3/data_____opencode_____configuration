@@ -190,6 +190,43 @@ describe('state', () => {
     expect(getCounts(loaded)).toEqual({ running: 1, done: 1, stale: 0, error: 0 });
   });
 
+  it('excludes expired failed history while preserving recent failed executions and total execution history', async () => {
+    const state = createEmptyState();
+    state.children = {
+      ses_error_old: {
+        id: 'ses_error_old',
+        title: 'Old failed child',
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'error',
+        color: 'red',
+        startedAt: '2026-06-04T10:00:00.000Z',
+        updatedAt: '2026-06-04T10:05:00.000Z',
+        endedAt: '2026-06-04T10:05:00.000Z',
+      },
+      ses_error_recent: {
+        id: 'ses_error_recent',
+        title: 'Recent failed child',
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'error',
+        color: 'red',
+        startedAt: '2026-06-04T11:40:00.000Z',
+        updatedAt: '2026-06-04T11:45:00.000Z',
+        endedAt: '2026-06-04T11:45:00.000Z',
+      },
+    };
+    state.countedChildIDs = { ses_error_old: true, ses_error_recent: true };
+    state.totalExecuted = 2;
+
+    expect(pruneTerminalChildren(state, Date.parse('2026-06-04T12:00:00.000Z'))).toBe(true);
+
+    expect(Object.keys(state.children)).toEqual(['ses_error_recent']);
+    expect(state.countedChildIDs).toEqual({ ses_error_recent: true });
+    expect(state.totalExecuted).toBe(2);
+    expect(getCounts(state)).toEqual({ running: 0, done: 0, stale: 0, error: 1 });
+  });
+
   it('treats stale rows as terminal and preserves them across persistence', async () => {
     const state = createEmptyState();
     state.children.ses_stale = {

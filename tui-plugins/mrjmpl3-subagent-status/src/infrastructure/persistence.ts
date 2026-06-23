@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import os from 'node:os';
 
-import type { SubagentState } from '../domain/types.ts';
+import type { SubagentChild, SubagentState } from '../domain/types.ts';
 import type { PersistedSnapshotArtifacts } from '../shared/persisted-artifacts.ts';
 
 import {
@@ -36,6 +36,24 @@ const safeReadJSON = (value: string): unknown => {
   } catch {
     return undefined;
   }
+};
+
+const isPersistedChildSource = (value: unknown): boolean =>
+  value === undefined || value === 'session' || value === 'subtask' || value === 'tool';
+
+const isPersistedChildStatus = (value: unknown): boolean =>
+  value === 'running' || value === 'done' || value === 'error' || value === 'stale';
+
+type HydratablePersistedChild = Record<string, unknown> & {
+  parentID: string;
+  source?: SubagentChild['source'];
+  status: SubagentChild['status'];
+};
+
+const isHydratablePersistedChild = (value: Record<string, unknown>): value is HydratablePersistedChild => {
+  if (typeof value.parentID !== 'string') return false;
+  if (!isPersistedChildSource(value.source)) return false;
+  return isPersistedChildStatus(value.status);
 };
 
 const writeLocalFile = async (path: string, contents: string): Promise<void> => {
@@ -117,7 +135,7 @@ export const loadState = async (
     const rawChildren = isRecord(parsed.children) ? parsed.children : {};
     for (const [id, value] of Object.entries(rawChildren)) {
       if (!isRecord(value)) continue;
-      if (typeof value.parentID !== 'string') continue;
+      if (!isHydratablePersistedChild(value)) continue;
 
       const tokens = isRecord(value.tokens)
         ? {
@@ -141,8 +159,7 @@ export const loadState = async (
               ? value.source
               : undefined,
           targetSessionID: typeof value.targetSessionID === 'string' ? value.targetSessionID : undefined,
-          status:
-            value.status === 'done' || value.status === 'error' || value.status === 'stale' ? value.status : 'running',
+          status: value.status,
           color:
             value.color === 'green' || value.color === 'red' || value.color === 'yellow' || value.color === 'gray'
               ? value.color

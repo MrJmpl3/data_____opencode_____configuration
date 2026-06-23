@@ -239,4 +239,60 @@ describe('persistence recovery', () => {
     const loaded = await loadState(statePath);
     expect(Object.keys(loaded.children)).toEqual(['ses_original']);
   });
+
+  it('hydrates valid retained rows while skipping incompatible persisted child rows', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'mrjmpl3-subagent-status-'));
+    tempDirs.push(dir);
+    const statePath = join(dir, 'state.json');
+
+    await saveState(statePath, {
+      children: {
+        ses_failed: {
+          id: 'ses_failed',
+          title: 'Failed child',
+          parentID: 'ses_parent',
+          source: 'session',
+          targetSessionID: 'ses_failed',
+          status: 'error',
+          color: 'red',
+          startedAt: '2026-06-04T11:45:00.000Z',
+          updatedAt: '2026-06-04T11:55:00.000Z',
+          endedAt: '2026-06-04T11:55:00.000Z',
+        },
+        ses_stale: {
+          id: 'ses_stale',
+          title: 'Zombie child',
+          parentID: 'ses_parent',
+          source: 'session',
+          targetSessionID: 'ses_stale',
+          status: 'stale',
+          color: 'gray',
+          startedAt: '2026-06-04T11:40:00.000Z',
+          updatedAt: '2026-06-04T11:54:00.000Z',
+          endedAt: '2026-06-04T11:54:00.000Z',
+        },
+        'tmp:legacy': {
+          id: 'tmp:legacy',
+          title: 'Temporary legacy row',
+          parentID: 'ses_parent',
+          source: 'temporary',
+          status: 'pending',
+          startedAt: '2026-06-04T11:58:00.000Z',
+          updatedAt: '2026-06-04T11:58:00.000Z',
+        },
+      },
+      countedChildIDs: { ses_failed: true, ses_stale: true, 'tmp:legacy': true },
+      purgedSessionIDs: {},
+      totalExecuted: 3,
+      updatedAt: '2026-06-04T11:59:00.000Z',
+    } as unknown as SubagentState);
+
+    const loaded = await loadState(statePath);
+
+    expect(Object.keys(loaded.children)).toEqual(['ses_failed', 'ses_stale']);
+    expect(loaded.children.ses_failed).toMatchObject({ status: 'error', color: 'red' });
+    expect(loaded.children.ses_stale).toMatchObject({ status: 'stale', color: 'gray' });
+    expect(loaded.countedChildIDs).toEqual({ ses_failed: true, ses_stale: true });
+    expect(loaded.totalExecuted).toBe(3);
+  });
 });

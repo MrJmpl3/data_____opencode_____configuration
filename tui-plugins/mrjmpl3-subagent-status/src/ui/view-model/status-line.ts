@@ -9,10 +9,10 @@ import { buildSubagentSnapshotView } from './snapshot-view.ts';
 import { formatAggregateNumber } from './sort.ts';
 
 const renderAggregate = (counts: SubagentCounts): string =>
-  `${t('subagents')}: ${counts.running} ${t('run')} · ${counts.done} ${t('done')} · ${counts.error + counts.stale} ${t('err')}`;
+  `${t('subagents')}: ${counts.running} ${t('run')} · ${counts.done} ${t('done')} · ${counts.error} ${t('err')}`;
 
 const renderSnapshotAggregate = (counts: SubagentCounts): string =>
-  `${t('subagents_snapshot')}: ${counts.running} ${t('run')} · ${counts.done} ${t('done')} · ${counts.error + counts.stale} ${t('err')}`;
+  `${t('subagents_snapshot')}: ${counts.running} ${t('run')} · ${counts.done} ${t('done')} · ${counts.error} ${t('err')}`;
 
 const renderStatusDetails = (children: readonly SubagentChild[]): string => {
   if (children.length === 0) return '';

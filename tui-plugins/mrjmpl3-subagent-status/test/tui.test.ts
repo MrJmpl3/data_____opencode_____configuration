@@ -259,7 +259,7 @@ describe('tui elapsed time', () => {
     expect(snapshot.statusLine).toContain('2 done');
   });
 
-  it('renders legacy stale rows as visible errors without a stale retention section', () => {
+  it('renders legacy stale rows as visible zombies without inflating failed counts', () => {
     const staleRow = createChild({
       id: 'ses_stale_error',
       title: 'Abandoned child',
@@ -277,9 +277,9 @@ describe('tui elapsed time', () => {
       staleRetentionMs: 0,
     });
 
-    expect(snapshot.visibleCounts).toEqual({ running: 0, done: 0, stale: 0, error: 1 });
+    expect(snapshot.visibleCounts).toEqual({ running: 0, done: 0, stale: 1, error: 0 });
     expect(snapshot.visibleChildren.map((child) => child.id)).toEqual(['ses_stale_error']);
-    expect(snapshot.statusLine).toContain('Subagents: 0 run · 0 done · 1 err');
+    expect(snapshot.statusLine).toContain('Subagents: 0 run · 0 done · 0 err');
     expect(snapshot.statusLine).toContain('Abandoned child');
   });
 

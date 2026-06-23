@@ -9,7 +9,7 @@ const countsFromChildren = (children: readonly SubagentChild[]): SubagentCounts 
   children.reduce<SubagentCounts>(
     (counts, child) => {
       if (child.status === 'stale') {
-        counts.error += 1;
+        counts.stale += 1;
         return counts;
       }
 

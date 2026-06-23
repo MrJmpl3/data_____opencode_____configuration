@@ -414,6 +414,64 @@ describe('render', () => {
     ).toContain('2 done');
   });
 
+  it('keeps stale zombie rows separate from failed aggregate counts', () => {
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+    const staleChild = child({
+      id: 'ses_stale',
+      title: 'Zombie child',
+      status: 'stale',
+      color: 'gray',
+      endedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T11:55:00.000Z',
+    });
+    const failedChild = child({
+      id: 'ses_failed',
+      title: 'Failed child',
+      status: 'error',
+      color: 'red',
+      endedAt: '2026-06-04T11:56:00.000Z',
+      updatedAt: '2026-06-04T11:56:00.000Z',
+    });
+
+    const view = buildSubagentSnapshotView(
+      [staleChild, failedChild].map((item) => hydrateSnapshotChild(item, nowMs)),
+      nowMs,
+    );
+
+    expect(view.trackedCounts).toEqual({ running: 0, done: 0, stale: 1, error: 1 });
+    expect(view.visibleChildren.map((item) => item.id)).toEqual(['ses_failed', 'ses_stale']);
+  });
+
+  it('renders recently failed counts without adding stale zombie rows', () => {
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+    const staleChild = child({
+      id: 'ses_stale',
+      title: 'Zombie child',
+      status: 'stale',
+      color: 'gray',
+      endedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T11:55:00.000Z',
+    });
+    const failedChild = child({
+      id: 'ses_failed',
+      title: 'Failed child',
+      status: 'error',
+      color: 'red',
+      endedAt: '2026-06-04T11:56:00.000Z',
+      updatedAt: '2026-06-04T11:56:00.000Z',
+    });
+    const state: SubagentState = {
+      children: { ses_stale: staleChild, ses_failed: failedChild },
+      countedChildIDs: { ses_stale: true, ses_failed: true },
+      purgedSessionIDs: {},
+      totalExecuted: 2,
+      updatedAt: '2026-06-04T12:00:00.000Z',
+    };
+
+    expect(renderStatusLine(state, nowMs)).toContain('Subagents: 0 run · 0 done · 1 err · Σ 2');
+    expect(renderStatusSnapshotLine(state, nowMs)).toContain('Subagents snapshot: 0 run · 0 done · 1 err · Σ 2');
+  });
+
   it('maps statuses to the expected color keys', () => {
     expect(statusColor('running')).toBe('yellow');
     expect(statusColor('done')).toBe('green');
