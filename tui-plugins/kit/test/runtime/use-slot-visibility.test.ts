@@ -5,8 +5,7 @@ import { createRoot } from 'solid-js/dist/solid.js';
 import { useSlotVisibility } from '../../src/runtime/use-slot-visibility.js';
 
 // Minimal TuiPluginApi stub — useSlotVisibility only needs the API shape, not its methods.
-const stubApi = () =>
-  ({}) as unknown as import('@opencode-ai/plugin/tui').TuiPluginApi;
+const stubApi = () => ({}) as unknown as import('@opencode-ai/plugin/tui').TuiPluginApi;
 
 describe('useSlotVisibility', () => {
   // Spec scenario: Slot returns false before mount, true after mount, false after unmount.

@@ -21,8 +21,7 @@ export interface ResourceReturn<T> {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Exponential backoff: base * 2^attempt, capped at max. */
-const backoffDelay = (attempt: number, base: number, max: number): number =>
-  Math.min(base * 2 ** attempt, max);
+const backoffDelay = (attempt: number, base: number, max: number): number => Math.min(base * 2 ** attempt, max);
 
 // ── Implementation ────────────────────────────────────────────────────────────
 

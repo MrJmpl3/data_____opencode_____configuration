@@ -21,7 +21,7 @@ export function useSlotVisibility(_api: TuiPluginApi): {
     setVisible(true);
     onCleanup(() => setVisible(false));
     // Returns empty fragment — the consumer wraps its own content in the slot registration.
-    return (undefined as unknown) as JSX.Element;
+    return undefined as unknown as JSX.Element;
   };
 
   return { isVisible, SlotProvider };

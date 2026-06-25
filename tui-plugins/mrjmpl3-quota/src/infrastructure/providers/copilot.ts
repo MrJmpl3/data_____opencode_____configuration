@@ -129,14 +129,19 @@ export const fetchCopilotQuota = async (signal?: AbortSignal): Promise<CopilotRe
   const token = readCopilotToken();
   if (!token) return null;
 
-  const response = await fetchWithTimeout(`${GITHUB_API}/copilot_internal/user`, {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${token}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': USER_AGENT,
+  const response = await fetchWithTimeout(
+    `${GITHUB_API}/copilot_internal/user`,
+    {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${token}`,
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': USER_AGENT,
+      },
     },
-  }, undefined, signal);
+    undefined,
+    signal,
+  );
   if (!response.ok) return { error: httpErrorMessage('Copilot API', response) };
 
   const dataResult = await readJsonResponse('Copilot API', response);

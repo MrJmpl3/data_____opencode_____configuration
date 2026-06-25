@@ -170,7 +170,6 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
   // Slot-visibility gate provided by useSlotVisibility below.
   const { isVisible: slotActive, SlotProvider } = useSlotVisibility(api);
 
-
   const { options: resolvedOptions, diagnostics } = inspectQuotaPluginOptions(options);
 
   if (diagnostics.invalidVisibleProviderEntries.length > 0) {
@@ -388,8 +387,8 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
 
   const pollDispose =
     pollIntervalMs > 0
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ? usePolling({ resource: pollResource as any, intervalMs: pollIntervalMs, active: slotActive }).dispose
+      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        usePolling({ resource: pollResource as any, intervalMs: pollIntervalMs, active: slotActive }).dispose
       : () => {};
 
   // ── Event subscriptions (replaces refresh-scheduler.ts event binding) ─────────

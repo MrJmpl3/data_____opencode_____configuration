@@ -31,10 +31,7 @@ export type RenderHarness<T> = {
  * Wrap a Solid `createSignal` so every getter read notifies an `onRead`
  * callback. Used to count signal evaluations deterministically.
  */
-export const createTrackedSignal = <S,>(
-  initial: S,
-  onRead: () => void,
-): [Accessor<S>, Setter<S>] => {
+export const createTrackedSignal = <S,>(initial: S, onRead: () => void): [Accessor<S>, Setter<S>] => {
   const [get, set] = createSignal(initial);
   const trackedGet: Accessor<S> = () => {
     onRead();
@@ -142,9 +139,8 @@ export const mountRuntimeHarness = async (
       onDispose: (handler: () => void) => disposers.push(handler),
     },
     slots: {
-      register: (registration: {
-        slots: { sidebar_content: (ctx: unknown, slotInput: unknown) => unknown };
-      }) => slotRegistrations.push(registration),
+      register: (registration: { slots: { sidebar_content: (ctx: unknown, slotInput: unknown) => unknown } }) =>
+        slotRegistrations.push(registration),
     },
     theme: { current: { text: 'white', textMuted: 'gray' } },
   } as unknown as TuiPluginApi;

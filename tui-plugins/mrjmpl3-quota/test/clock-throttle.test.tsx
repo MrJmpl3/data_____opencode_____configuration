@@ -55,16 +55,12 @@ const setupHarness = async (fetchProviderLines: ReturnType<typeof vi.fn>): Promi
 
   const { registerQuotaTui } = await import('../src/runtime/runtime.tsx');
 
-  return mountRuntimeHarness(
-    registerQuotaTui,
-    signals,
-    {
-      minRefreshIntervalMs: 600_000,
-      pollIntervalMs: 0,
-      providerCacheTtlMs: 600_000,
-      visibleProviders: ['openrouter'],
-    },
-  );
+  return mountRuntimeHarness(registerQuotaTui, signals, {
+    minRefreshIntervalMs: 600_000,
+    pollIntervalMs: 0,
+    providerCacheTtlMs: 600_000,
+    visibleProviders: ['openrouter'],
+  });
 };
 
 describe('quota clock throttle', () => {

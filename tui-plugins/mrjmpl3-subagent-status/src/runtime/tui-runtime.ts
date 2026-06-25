@@ -80,8 +80,7 @@ export const createTuiRuntime = (
   // provided; otherwise fall back to an internal boolean (tests/compat).
   let internalSlotVisible = false;
   const externalSlotVisible = input.isSlotVisible;
-  const isSlotVisible = (): boolean =>
-    externalSlotVisible ? externalSlotVisible() : internalSlotVisible;
+  const isSlotVisible = (): boolean => (externalSlotVisible ? externalSlotVisible() : internalSlotVisible);
   const setSlotVisible = (visible: boolean): void => {
     internalSlotVisible = visible;
   };

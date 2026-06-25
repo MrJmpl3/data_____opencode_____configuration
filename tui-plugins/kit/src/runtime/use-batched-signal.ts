@@ -18,11 +18,7 @@ import type { Accessor } from 'solid-js';
  */
 export function useBatchedSignal<T>(
   initialValue: T,
-): [
-  get: Accessor<T>,
-  set: (value: T) => void,
-  batch: (fn: () => void) => void,
-] {
+): [get: Accessor<T>, set: (value: T) => void, batch: (fn: () => void) => void] {
   const [inner, setInner] = createSignal(initialValue);
   const [outer, setOuter] = createSignal(initialValue);
 

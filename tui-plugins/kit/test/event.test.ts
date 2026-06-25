@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  hasOwn,
-  eventProperties,
-  eventSessionId,
-  slotSessionId,
-} from '../src/event.js';
+import { hasOwn, eventProperties, eventSessionId, slotSessionId } from '../src/event.js';
 
 describe('hasOwn (E4)', () => {
   it('returns true for own property', () => {

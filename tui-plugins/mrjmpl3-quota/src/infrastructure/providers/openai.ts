@@ -283,7 +283,10 @@ const buildOpenAIHeaders = (token: string): Record<string, string> => {
   return headers;
 };
 
-const fetchOpenAIResetCredits = async (headers: Record<string, string>, signal?: AbortSignal): Promise<OpenAIResetCreditsResult> => {
+const fetchOpenAIResetCredits = async (
+  headers: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<OpenAIResetCreditsResult> => {
   try {
     const resetHeaders: Record<string, string> = {
       ...headers,
@@ -433,7 +436,10 @@ export const formatOpenAILines = (
   return lines.length ? lines : [detailTextLine('No windows')];
 };
 
-const fetchOpenAIUsagePayload = async (headers: Record<string, string>, signal?: AbortSignal): Promise<OpenAIResult | { error: string }> => {
+const fetchOpenAIUsagePayload = async (
+  headers: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<OpenAIResult | { error: string }> => {
   const response = await fetchWithTimeout(OPENAI_USAGE_URL, { headers }, undefined, signal);
   if (!response.ok) {
     const text = await response.text().catch((error: unknown) => {

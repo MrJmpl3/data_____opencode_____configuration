@@ -195,13 +195,18 @@ export const fetchGoDashboard = async (
     }
   | { error: string }
 > => {
-  const response = await fetchWithTimeout(DASHBOARD_URL(workspaceId), {
-    headers: {
-      'User-Agent': USER_AGENT,
-      Accept: 'text/html',
-      Cookie: `auth=${authCookie}`,
+  const response = await fetchWithTimeout(
+    DASHBOARD_URL(workspaceId),
+    {
+      headers: {
+        'User-Agent': USER_AGENT,
+        Accept: 'text/html',
+        Cookie: `auth=${authCookie}`,
+      },
     },
-  }, undefined, signal);
+    undefined,
+    signal,
+  );
   if (!response.ok) return { error: httpErrorMessage('OpenCode Go', response) };
 
   const html = await response.text();

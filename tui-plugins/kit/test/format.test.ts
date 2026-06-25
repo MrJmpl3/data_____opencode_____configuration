@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  finiteNumber,
-  formatCompactNumber,
-  detailLine,
-  formatPercentRatio,
-} from '../src/format.js';
+import { finiteNumber, formatCompactNumber, detailLine, formatPercentRatio } from '../src/format.js';
 
 describe('finiteNumber (F1)', () => {
   it('returns the value if finite', () => {

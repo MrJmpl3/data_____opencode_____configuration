@@ -28,10 +28,11 @@ describe('quota setLines batch', () => {
     vi.resetModules();
 
     const resolvers: Record<string, (value: string) => void> = {};
-    const fetchProviderLines = vi.fn((opts: { providerId: string }) =>
-      new Promise<string>((resolve) => {
-        resolvers[opts.providerId] = resolve;
-      }),
+    const fetchProviderLines = vi.fn(
+      (opts: { providerId: string }) =>
+        new Promise<string>((resolve) => {
+          resolvers[opts.providerId] = resolve;
+        }),
     );
 
     const signals: SignalSpy[] = [];
@@ -75,16 +76,12 @@ describe('quota setLines batch', () => {
     });
 
     const { registerQuotaTui } = await import('../src/runtime/runtime.tsx');
-    const harness: QuotaRuntimeHarness = await mountRuntimeHarness(
-      registerQuotaTui,
-      signals,
-      {
-        minRefreshIntervalMs: 600_000,
-        pollIntervalMs: 0,
-        providerCacheTtlMs: 600_000,
-        visibleProviders: ['openrouter', 'github-copilot', 'openai'],
-      },
-    );
+    const harness: QuotaRuntimeHarness = await mountRuntimeHarness(registerQuotaTui, signals, {
+      minRefreshIntervalMs: 600_000,
+      pollIntervalMs: 0,
+      providerCacheTtlMs: 600_000,
+      visibleProviders: ['openrouter', 'github-copilot', 'openai'],
+    });
 
     // The initial cached display setLines happens before providers settle.
     // Reset the spy so only settlement-phase calls are counted.

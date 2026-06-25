@@ -1,8 +1,7 @@
 export type UnknownRecord = Record<string, unknown>;
 
 /** C1: returns true for any non-null object, including arrays */
-export const isRecord = (v: unknown): v is UnknownRecord =>
-  typeof v === 'object' && v !== null;
+export const isRecord = (v: unknown): v is UnknownRecord => typeof v === 'object' && v !== null;
 
 /** C2: returns true only for non-null plain objects (array-EXCLUDING) */
 export const isPlainObject = (v: unknown): v is UnknownRecord =>

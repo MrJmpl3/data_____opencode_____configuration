@@ -17,12 +17,7 @@ describe('fetchWithTimeout (AbortSignal plumbing)', () => {
 
     const callerController = new AbortController();
 
-    await fetchWithTimeout(
-      'https://example.com/api',
-      {},
-      10000,
-      callerController.signal,
-    );
+    await fetchWithTimeout('https://example.com/api', {}, 10000, callerController.signal);
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const passedSignal = (fetchSpy.mock.calls[0] as unknown[])[1] as RequestInit;

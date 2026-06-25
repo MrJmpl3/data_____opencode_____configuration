@@ -1,4 +1,14 @@
-export { isRecord, isPlainObject, asString, normalizedString, toFiniteNumber, toNonNegativeInteger, timestampMs, safeTimestamp, timestampFromUnknown } from './coercion.js';
+export {
+  isRecord,
+  isPlainObject,
+  asString,
+  normalizedString,
+  toFiniteNumber,
+  toNonNegativeInteger,
+  timestampMs,
+  safeTimestamp,
+  timestampFromUnknown,
+} from './coercion.js';
 export type { UnknownRecord } from './coercion.js';
 
 export { finiteNumber, formatCompactNumber, detailLine, formatPercentRatio } from './format.js';

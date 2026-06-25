@@ -5,8 +5,7 @@ import { createRoot, createComputed } from 'solid-js/dist/solid.js';
 import { useBatchedSignal } from '../../src/runtime/use-batched-signal.js';
 
 /** Flush all pending microtasks. */
-const flushMicrotasks = (): Promise<void> =>
-  new Promise((resolve) => queueMicrotask(resolve));
+const flushMicrotasks = (): Promise<void> => new Promise((resolve) => queueMicrotask(resolve));
 
 describe('useBatchedSignal', () => {
   // Spec scenario: set coalesces multiple writes into one emission.
