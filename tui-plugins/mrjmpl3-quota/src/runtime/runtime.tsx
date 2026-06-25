@@ -1,6 +1,8 @@
 /** @jsxImportSource @opentui/solid */
 import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
-import { createSignal, onCleanup } from 'solid-js';
+import { createSignal } from 'solid-js';
+
+import { useSlotVisibility, useClockTicker } from '@mrjmpl3/tui-kit/runtime';
 
 import type { QuotaLine } from '../domain/lines.ts';
 import { detailTextLine, headingLine } from '../domain/lines.ts';
@@ -165,12 +167,9 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
   let inFlightVersion = 0;
   let refreshGeneration = 0;
   let disposed = false;
-  let clockTimer: ReturnType<typeof setTimeout> | undefined;
-  // Slot-visibility gate: the 1Hz clock only advances `nowMs` while the
-  // sidebar slot is mounted and has visible lines. Pausing the clock when the
-  // slot is hidden/empty eliminates idle full-view re-renders. Set true inside
-  // the `sidebar_content` closure; reset to false via `onCleanup` on unmount.
-  let slotActive = false;
+  // Slot-visibility gate provided by useSlotVisibility below.
+  const { isVisible: slotActive, SlotProvider } = useSlotVisibility(api);
+
 
   const { options: resolvedOptions, diagnostics } = inspectQuotaPluginOptions(options);
 
@@ -310,26 +309,18 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
       });
   };
 
-  const scheduleClockTick = () => {
-    const delayMs = 1000 - (Date.now() % 1000);
-    clockTimer = setTimeout(() => {
-      if (disposed) return;
-      // Skip the clock update while the slot is hidden or has no visible
-      // content, but keep rescheduling so the clock resumes within ~1s once
-      // visibility/content returns.
-      if (!slotActive || lines().length === 0) {
-        scheduleClockTick();
-        return;
-      }
-      const tickNowMs = Date.now();
+  const clockTickerDispose = useClockTicker({
+    active: slotActive,
+    onTick: (tickNowMs: number) => {
+      // Preserve original behavior: skip clock updates when lines are empty.
+      if (lines().length === 0) return;
       setNowMs(tickNowMs);
       if (hasExpiredQuotaLine(lines(), tickNowMs) && tickNowMs - lastExpiryRefreshAtMs >= expiryRefreshIntervalMs) {
         lastExpiryRefreshAtMs = tickNowMs;
         requestRefresh('quota-window-expired', true);
       }
-      scheduleClockTick();
-    }, delayMs);
-  };
+    },
+  });
 
   const refresh = async (_source?: string) => {
     if (disposed) return;
@@ -385,8 +376,6 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
     }, delayMs);
   };
 
-  scheduleClockTick();
-
   const scheduler = createRefreshScheduler({
     subscribe: (eventName, handler) => {
       if (eventName === 'tui.session.select') return evt.on('tui.session.select', handler);
@@ -409,7 +398,7 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
   });
   lifecycle.onDispose(() => {
     disposed = true;
-    if (clockTimer) clearTimeout(clockTimer);
+    clockTickerDispose();
     if (deferredRefreshTimer) clearTimeout(deferredRefreshTimer);
     scheduler.dispose();
   });
@@ -420,18 +409,13 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
     order: 180,
     slots: {
       sidebar_content: (_ctx, slotInput) => {
+        // Mark slot as visible and register cleanup via useSlotVisibility.
+        SlotProvider(_ctx, slotInput);
         const sessionId = slotSessionId(slotInput);
         if (sessionId && sessionId !== currentSessionId) {
           currentSessionId = sessionId;
           requestRefresh(`session:${sessionId}`);
         }
-        // Mark the slot as active and resume the clock immediately so elapsed
-        // times stay fresh (<=1s staleness). onCleanup resets the gate when the
-        // host unmounts the slot (e.g. sidebar collapsed via <Show>).
-        slotActive = true;
-        onCleanup(() => {
-          slotActive = false;
-        });
         setNowMs(Date.now());
         return <View getLines={lines} getNowMs={nowMs} api={api} />;
       },

@@ -1,5 +1,7 @@
 import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
+import type { Accessor } from 'solid-js';
 
+import { useClockTicker } from '@mrjmpl3/tui-kit/runtime';
 import { installEventBridge } from './events/bridge.ts';
 import { createBufferedTaskQueue } from './queue.ts';
 import { normalizeSubagentStatusPluginOptions, type ResolvedSubagentStatusPluginOptions } from './options.ts';
@@ -23,7 +25,9 @@ import { isPlainObject as isRecord } from '@mrjmpl3/tui-kit';
 export type TuiRuntime = {
   bootstrap: () => Promise<void>;
   refreshFromSlot: (slotInput: unknown) => void;
-  /** Mark the sidebar slot as visible/hidden so the 1Hz clock can be gated. */
+  /** Mark the sidebar slot as visible/hidden so the 1Hz clock can be gated.
+   * When useSlotVisibility is available, this delegates to the Accessor.
+   * Otherwise falls back to an internal boolean. */
   setSlotVisible: (visible: boolean) => void;
   dispose: () => void;
 };
@@ -36,6 +40,9 @@ export const createTuiRuntime = (
     getSessionId: () => string;
     setSessionId: (sessionId: string) => void;
     setNowMs: (nowMs: number) => void;
+    /** Accessor from useSlotVisibility — true while the sidebar slot is mounted.
+     * Defaults to `() => true` so callers that don't use kit primitives are unaffected. */
+    isSlotVisible?: Accessor<boolean>;
     /**
      * Whether the sidebar has visible content (active/recent children). When
      * false (or omitted), the clock still respects the slot-visibility gate.
@@ -66,17 +73,19 @@ export const createTuiRuntime = (
   });
 
   let disposed = false;
-  let tickTimer: ReturnType<typeof setInterval> | undefined;
   let reconcileTimer: ReturnType<typeof setInterval> | undefined;
+  let clockTickerDispose: (() => void) | undefined;
   let lastEventType: string | undefined;
-  // Slot-visibility gate: the 1Hz clock only advances `nowMs` while the sidebar
-  // slot is mounted and has visible children. Pausing the clock when hidden or
-  // empty eliminates idle full-view re-renders.
-  let slotActive = false;
-  const hasVisibleContent = input.hasVisibleContent ?? (() => true);
+  // Slot-visibility gate: useSlotVisibility's Accessor takes priority when
+  // provided; otherwise fall back to an internal boolean (tests/compat).
+  let internalSlotVisible = false;
+  const externalSlotVisible = input.isSlotVisible;
+  const isSlotVisible = (): boolean =>
+    externalSlotVisible ? externalSlotVisible() : internalSlotVisible;
   const setSlotVisible = (visible: boolean): void => {
-    slotActive = visible;
+    internalSlotVisible = visible;
   };
+  const hasVisibleContent = input.hasVisibleContent ?? (() => true);
 
   const createPersistMeta = (source: PersistSnapshotMeta['source']): PersistSnapshotMeta => ({
     source,
@@ -157,9 +166,10 @@ export const createTuiRuntime = (
     bufferedEvents.push(event);
   });
 
-  tickTimer = setInterval(() => {
-    if (!disposed && slotActive && hasVisibleContent()) input.setNowMs(Date.now());
-  }, 1000);
+  clockTickerDispose = useClockTicker({
+    active: () => isSlotVisible() && hasVisibleContent(),
+    onTick: (nowMs: number) => input.setNowMs(nowMs),
+  });
 
   reconcileTimer = setInterval(() => {
     if (!disposed && input.getSessionId()) {
@@ -202,7 +212,7 @@ export const createTuiRuntime = (
     if (disposed) return;
     disposed = true;
 
-    if (tickTimer) clearInterval(tickTimer);
+    if (clockTickerDispose) clockTickerDispose();
     if (reconcileTimer) clearInterval(reconcileTimer);
     disposeEventBridge();
   };

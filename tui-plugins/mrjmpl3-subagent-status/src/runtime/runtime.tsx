@@ -1,6 +1,8 @@
 /** @jsxImportSource @opentui/solid */
 import type { TuiPluginApi, TuiSlotContext } from '@opencode-ai/plugin/tui';
-import { createEffect, createMemo, createRoot, createSignal, onCleanup } from 'solid-js';
+import { createEffect, createMemo, createRoot, createSignal } from 'solid-js';
+
+import { useSlotVisibility } from '@mrjmpl3/tui-kit/runtime';
 
 import { createPromptFocusController } from './focus.ts';
 import {
@@ -30,6 +32,7 @@ export const registerSubagentStatusTui = async (api: TuiPluginApi, options: unkn
     const [nowMs, setNowMs] = createSignal(Date.now());
     const snapshot = createMemo(() => buildTuiSnapshot(state(), nowMs(), resolvedOptions.visibility));
     const promptFocusController = createPromptFocusController();
+    const { isVisible, SlotProvider } = useSlotVisibility(api);
 
     const runtime = createTuiRuntime(
       api,
@@ -39,6 +42,7 @@ export const registerSubagentStatusTui = async (api: TuiPluginApi, options: unkn
         getSessionId: sessionId,
         setSessionId,
         setNowMs,
+        isSlotVisible: isVisible,
         // The clock's content gate: only tick while visible children exist.
         hasVisibleContent: () => snapshot().visibleChildren.length > 0,
       },
@@ -73,10 +77,9 @@ export const registerSubagentStatusTui = async (api: TuiPluginApi, options: unkn
         },
         sidebar_content: (_ctx: unknown, slotInput: unknown) => {
           runtime.refreshFromSlot(slotInput);
-          // Mark the slot visible so the 1Hz clock resumes; onCleanup resets the
-          // gate when the host unmounts the slot (e.g. sidebar collapsed).
-          runtime.setSlotVisible(true);
-          onCleanup(() => runtime.setSlotVisible(false));
+          // Mark slot visible via useSlotVisibility — SlotProvider handles
+          // visibility state and cleanup automatically.
+          SlotProvider(_ctx, slotInput);
 
           return (
             <SidebarView
