@@ -1,5 +1,6 @@
 import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
 
+import { cloneState } from '@mrjmpl3/tui-kit';
 import { applySubagentEvent } from './events/handling.ts';
 import { extractSessionId } from './events/parsing.ts';
 import { createCoalescedTaskRunner } from './queue.ts';
@@ -134,7 +135,7 @@ export const createTuiRuntimeRefresh = (
 
     let nextState: SubagentState;
     try {
-      nextState = structuredClone(input.state.getState());
+      nextState = cloneState(input.state.getState());
     } catch {
       return;
     }
@@ -152,7 +153,7 @@ export const createTuiRuntimeRefresh = (
     try {
       if (!sessionId) return;
 
-      let nextState = structuredClone(input.state.getState());
+      let nextState = cloneState(input.state.getState());
       nextState.recovering = true;
       const directory = api.state.path.directory;
       const recovered = await hydrateRecoverySourcesSafely({
@@ -245,7 +246,7 @@ export const createTuiRuntimeRefresh = (
     try {
       if (!sessionId) return;
 
-      const nextState = structuredClone(input.state.getState());
+      const nextState = cloneState(input.state.getState());
       const hydrated = await hydrateChildTokensFromLogs(nextState);
       const pruned = pruneTerminalChildren(nextState);
       if (isInactiveSessionToken(sessionToken)) return;

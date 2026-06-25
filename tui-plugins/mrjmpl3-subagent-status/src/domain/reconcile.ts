@@ -10,7 +10,7 @@ import {
 import { deriveOpenCodeSessionStatus } from './session-status.ts';
 import { sameSubagentTokens } from './tokens.ts';
 import type { SubagentChild, SubagentState, SubagentTokens } from './types.ts';
-import { asString, isPlainObject as isRecord, timestampFromUnknown } from '@mrjmpl3/tui-kit';
+import { asString, cloneState, isPlainObject as isRecord, timestampFromUnknown } from '@mrjmpl3/tui-kit';
 
 const sessionTime = (input: Record<string, unknown>, key: 'created' | 'updated'): string | undefined => {
   const time = isRecord(input.time) ? input.time : undefined;
@@ -158,22 +158,6 @@ const isNewTerminalRecoveryAlias = (
   inheritedTerminalRecovery: boolean,
 ): boolean => {
   return !existing && inheritedTerminalRecovery && Boolean(sessionID && incomingChild.id !== sessionID);
-};
-
-const cloneState = (state: SubagentState): SubagentState => {
-  return {
-    ...state,
-    children: Object.fromEntries(
-      Object.entries(state.children).map(([id, child]) => [
-        id,
-        {
-          ...child,
-          tokens: child.tokens ? { ...child.tokens } : undefined,
-        },
-      ]),
-    ),
-    countedChildIDs: { ...state.countedChildIDs },
-  };
 };
 
 const sameChild = (left: SubagentChild | undefined, right: SubagentChild | undefined): boolean => {
