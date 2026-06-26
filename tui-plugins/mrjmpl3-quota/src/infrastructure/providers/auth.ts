@@ -39,6 +39,20 @@ export const readOauthAccessToken = (keys: readonly string[]): string | null => 
   return null;
 };
 
+export const readAuthProviderApiKey = (keys: readonly string[], fields: readonly string[]): string | null => {
+  const auth = readAuthJson();
+  if (!auth) return null;
+  for (const key of keys) {
+    const entry = auth[key];
+    if (!isRecord(entry)) continue;
+    for (const field of fields) {
+      const value = entry[field];
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+  }
+  return null;
+};
+
 const readOauthAccountId = (keys: readonly string[]): string | null => {
   const auth = readAuthJson();
   if (!auth) return null;

@@ -1,6 +1,7 @@
 import type { QuotaLine } from './lines.ts';
 import type { QuotaDisplayMode, QuotaProviderId } from './types.ts';
 import { fetchCopilotQuota, formatCopilotLines } from '../infrastructure/providers/copilot.ts';
+import { fetchDeepSeekQuota, formatDeepSeekLines } from '../infrastructure/providers/deepseek.ts';
 import {
   fetchGoDashboard,
   formatGoWorkspaceHeading,
@@ -85,6 +86,13 @@ export const fetchProviderLines = async (args: FetchProviderLinesArgs): Promise<
       const fetchedAtMs = Date.now();
       setNowMs(fetchedAtMs);
       return formatOpenAILines(openAIResult, displayMode, fetchedAtMs);
+    }
+
+    case 'deepseek': {
+      const deepSeekResult = await fetchDeepSeekQuota();
+      if (deepSeekResult === null) return undefined;
+      if ('error' in deepSeekResult) return deepSeekResult.error;
+      return formatDeepSeekLines(deepSeekResult, displayMode);
     }
   }
 };

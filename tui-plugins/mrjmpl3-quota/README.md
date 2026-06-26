@@ -25,6 +25,7 @@ For each provider, the plugin displays:
 | `github-copilot` | Monthly window + Monthly pace                                                                          | `auth.json` (oauth entry `github-copilot`)                        |
 | `openrouter`     | Credit balance                                                                                         | `OPENROUTER_API_KEY` or `~/.config/opencode/openrouter-auth.json` |
 | `openai`         | 5h, Weekly, Code windows + Weekly pace + compact additional rate limits + Reset credits (experimental) | `auth.json` (oauth entry `openai`)                                |
+| `deepseek`       | Credit balance                                                                                         | `DEEPSEEK_API_KEY` or `auth.json` entry `deepseek`                |
 
 ## Options
 
@@ -65,7 +66,7 @@ Controls whether the plugin shows remaining or used quota.
 
 Which providers to display and in what order. Invalid or unknown IDs are ignored.
 
-**Allowed values:** `"opencode-go"`, `"github-copilot"`, `"openrouter"`, `"openai"`
+**Allowed values:** `"opencode-go"`, `"github-copilot"`, `"openrouter"`, `"openai"`, `"deepseek"`
 
 **Default:** `["opencode-go", "github-copilot", "openrouter"]`
 
@@ -193,6 +194,21 @@ export OPENROUTER_API_KEY="sk-or-v1-..."
 ```json
 // ~/.config/opencode/openrouter-auth.json
 { "apiKey": "sk-or-v1-..." }
+```
+
+### DeepSeek
+
+DeepSeek is opt-in. Add `"deepseek"` to `visibleProviders`, then either set the environment variable
+or add an `auth.json` entry with one of `apiKey`, `api_key`, `token`, or `access`:
+
+```bash
+export DEEPSEEK_API_KEY="sk-..."
+```
+
+```json
+{
+  "deepseek": { "apiKey": "sk-..." }
+}
 ```
 
 ### GitHub Copilot and OpenAI

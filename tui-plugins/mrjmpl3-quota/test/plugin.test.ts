@@ -15,6 +15,7 @@ import plugin, {
 import { inspectQuotaPluginOptions } from '../src/runtime/options.ts';
 import { createRefreshScheduler } from '../src/runtime/refresh-scheduler.ts';
 import { detailTextLine, headingLine } from '../src/domain/lines.ts';
+import { fetchProviderLines } from '../src/domain/provider-results.ts';
 import {
   isQuotaTerminalSessionEvent,
   isQuotaTerminalTaskEvent,
@@ -23,6 +24,7 @@ import {
   shouldKeepDeferredRefreshTimer,
 } from '../src/runtime/runtime.tsx';
 import { fetchCopilotQuota, normalizeCopilotResetAtMs } from '../src/infrastructure/providers/copilot.ts';
+import { fetchDeepSeekQuota, formatDeepSeekLines } from '../src/infrastructure/providers/deepseek.ts';
 import { fmtDuration } from '../src/infrastructure/providers/format.ts';
 import { fetchWithTimeout } from '../src/infrastructure/providers/http.ts';
 import {
@@ -36,6 +38,8 @@ import { fetchOpenRouterQuota } from '../src/infrastructure/providers/openrouter
 import { fetchWithTimeout as fetchWithTimeoutFromHttp } from '../src/infrastructure/providers/http.ts';
 import { fmtDuration as fmtDurationFromProviderFormat } from '../src/infrastructure/providers/format.ts';
 import { parseAdditionalRateLimits as parseAdditionalRateLimitsFromOpenAI } from '../src/infrastructure/providers/openai.ts';
+import { DEEPSEEK_BALANCE_URL } from '../src/infrastructure/providers/constants.ts';
+import { createQuotaProviderCache } from '../src/infrastructure/cache.ts';
 
 const createAuthFixture = (entries: Record<string, unknown>): string => {
   const root = mkdtempSync(join(tmpdir(), 'opencode-quota-'));
@@ -135,13 +139,26 @@ describe('quota tui plugin', () => {
 
   it('accepts canonical provider ids and preserves their configured order', () => {
     const options = resolveQuotaPluginOptions({
-      visibleProviders: ['openai', 'opencode-go', 'github-copilot'],
+      visibleProviders: ['deepseek', 'openai', 'opencode-go', 'github-copilot'],
     });
 
     expect(options.visibleProviders).toEqual([
+      { id: 'deepseek', label: 'DeepSeek' },
       { id: 'openai', label: 'OpenAI' },
       { id: 'opencode-go', label: 'OpenCode Go' },
       { id: 'github-copilot', label: 'GitHub Copilot' },
+    ]);
+  });
+
+  it('selects DeepSeek only when it is explicitly configured', () => {
+    expect(resolveQuotaPluginOptions(undefined).visibleProviders).toEqual([
+      { id: 'opencode-go', label: 'OpenCode Go' },
+      { id: 'github-copilot', label: 'GitHub Copilot' },
+      { id: 'openrouter', label: 'OpenRouter' },
+    ]);
+
+    expect(resolveQuotaPluginOptions({ visibleProviders: ['deepseek'] }).visibleProviders).toEqual([
+      { id: 'deepseek', label: 'DeepSeek' },
     ]);
   });
 
@@ -274,7 +291,7 @@ describe('quota tui plugin', () => {
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledWith(
       '[quota] Ignoring invalid visibleProviders entries: "copilot", "chatgpt". ' +
-        'Allowed canonical provider ids: opencode-go, github-copilot, openrouter, openai.',
+        'Allowed canonical provider ids: opencode-go, github-copilot, openrouter, openai, deepseek.',
     );
 
     events.get('session.idle')?.();
@@ -989,6 +1006,142 @@ describe('quota tui plugin', () => {
     await expect(fetchOpenRouterQuota()).resolves.toEqual({
       error: 'OpenRouter did not return expected credit data',
     });
+  });
+
+  it('returns unavailable when DeepSeek has no configured auth', async () => {
+    vi.stubEnv('DEEPSEEK_API_KEY', '');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    await expect(fetchDeepSeekQuota()).resolves.toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('fetches DeepSeek balance with bearer auth from the environment', async () => {
+    vi.stubEnv('DEEPSEEK_API_KEY', 'deepseek-token');
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          is_available: true,
+          balance_infos: [
+            {
+              currency: 'USD',
+              total_balance: '12.34',
+              granted_balance: '2.34',
+              topped_up_balance: '10.00',
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await expect(fetchDeepSeekQuota()).resolves.toEqual({
+      isAvailable: true,
+      balances: [
+        {
+          currency: 'USD',
+          totalBalance: 12.34,
+          grantedBalance: 2.34,
+          toppedUpBalance: 10,
+        },
+      ],
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      DEEPSEEK_BALANCE_URL,
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Accept: 'application/json',
+          Authorization: 'Bearer deepseek-token',
+        }),
+      }),
+    );
+  });
+
+  it('falls back to DeepSeek auth.json api key fields', async () => {
+    vi.stubEnv('DEEPSEEK_API_KEY', '');
+    vi.stubEnv(
+      'XDG_DATA_HOME',
+      createAuthFixture({
+        deepseek: { api_key: 'auth-json-token' },
+      }),
+    );
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ is_available: false, balance_infos: [] }), { status: 200 }));
+
+    await expect(fetchDeepSeekQuota()).resolves.toEqual({
+      isAvailable: false,
+      balances: [],
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      DEEPSEEK_BALANCE_URL,
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer auth-json-token' }),
+      }),
+    );
+  });
+
+  it('returns stable DeepSeek errors for malformed and non-ok responses', async () => {
+    vi.stubEnv('DEEPSEEK_API_KEY', 'deepseek-token');
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ is_available: true }), { status: 200 }));
+    await expect(fetchDeepSeekQuota()).resolves.toEqual({ error: 'DeepSeek did not return expected balance data' });
+
+    fetchMock.mockResolvedValueOnce(new Response('Forbidden', { status: 403 }));
+    const forbidden = await fetchDeepSeekQuota();
+    expect(forbidden).not.toBeNull();
+    expect(forbidden && 'error' in forbidden ? forbidden.error : '').toContain('DeepSeek HTTP 403');
+  });
+
+  it('routes DeepSeek network failures through the provider cache without crashing', async () => {
+    vi.stubEnv('DEEPSEEK_API_KEY', 'deepseek-token');
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('network timeout'));
+    const { providerCache, getCachedProviderLines } = createQuotaProviderCache({
+      providerCacheTtlMilliseconds: 300_000,
+      providerErrorBackoffMilliseconds: 900_000,
+      fetchProviderLines: (providerId, goConfig) =>
+        fetchProviderLines({
+          providerId,
+          goConfig,
+          displayMode: 'remaining',
+          setNowMs: vi.fn(),
+        }),
+    });
+
+    await expect(getCachedProviderLines('deepseek', null)).resolves.toBe('Error: network timeout');
+    expect(providerCache.get('deepseek')).toMatchObject({
+      value: 'Error: network timeout',
+      consecutiveErrors: 1,
+    });
+    await expect(getCachedProviderLines('deepseek', null)).resolves.toBe('Error: network timeout');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('delegates DeepSeek provider result formatting to the provider adapter', async () => {
+    vi.stubEnv('DEEPSEEK_API_KEY', 'deepseek-token');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          is_available: true,
+          balance_infos: [{ currency: 'USD', total_balance: '12.34' }],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const setNowMs = vi.fn();
+    await expect(
+      fetchProviderLines({
+        providerId: 'deepseek',
+        goConfig: null,
+        displayMode: 'remaining',
+        setNowMs,
+      }),
+    ).resolves.toEqual(
+      formatDeepSeekLines({ isAvailable: true, balances: [{ currency: 'USD', totalBalance: 12.34 }] }, 'remaining'),
+    );
+    expect(setNowMs).not.toHaveBeenCalled();
   });
 
   it('sanitizes html and invalid-json responses from provider endpoints', async () => {

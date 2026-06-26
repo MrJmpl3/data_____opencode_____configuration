@@ -4,6 +4,7 @@ import { MONTH_SECONDS, WEEK_SECONDS } from '../src/domain/format.ts';
 import { detailTextLine, headingLine, paceLine, renderQuotaLine, windowLine } from '../src/domain/lines.ts';
 import type { OpenAIResetCreditsResult } from '../src/domain/types.ts';
 import { formatCopilotLines } from '../src/infrastructure/providers/copilot.ts';
+import { formatDeepSeekLines } from '../src/infrastructure/providers/deepseek.ts';
 import { formatGoLines, formatGoWorkspaceLines } from '../src/infrastructure/providers/go.ts';
 import { formatOpenAILines } from '../src/infrastructure/providers/openai.ts';
 import { formatOpenRouterLines } from '../src/infrastructure/providers/openrouter.ts';
@@ -182,6 +183,54 @@ describe('formatOpenRouterLines', () => {
         'used',
       ),
     ).toEqual([detailTextLine('Credits $1.2345 used (no limit)')]);
+  });
+});
+
+describe('formatDeepSeekLines', () => {
+  it('formats a single USD balance without leaking provider headings', () => {
+    expect(
+      formatDeepSeekLines(
+        {
+          isAvailable: true,
+          balances: [{ currency: 'USD', totalBalance: 12.34, grantedBalance: 2.34, toppedUpBalance: 10 }],
+        },
+        'remaining',
+      ),
+    ).toEqual([detailTextLine('Balance $12.34')]);
+  });
+
+  it('formats used mode from topped-up and granted balances when available', () => {
+    expect(
+      formatDeepSeekLines(
+        {
+          isAvailable: true,
+          balances: [{ currency: 'USD', totalBalance: 12.34, grantedBalance: 2.34, toppedUpBalance: 10 }],
+        },
+        'used',
+      ),
+    ).toEqual([detailTextLine('Balance $0.00/$12.34')]);
+  });
+
+  it('includes currency labels when multiple balances are available', () => {
+    expect(
+      formatDeepSeekLines(
+        {
+          isAvailable: true,
+          balances: [
+            { currency: 'USD', totalBalance: 12.34 },
+            { currency: 'CNY', totalBalance: 56.78 },
+          ],
+        },
+        'remaining',
+      ),
+    ).toEqual([detailTextLine('USD Balance $12.34'), detailTextLine('CNY Balance ¥56.78')]);
+  });
+
+  it('returns no success lines for unavailable or empty DeepSeek accounts', () => {
+    expect(
+      formatDeepSeekLines({ isAvailable: false, balances: [{ currency: 'USD', totalBalance: 12.34 }] }, 'remaining'),
+    ).toEqual([]);
+    expect(formatDeepSeekLines({ isAvailable: true, balances: [] }, 'remaining')).toEqual([]);
   });
 });
 

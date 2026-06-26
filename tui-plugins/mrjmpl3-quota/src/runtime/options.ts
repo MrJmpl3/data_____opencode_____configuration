@@ -30,6 +30,7 @@ const PROVIDER_SPECS: readonly ProviderSpec[] = [
   { id: 'github-copilot', label: 'GitHub Copilot' },
   { id: 'openrouter', label: 'OpenRouter' },
   { id: 'openai', label: 'OpenAI' },
+  { id: 'deepseek', label: 'DeepSeek' },
 ];
 
 export const DEFAULT_VISIBLE_PROVIDERS: readonly QuotaProviderId[] = ['opencode-go', 'github-copilot', 'openrouter'];

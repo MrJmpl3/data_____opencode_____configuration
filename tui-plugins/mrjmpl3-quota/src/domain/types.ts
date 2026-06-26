@@ -1,4 +1,4 @@
-export type QuotaProviderId = 'opencode-go' | 'github-copilot' | 'openrouter' | 'openai';
+export type QuotaProviderId = 'opencode-go' | 'github-copilot' | 'openrouter' | 'openai' | 'deepseek';
 export type QuotaDisplayMode = 'remaining' | 'used';
 export type QuotaLineTone = 'neutral' | 'success' | 'warning' | 'error';
 
@@ -56,6 +56,18 @@ export interface OpenRouterResult {
   remaining?: number;
   total?: number;
   usage?: number;
+}
+
+export interface DeepSeekBalanceInfo {
+  currency: string;
+  totalBalance: number;
+  grantedBalance?: number;
+  toppedUpBalance?: number;
+}
+
+export interface DeepSeekResult {
+  isAvailable: boolean;
+  balances: readonly DeepSeekBalanceInfo[];
 }
 
 export interface OpenAIWindow extends PercentWindow {}
