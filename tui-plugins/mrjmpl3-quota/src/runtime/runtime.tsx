@@ -294,7 +294,8 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
     promise
       .finally(() => {
         refreshPromise = undefined;
-        if (disposed || (!pendingRefreshSource && !pendingCacheInvalidation && !pendingForce)) return;
+        if (disposed || deferredRefreshTimer || (!pendingRefreshSource && !pendingCacheInvalidation && !pendingForce))
+          return;
         const queuedSource = pendingRefreshSource;
         const queuedCacheInvalidation = pendingCacheInvalidation;
         const queuedForce = pendingForce;
