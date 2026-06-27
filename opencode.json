@@ -1452,7 +1452,7 @@
     "github": {
       "enabled": true,
       "headers": {
-        "Authorization": "Bearer {env:GITHUB_PAT}"
+        "Authorization": "Bearer {env:GITHUB_TOKEN}"
       },
       "oauth": false,
       "type": "remote",
