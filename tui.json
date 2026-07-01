@@ -5,7 +5,7 @@
       "/home/mrjmpl3/.config/opencode/tui-plugins/mrjmpl3-quota",
       {
         "experimentalOpenAIResetCredits": true,
-        "visibleProviders": ["deepseek", "openrouter", "openai", "opencode-go", "github-copilot"]
+        "visibleProviders": ["deepseek", "openai", "github-copilot"]
       }
     ],
     "/home/mrjmpl3/.config/opencode/tui-plugins/mrjmpl3-subagent-status",
