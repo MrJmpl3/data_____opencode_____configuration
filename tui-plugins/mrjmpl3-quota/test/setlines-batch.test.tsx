@@ -1,4 +1,8 @@
 /** @jsxImportSource @opentui/solid */
+import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { mountRuntimeHarness, type QuotaRuntimeHarness, type SignalSpy } from '@mrjmpl3/tui-kit/test';
@@ -7,12 +11,21 @@ const flushAsyncTasks = async (): Promise<void> => {
   for (let i = 0; i < 6; i += 1) await Promise.resolve();
 };
 
+const createQuotaFixture = (options: Record<string, unknown>): string => {
+  const root = mkdtempSync(join(tmpdir(), 'opencode-quota-'));
+  const configDir = join(root, '.config', 'opencode');
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(join(configDir, 'quota.json'), JSON.stringify({ options }), 'utf8');
+  return configDir;
+};
+
 describe('quota setLines batch', () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.useRealTimers();
     vi.doUnmock('solid-js');
     vi.doUnmock('@opentui/solid');
@@ -75,13 +88,18 @@ describe('quota setLines batch', () => {
       return { ...actual, fetchProviderLines };
     });
 
+    vi.stubEnv(
+      'OPENCODE_CONFIG_DIR',
+      createQuotaFixture({
+        minRefreshIntervalMs: 600_000,
+        pollIntervalMs: 0,
+        providerCacheTtlMs: 600_000,
+        visibleProviders: ['openrouter', 'github-copilot', 'openai'],
+      }),
+    );
+
     const { registerQuotaTui } = await import('../src/runtime/runtime.tsx');
-    const harness: QuotaRuntimeHarness = await mountRuntimeHarness(registerQuotaTui, signals, {
-      minRefreshIntervalMs: 600_000,
-      pollIntervalMs: 0,
-      providerCacheTtlMs: 600_000,
-      visibleProviders: ['openrouter', 'github-copilot', 'openai'],
-    });
+    const harness: QuotaRuntimeHarness = await mountRuntimeHarness(registerQuotaTui, signals, {});
 
     // The initial cached display setLines happens before providers settle.
     // Reset the spy so only settlement-phase calls are counted.

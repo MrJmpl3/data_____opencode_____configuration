@@ -10,7 +10,9 @@ import { detailTextLine, headingLine } from '../domain/lines.ts';
 import { fetchProviderLines } from '../domain/provider-results.ts';
 import type { GoConfig, ProviderFetchResult, ProviderResult } from '../domain/provider-results.ts';
 import type { QuotaProviderId } from '../domain/types.ts';
+import type { QuotaPluginOptions } from '../domain/types.ts';
 import { createQuotaProviderCache } from '../infrastructure/cache.ts';
+import { readQuotaConfig } from '../infrastructure/providers/config.ts';
 import { readGoConfig } from '../infrastructure/providers/go.ts';
 import { View } from '../ui/view.tsx';
 import { ALLOWED_VISIBLE_PROVIDER_IDS, DEFAULT_VISIBLE_PROVIDERS, inspectQuotaPluginOptions } from './options.ts';
@@ -170,7 +172,10 @@ export const registerQuotaTui = async (api: TuiPluginApi, options: unknown): Pro
   // Slot-visibility gate provided by useSlotVisibility below.
   const { isVisible: slotActive, SlotProvider } = useSlotVisibility(api);
 
-  const { options: resolvedOptions, diagnostics } = inspectQuotaPluginOptions(options);
+  // Config comes exclusively from quota.json — tui.json plugin options are ignored.
+  const fileConfig = readQuotaConfig();
+  const mergedOptions: QuotaPluginOptions = fileConfig?.options ?? {};
+  const { options: resolvedOptions, diagnostics } = inspectQuotaPluginOptions(mergedOptions);
 
   if (diagnostics.invalidVisibleProviderEntries.length > 0) {
     console.warn(buildInvalidVisibleProvidersWarning(diagnostics));

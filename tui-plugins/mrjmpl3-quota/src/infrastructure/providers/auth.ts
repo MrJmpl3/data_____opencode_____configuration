@@ -1,54 +1,51 @@
 import { existsSync, readFileSync } from 'fs';
-import os from 'os';
+import { homedir } from 'os';
 import { join } from 'path';
 
 import { isRecord } from './shared.ts';
 
-const xdgDataHome = (): string => {
-  return process.env.XDG_DATA_HOME || join(os.homedir(), '.local', 'share');
-};
-
-const authJsonPaths = (): string[] => {
-  return [join(xdgDataHome(), 'opencode', 'auth.json'), join(os.homedir(), '.config', 'opencode', 'auth.json')];
+const authJsonPath = (): string => {
+  const configDir = process.env.OPENCODE_CONFIG_DIR;
+  if (configDir) return join(configDir, 'auth.json');
+  return join(homedir(), '.local', 'share', 'opencode', 'auth.json');
 };
 
 const readAuthJson = (): Record<string, unknown> | null => {
-  for (const path of authJsonPaths()) {
-    if (!existsSync(path)) continue;
-    try {
-      const parsed: unknown = JSON.parse(readFileSync(path, 'utf-8'));
-
-      return isRecord(parsed) ? parsed : null;
-    } catch {
-      continue;
-    }
+  const path = authJsonPath();
+  if (!existsSync(path)) return null;
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(path, 'utf-8'));
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
   }
+};
+
+export const readOauthAccessToken = (key: string): string | null => {
+  const auth = readAuthJson();
+  if (!auth) return null;
+  const entry = auth[key];
+  if (!isRecord(entry)) return null;
+  if (entry.type !== 'oauth') return null;
+  const access = entry.access;
+  if (typeof access === 'string' && access.trim()) return access.trim();
   return null;
 };
 
-export const readOauthAccessToken = (keys: readonly string[]): string | null => {
+export const readAuthProviderApiKey = (key: string): string | null => {
   const auth = readAuthJson();
   if (!auth) return null;
-  for (const key of keys) {
-    const entry = auth[key];
-    if (!isRecord(entry)) continue;
-    if (entry.type !== 'oauth') continue;
-    const access = entry.access;
-    if (typeof access === 'string' && access.trim()) return access.trim();
+  const entry = auth[key];
+  if (!isRecord(entry)) return null;
+  // api entries store the value in the "key" field
+  if (entry.type === 'api') {
+    const value = entry.key;
+    if (typeof value === 'string' && value.trim()) return value.trim();
   }
-  return null;
-};
-
-export const readAuthProviderApiKey = (keys: readonly string[], fields: readonly string[]): string | null => {
-  const auth = readAuthJson();
-  if (!auth) return null;
-  for (const key of keys) {
-    const entry = auth[key];
-    if (!isRecord(entry)) continue;
-    for (const field of fields) {
-      const value = entry[field];
-      if (typeof value === 'string' && value.trim()) return value.trim();
-    }
+  // fallback: look for the value in any field named apiKey, api_key, token, access
+  for (const field of ['apiKey', 'api_key', 'token', 'access'] as const) {
+    const value = entry[field];
+    if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return null;
 };

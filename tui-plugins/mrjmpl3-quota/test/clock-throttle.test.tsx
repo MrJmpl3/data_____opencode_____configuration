@@ -1,8 +1,20 @@
 /** @jsxImportSource @opentui/solid */
+import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
 import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { mountRuntimeHarness, type QuotaRuntimeHarness, type SignalSpy } from '@mrjmpl3/tui-kit/test';
+
+const createQuotaFixture = (options: Record<string, unknown>): string => {
+  const root = mkdtempSync(join(tmpdir(), 'opencode-quota-'));
+  const configDir = join(root, '.config', 'opencode');
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(join(configDir, 'quota.json'), JSON.stringify({ options }), 'utf8');
+  return configDir;
+};
 
 /**
  * Build an isolated quota runtime harness with a mocked Solid signal layer so
@@ -11,6 +23,16 @@ import { mountRuntimeHarness, type QuotaRuntimeHarness, type SignalSpy } from '@
  */
 const setupHarness = async (fetchProviderLines: ReturnType<typeof vi.fn>): Promise<QuotaRuntimeHarness> => {
   vi.resetModules();
+
+  vi.stubEnv(
+    'OPENCODE_CONFIG_DIR',
+    createQuotaFixture({
+      minRefreshIntervalMs: 600_000,
+      pollIntervalMs: 0,
+      providerCacheTtlMs: 600_000,
+      visibleProviders: ['openrouter'],
+    }),
+  );
 
   const signals: SignalSpy[] = [];
 
@@ -55,12 +77,7 @@ const setupHarness = async (fetchProviderLines: ReturnType<typeof vi.fn>): Promi
 
   const { registerQuotaTui } = await import('../src/runtime/runtime.tsx');
 
-  return mountRuntimeHarness(registerQuotaTui, signals, {
-    minRefreshIntervalMs: 600_000,
-    pollIntervalMs: 0,
-    providerCacheTtlMs: 600_000,
-    visibleProviders: ['openrouter'],
-  });
+  return mountRuntimeHarness(registerQuotaTui, signals, {});
 };
 
 describe('quota clock throttle', () => {
@@ -69,6 +86,7 @@ describe('quota clock throttle', () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.useRealTimers();
     vi.doUnmock('solid-js');
     vi.doUnmock('@opentui/solid');

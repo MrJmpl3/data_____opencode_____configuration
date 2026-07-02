@@ -9,7 +9,7 @@ import { fetchWithTimeout, httpErrorMessage, readJsonResponse } from './http.ts'
 import { findBoolean, findNumber, findString } from './shared.ts';
 
 const readCopilotToken = (): string | null => {
-  return readOauthAccessToken(['github-copilot', 'copilot', 'copilot-chat', 'github-copilot-chat']);
+  return readOauthAccessToken('github-copilot');
 };
 
 const COPILOT_TOTAL_PATHS = [

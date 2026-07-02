@@ -1,6 +1,14 @@
 # mrjmpl3-quota
 
+<!-- README-I18N:START -->
+
+**English** | [Español](./README.es.md)
+
+<!-- README-I18N:END -->
+
 TUI plugin for OpenCode that displays provider quota, usage pace, and reset windows in the sidebar.
+
+**Local-only.** No fallbacks, no backward compatibility.
 
 ## What it shows
 
@@ -19,35 +27,86 @@ For each provider, the plugin displays:
 
 ## Supported providers
 
-| Provider         | Data shown                                                                                             | Auth                                                              |
-| ---------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| `opencode-go`    | Rolling 5h, Weekly, Monthly windows + Monthly pace                                                     | `OPENCODE_GO_AUTH_COOKIE` + local workspace source                |
-| `github-copilot` | Monthly window + Monthly pace                                                                          | `auth.json` (oauth entry `github-copilot`)                        |
-| `openrouter`     | Credit balance                                                                                         | `OPENROUTER_API_KEY` or `~/.config/opencode/openrouter-auth.json` |
-| `openai`         | 5h, Weekly, Code windows + Weekly pace + compact additional rate limits + Reset credits (experimental) | `auth.json` (oauth entry `openai`)                                |
-| `deepseek`       | Credit balance                                                                                         | `DEEPSEEK_API_KEY` or `auth.json` entry `deepseek`                |
+| Provider         | Data shown                                                                                     | Auth                                              |
+| ---------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `opencode-go`    | Rolling 5h, Weekly, Monthly windows + Monthly pace                                             | `quota.json` → `providers.opencode-go.authCookie` |
+| `github-copilot` | Monthly window + Monthly pace                                                                  | `auth.json` → `github-copilot` (oauth)            |
+| `openrouter`     | Credit balance                                                                                 | `auth.json` → `openrouter` (api)                  |
+| `openai`         | 5h, Weekly, Code windows + Weekly pace + additional rate limits + Reset credits (experimental) | `auth.json` → `openai` (oauth)                    |
+| `deepseek`       | Credit balance                                                                                 | `auth.json` → `deepseek` (api)                    |
 
-## Options
+## Auth
 
-Configure the plugin by passing an options object:
+All tokens come exclusively from `~/.local/share/opencode/auth.json` — the standard OpenCode auth
+file. No environment variables, no separate files, no fallbacks.
+
+Example:
 
 ```json
 {
-  "plugin": [
-    [
-      "/absolute/path/to/tui-plugins/mrjmpl3-quota",
-      {
-        "displayMode": "remaining",
-        "visibleProviders": ["opencode-go", "github-copilot", "openrouter"],
-        "pollIntervalMs": 600000,
-        "minRefreshIntervalMs": 120000,
-        "providerCacheTtlMs": 300000,
-        "providerErrorBackoffMs": 900000
-      }
-    ]
-  ]
+  "github-copilot": { "type": "oauth", "access": "ghu_..." },
+  "openai": { "type": "oauth", "access": "sess-..." },
+  "deepseek": { "type": "api", "key": "sk-..." },
+  "openrouter": { "type": "api", "key": "sk-or-v1-..." }
 }
 ```
+
+Entries per provider:
+
+| Provider       | auth.json key    | Type    | Field read |
+| -------------- | ---------------- | ------- | ---------- |
+| github-copilot | `github-copilot` | `oauth` | `access`   |
+| openai         | `openai`         | `oauth` | `access`   |
+| deepseek       | `deepseek`       | `api`   | `key`      |
+| openrouter     | `openrouter`     | `api`   | `key`      |
+
+## Configuration
+
+All configuration lives in `~/.config/opencode/quota.json`. The plugin **ignores** whatever you pass
+in `tui.json` — this file is the single source of truth.
+
+```json
+{
+  "providers": {
+    "opencode-go": {
+      "authCookie": "Fe26.2**...",
+      "workspaces": [
+        { "workspaceId": "wrk_123", "label": "Personal" },
+        { "workspaceId": "wrk_456", "label": "Team" }
+      ]
+    }
+  },
+  "options": {
+    "displayMode": "remaining",
+    "visibleProviders": ["opencode-go", "github-copilot", "openrouter"],
+    "pollIntervalMs": 600000,
+    "minRefreshIntervalMs": 120000,
+    "providerCacheTtlMs": 300000,
+    "providerErrorBackoffMs": 900000,
+    "experimentalOpenAIResetCredits": false
+  }
+}
+```
+
+### `providers.opencode-go`
+
+The auth cookie value and workspace definitions both go under `providers.opencode-go`:
+
+```json
+{
+  "providers": {
+    "opencode-go": {
+      "authCookie": "Fe26.2**...",
+      "workspaces": [{ "workspaceId": "wrk_123", "label": "Personal" }]
+    }
+  }
+}
+```
+
+The workspace ID is visible in your dashboard URL: `https://opencode.ai/workspace/<ID>/go`
+
+**Cache** — the global `providerCacheTtlMs` and `providerErrorBackoffMs` control how long OpenCode
+Go responses are cached before re-fetching. See the respective sections below.
 
 ### `displayMode`
 
@@ -140,103 +199,19 @@ client-impersonation headers. Only set to `true` if you accept those risks.
 { "experimentalOpenAIResetCredits": true }
 ```
 
-## Environment variables
-
-### OpenCode Go
-
-The auth cookie is always read from the environment:
-
-```bash
-export OPENCODE_GO_AUTH_COOKIE="Fe26.2**..."
-```
-
-Choose exactly one workspace source:
-
-1. Preferred: point `OPENCODE_GO_WORKSPACES_FILE` at a local JSON file with an array of
-   `{ workspaceId, label }` entries.
-
-   ```bash
-   export OPENCODE_GO_WORKSPACES_FILE="$HOME/.config/opencode/go-workspaces.json"
-   ```
-
-   ```json
-   [
-     { "workspaceId": "wrk_123", "label": "Personal" },
-     { "workspaceId": "wrk_456", "label": "Team" }
-   ]
-   ```
-
-2. Fallback: set `OPENCODE_GO_WORKSPACES` to the same JSON array as a string.
-
-   ```bash
-   export OPENCODE_GO_WORKSPACES='[{"workspaceId":"wrk_123","label":"Personal"}]'
-   ```
-
-3. Legacy single-workspace fallback: set `OPENCODE_GO_WORKSPACE_ID`.
-
-```bash
-export OPENCODE_GO_WORKSPACE_ID="wrk_..."
-```
-
-If the file or JSON source is present but empty or invalid, the plugin skips OpenCode Go rendering
-and does not fall back to `OPENCODE_GO_WORKSPACE_ID`.
-
-The workspace ID is visible in your dashboard URL: `https://opencode.ai/workspace/<ID>/go`
-
-### OpenRouter
-
-Either set the environment variable or place a JSON file:
-
-```bash
-export OPENROUTER_API_KEY="sk-or-v1-..."
-```
-
-```json
-// ~/.config/opencode/openrouter-auth.json
-{ "apiKey": "sk-or-v1-..." }
-```
-
-### DeepSeek
-
-DeepSeek is opt-in. Add `"deepseek"` to `visibleProviders`, then either set the environment variable
-or add an `auth.json` entry with one of `apiKey`, `api_key`, `token`, or `access`:
-
-```bash
-export DEEPSEEK_API_KEY="sk-..."
-```
-
-```json
-{
-  "deepseek": { "apiKey": "sk-..." }
-}
-```
-
-### GitHub Copilot and OpenAI
-
-These providers read credentials automatically from `~/.local/share/opencode/auth.json` (the
-standard OpenCode auth file). No additional setup required if you are already authenticated in
-OpenCode.
-
-## Reset credits (OpenAI) — EXPERIMENTAL, disabled by default
+## Reset credits (OpenAI) - EXPERIMENTAL, disabled by default
 
 > **Warning:** This feature uses an **undocumented private ChatGPT endpoint** with
 > client-impersonation headers. It is unsupported, may break without notice, and could violate
 > OpenAI's terms of service. **Use at your own risk.**
 
 Reset credits fetching is **OFF by default**. To enable it, set
-`experimentalOpenAIResetCredits: true` in the plugin options:
+`experimentalOpenAIResetCredits: true` in `quota.json`:
 
 ```json
 {
-  "plugin": [
-    [
-      "/absolute/path/to/tui-plugins/mrjmpl3-quota",
-      {
-        "visibleProviders": ["openai"],
-        "experimentalOpenAIResetCredits": true
-      }
-    ]
-  ]
+  "visibleProviders": ["openai"],
+  "experimentalOpenAIResetCredits": true
 }
 ```
 
@@ -294,6 +269,96 @@ The plugin uses a structured multi-line layout per provider:
 - Metadata lines (credits, reset status) grouped after windows
 - OpenAI additional rate limits render with compact visible state text such as `blocked · Vision` or
   `limit reached · Audio`; long labels are shortened to keep the sidebar narrow
+
+## Troubleshooting
+
+If the panel shows **No data**, verify each layer:
+
+### 1. Files exist at the right paths
+
+```bash
+ls -la ~/.local/share/opencode/auth.json    # tokens
+ls -la ~/.config/opencode/quota.json    # config
+```
+
+Both must exist and be valid JSON.
+
+### 2. quota.json structure
+
+```bash
+python3 -m json.tool ~/.config/opencode/quota.json
+```
+
+Must have `providers` and/or `options` as top-level keys:
+
+```json
+{
+  "providers": {
+    "opencode-go": {
+      "authCookie": "Fe26.2**...",
+      "workspaces": [...]
+    }
+  },
+  "options": {
+    "visibleProviders": ["opencode-go", "github-copilot", "openrouter"],
+    "displayMode": "remaining"
+  }
+}
+```
+
+`visibleProviders` in `options` determines which providers appear. If missing, defaults to
+`["opencode-go", "github-copilot", "openrouter"]`.
+
+### 3. auth.json tokens
+
+```bash
+python3 -m json.tool ~/.local/share/opencode/auth.json
+```
+
+Must have entries for the providers you want to see. For example:
+
+```json
+{
+  "github-copilot": { "type": "oauth", "access": "ghu_..." },
+  "openai": { "type": "oauth", "access": "sess-..." },
+  "deepseek": { "apiKey": "sk-..." },
+  "openrouter": { "apiKey": "sk-or-v1-..." }
+}
+```
+
+If a provider has no valid token, the plugin skips it silently.
+
+### 4. opencode-go
+
+If using `opencode-go`, needs both in `quota.json`:
+
+```json
+{
+  "providers": {
+    "opencode-go": {
+      "authCookie": "Fe26.2**...",
+      "workspaces": [{ "workspaceId": "wrk_...", "label": "Personal" }]
+    }
+  }
+}
+```
+
+The workspace ID is visible in your dashboard URL: `https://opencode.ai/workspace/<ID>/go`
+
+### 5. Plugin loaded
+
+If the sidebar still shows nothing, confirm the plugin is registered in
+`~/.config/opencode/opencode.json` under `tui.plugins`:
+
+```json
+{
+  "tui": {
+    "plugins": ["/home/tu-usuario/.config/opencode/tui-plugins/mrjmpl3-quota"]
+  }
+}
+```
+
+No options are passed here — `quota.json` is the single source of truth.
 
 ## Development
 

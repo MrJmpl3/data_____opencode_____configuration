@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -31,11 +31,12 @@ vi.mock('../src/infrastructure/providers/go.ts', async () => {
   };
 });
 
-const createWorkspaceFile = (workspaces: readonly { workspaceId: string; label: string }[]): string => {
-  const root = mkdtempSync(join(tmpdir(), 'opencode-go-workspaces-'));
-  const filePath = join(root, 'workspaces.json');
-  writeFileSync(filePath, JSON.stringify(workspaces), 'utf8');
-  return filePath;
+const writeQuotaConfig = (quota: Record<string, unknown>): string => {
+  const root = mkdtempSync(join(tmpdir(), 'opencode-go-'));
+  const configDir = join(root, '.config', 'opencode');
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(join(configDir, 'quota.json'), JSON.stringify(quota), 'utf8');
+  return configDir;
 };
 
 describe('OpenCode Go workspace configuration', () => {
@@ -50,59 +51,103 @@ describe('OpenCode Go workspace configuration', () => {
     vi.useRealTimers();
   });
 
-  it('prefers file-based workspaces over JSON env and legacy fallback', () => {
-    const workspaceFile = createWorkspaceFile([{ workspaceId: 'wrk-file-a', label: 'File A' }]);
-
-    vi.stubEnv('OPENCODE_GO_AUTH_COOKIE', 'file-cookie');
-    vi.stubEnv('OPENCODE_GO_WORKSPACES_FILE', workspaceFile);
-    vi.stubEnv('OPENCODE_GO_WORKSPACES', JSON.stringify([{ workspaceId: 'wrk-env-a', label: 'Env A' }]));
-    vi.stubEnv('OPENCODE_GO_WORKSPACE_ID', 'legacy-workspace');
-
-    expect(readGoConfig()).toEqual({
-      authCookie: 'file-cookie',
-      workspaces: [{ workspaceId: 'wrk-file-a', label: 'File A' }],
-    });
-  });
-
-  it('falls back to JSON env when the file source is absent', () => {
-    delete process.env.OPENCODE_GO_WORKSPACES_FILE;
-
-    vi.stubEnv('OPENCODE_GO_AUTH_COOKIE', 'env-cookie');
+  it('reads authCookie and workspaces from providers.opencode-go', () => {
     vi.stubEnv(
-      'OPENCODE_GO_WORKSPACES',
-      JSON.stringify([
-        { workspaceId: 'wrk-env-a', label: 'Env A' },
-        { workspaceId: ' ', label: 'Ignored' },
-      ]),
+      'OPENCODE_CONFIG_DIR',
+      writeQuotaConfig({
+        providers: {
+          'opencode-go': {
+            authCookie: 'go-cookie',
+            workspaces: [{ workspaceId: 'wrk-a', label: 'Workspace A' }],
+          },
+        },
+      }),
     );
-    vi.stubEnv('OPENCODE_GO_WORKSPACE_ID', 'legacy-workspace');
 
     expect(readGoConfig()).toEqual({
-      authCookie: 'env-cookie',
-      workspaces: [{ workspaceId: 'wrk-env-a', label: 'Env A' }],
+      authCookie: 'go-cookie',
+      workspaces: [{ workspaceId: 'wrk-a', label: 'Workspace A' }],
     });
   });
 
-  it('suppresses legacy fallback when the workspace file is invalid', () => {
-    const root = mkdtempSync(join(tmpdir(), 'opencode-go-workspaces-'));
-    const workspaceFile = join(root, 'workspaces.json');
-    writeFileSync(workspaceFile, '{ invalid json', 'utf8');
-
-    vi.stubEnv('OPENCODE_GO_AUTH_COOKIE', 'file-cookie');
-    vi.stubEnv('OPENCODE_GO_WORKSPACES_FILE', workspaceFile);
-    vi.stubEnv('OPENCODE_GO_WORKSPACE_ID', 'legacy-workspace');
+  it('returns null when providers.opencode-go is missing', () => {
+    vi.stubEnv(
+      'OPENCODE_CONFIG_DIR',
+      writeQuotaConfig({
+        options: { displayMode: 'used' },
+      }),
+    );
 
     expect(readGoConfig()).toBeNull();
   });
 
-  it('suppresses legacy fallback when the JSON env source is empty', () => {
-    delete process.env.OPENCODE_GO_WORKSPACES_FILE;
-
-    vi.stubEnv('OPENCODE_GO_AUTH_COOKIE', 'env-cookie');
-    vi.stubEnv('OPENCODE_GO_WORKSPACES', '[]');
-    vi.stubEnv('OPENCODE_GO_WORKSPACE_ID', 'legacy-workspace');
+  it('returns null when providers is missing', () => {
+    vi.stubEnv('OPENCODE_CONFIG_DIR', writeQuotaConfig({ displayMode: 'used' }));
 
     expect(readGoConfig()).toBeNull();
+  });
+
+  it('returns null when quota.json is missing', () => {
+    const root = mkdtempSync(join(tmpdir(), 'opencode-go-'));
+    vi.stubEnv('OPENCODE_CONFIG_DIR', root);
+
+    expect(readGoConfig()).toBeNull();
+  });
+
+  it('returns null when opencode-go has no authCookie', () => {
+    vi.stubEnv(
+      'OPENCODE_CONFIG_DIR',
+      writeQuotaConfig({
+        providers: {
+          'opencode-go': {
+            workspaces: [{ workspaceId: 'wrk-a', label: 'Workspace A' }],
+          },
+        },
+      }),
+    );
+
+    expect(readGoConfig()).toBeNull();
+  });
+
+  it('returns null when opencode-go has no workspaces', () => {
+    vi.stubEnv(
+      'OPENCODE_CONFIG_DIR',
+      writeQuotaConfig({
+        providers: {
+          'opencode-go': {
+            authCookie: 'go-cookie',
+            workspaces: [],
+          },
+        },
+      }),
+    );
+
+    expect(readGoConfig()).toBeNull();
+  });
+
+  it('filters out invalid workspace entries', () => {
+    vi.stubEnv(
+      'OPENCODE_CONFIG_DIR',
+      writeQuotaConfig({
+        providers: {
+          'opencode-go': {
+            authCookie: 'go-cookie',
+            workspaces: [
+              { workspaceId: 'wrk-a', label: 'Workspace A' },
+              { workspaceId: '', label: 'Empty ID' },
+              { workspaceId: 'wrk-b', label: '' },
+              { workspaceId: ' ', label: 'Whitespace' },
+              { notId: 'x', notLabel: 'y' },
+            ],
+          },
+        },
+      }),
+    );
+
+    expect(readGoConfig()).toEqual({
+      authCookie: 'go-cookie',
+      workspaces: [{ workspaceId: 'wrk-a', label: 'Workspace A' }],
+    });
   });
 
   it('returns one OpenCode Go block per configured workspace', async () => {

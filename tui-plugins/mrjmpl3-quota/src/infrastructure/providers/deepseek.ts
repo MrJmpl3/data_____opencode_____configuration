@@ -6,13 +6,8 @@ import { DEEPSEEK_BALANCE_URL } from './constants.ts';
 import { fetchWithTimeout, httpErrorMessage, readJsonResponse } from './http.ts';
 import { isRecord, readBooleanField, readNumericField, readStringField } from './shared.ts';
 
-const DEEPSEEK_AUTH_FIELDS = ['apiKey', 'api_key', 'token', 'access'] as const;
-
 const readDeepSeekToken = (): string | null => {
-  const key = process.env.DEEPSEEK_API_KEY?.trim();
-  if (key) return key;
-
-  return readAuthProviderApiKey(['deepseek'], DEEPSEEK_AUTH_FIELDS);
+  return readAuthProviderApiKey('deepseek');
 };
 
 const currencySymbol = (currency: string): string => {

@@ -67,11 +67,11 @@ $RECYCLE.BIN/
 *.pid
 *.seed
 
-# Go
-go-workspaces.json
-
 # Terraform
 *.tfstate
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
+
+# Opencode Quota
+quota.json

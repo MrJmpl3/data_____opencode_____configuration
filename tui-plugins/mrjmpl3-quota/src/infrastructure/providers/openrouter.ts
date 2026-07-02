@@ -1,33 +1,14 @@
-import { existsSync, readFileSync } from 'fs';
-import os from 'os';
-import { join } from 'path';
-
 import type { QuotaLine } from '../../domain/lines.ts';
 import type { QuotaDisplayMode, OpenRouterResult } from '../../domain/types.ts';
 import { formatCreditQuota } from '../../domain/format.ts';
 import { detailTextLine } from '../../domain/lines.ts';
+import { readAuthProviderApiKey } from './auth.ts';
 import { OPENROUTER_CREDITS_URL } from './constants.ts';
 import { fetchWithTimeout, httpErrorMessage, readJsonResponse } from './http.ts';
 import { isRecord } from './shared.ts';
 
 const readOpenRouterKey = (): string | null => {
-  const key = process.env.OPENROUTER_API_KEY?.trim();
-  if (key) return key;
-
-  try {
-    const path = join(os.homedir(), '.config', 'opencode', 'openrouter-auth.json');
-    if (existsSync(path)) {
-      const parsed: unknown = JSON.parse(readFileSync(path, 'utf-8'));
-      if (!isRecord(parsed)) return null;
-      for (const keyField of ['apiKey', 'api_key', 'token', 'openrouterApiKey'] as const) {
-        const value = parsed[keyField];
-        if (value && typeof value === 'string') return value.trim();
-      }
-    }
-  } catch {
-    return null;
-  }
-  return null;
+  return readAuthProviderApiKey('openrouter');
 };
 
 export const formatOpenRouterLines = (data: OpenRouterResult, displayMode: QuotaDisplayMode): QuotaLine[] => {

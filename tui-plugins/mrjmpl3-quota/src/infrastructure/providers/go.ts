@@ -1,11 +1,8 @@
-import { readFileSync } from 'fs';
-
-import { isPlainObject } from '@mrjmpl3/tui-kit';
-
 import type { QuotaLine } from '../../domain/lines.ts';
 import type { GoWindow, OpenCodeGoWorkspaceConfig, QuotaDisplayMode } from '../../domain/types.ts';
 import { formatPercentQuota, MONTH_SECONDS } from '../../domain/format.ts';
 import { detailTextLine, headingLine, paceLine, windowLine } from '../../domain/lines.ts';
+import { readQuotaConfig } from './config.ts';
 import { DASHBOARD_URL, USER_AGENT } from './constants.ts';
 import { fetchWithTimeout, httpErrorMessage } from './http.ts';
 
@@ -36,76 +33,12 @@ export const formatGoWorkspaceHeading = (workspaceLabel: string): string => {
   return `${GO_DEFAULT_WORKSPACE_LABEL} (${workspaceLabel})`;
 };
 
-const hasEnvironmentVariable = (name: string): boolean => {
-  return Object.prototype.hasOwnProperty.call(process.env, name);
-};
-
-const normalizeWorkspaceEntries = (value: unknown): readonly OpenCodeGoWorkspaceConfig[] => {
-  if (!Array.isArray(value)) return [];
-
-  const workspaces: OpenCodeGoWorkspaceConfig[] = [];
-
-  for (const rawWorkspace of value) {
-    if (!isPlainObject(rawWorkspace)) continue;
-
-    const workspaceId = typeof rawWorkspace.workspaceId === 'string' ? rawWorkspace.workspaceId.trim() : '';
-    const label = typeof rawWorkspace.label === 'string' ? rawWorkspace.label.trim() : '';
-
-    if (!workspaceId || !label) continue;
-
-    workspaces.push({ workspaceId, label });
-  }
-
-  return workspaces;
-};
-
-const parseWorkspaceJson = (jsonText: string): readonly OpenCodeGoWorkspaceConfig[] | null => {
-  try {
-    return normalizeWorkspaceEntries(JSON.parse(jsonText) as unknown);
-  } catch {
-    return null;
-  }
-};
-
-const readWorkspaceFile = (filePath: string): readonly OpenCodeGoWorkspaceConfig[] | null => {
-  try {
-    return parseWorkspaceJson(readFileSync(filePath, 'utf8'));
-  } catch {
-    return null;
-  }
-};
-
 export const readGoConfig = (): GoConnectionConfig | null => {
-  const authCookie = process.env.OPENCODE_GO_AUTH_COOKIE?.trim();
-  if (!authCookie) return null;
+  const config = readQuotaConfig();
+  const goSection = config?.providers?.['opencode-go'];
+  if (!goSection) return null;
 
-  if (hasEnvironmentVariable('OPENCODE_GO_WORKSPACES_FILE')) {
-    const filePath = process.env.OPENCODE_GO_WORKSPACES_FILE?.trim();
-    if (!filePath) return null;
-
-    const workspaces = readWorkspaceFile(filePath);
-    if (!workspaces || workspaces.length === 0) return null;
-
-    return { authCookie, workspaces };
-  }
-
-  if (hasEnvironmentVariable('OPENCODE_GO_WORKSPACES')) {
-    const workspaceJson = process.env.OPENCODE_GO_WORKSPACES?.trim();
-    if (!workspaceJson) return null;
-
-    const workspaces = parseWorkspaceJson(workspaceJson);
-    if (!workspaces || workspaces.length === 0) return null;
-
-    return { authCookie, workspaces };
-  }
-
-  const workspaceId = process.env.OPENCODE_GO_WORKSPACE_ID?.trim();
-  if (!workspaceId) return null;
-
-  return {
-    authCookie,
-    workspaces: [{ workspaceId, label: GO_DEFAULT_WORKSPACE_LABEL }],
-  };
+  return { authCookie: goSection.authCookie, workspaces: goSection.workspaces };
 };
 
 const DECIMAL_PATTERN = String.raw`(-?\d+(?:\.\d+)?)`;

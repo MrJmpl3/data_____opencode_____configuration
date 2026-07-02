@@ -43,10 +43,18 @@ import { createQuotaProviderCache } from '../src/infrastructure/cache.ts';
 
 const createAuthFixture = (entries: Record<string, unknown>): string => {
   const root = mkdtempSync(join(tmpdir(), 'opencode-quota-'));
-  const authDir = join(root, 'opencode');
-  mkdirSync(authDir, { recursive: true });
-  writeFileSync(join(authDir, 'auth.json'), JSON.stringify(entries), 'utf8');
-  return root;
+  const configDir = join(root, '.config', 'opencode');
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(join(configDir, 'auth.json'), JSON.stringify(entries), 'utf8');
+  return configDir;
+};
+
+const createQuotaFixture = (options: Record<string, unknown>): string => {
+  const root = mkdtempSync(join(tmpdir(), 'opencode-quota-'));
+  const configDir = join(root, '.config', 'opencode');
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(join(configDir, 'quota.json'), JSON.stringify({ options }), 'utf8');
+  return configDir;
 };
 
 const flushAsyncTasks = async (): Promise<void> => {
@@ -72,6 +80,7 @@ const pluginMeta: TuiPluginMeta = {
 
 describe('quota tui plugin', () => {
   beforeEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     vi.useFakeTimers();
   });
@@ -278,12 +287,16 @@ describe('quota tui plugin', () => {
       theme: { current: { text: 'white', textMuted: 'gray' } },
     } as unknown as TuiPluginApi;
 
-    await registerQuotaTui(api, {
-      minRefreshIntervalMs: 60_000,
-      pollIntervalMs: 0,
-      providerCacheTtlMs: 60_000,
-      visibleProviders: ['copilot', 'openrouter', 'chatgpt'],
-    });
+    vi.stubEnv(
+      'OPENCODE_CONFIG_DIR',
+      createQuotaFixture({
+        minRefreshIntervalMs: 60_000,
+        pollIntervalMs: 0,
+        providerCacheTtlMs: 60_000,
+        visibleProviders: ['copilot', 'openrouter', 'chatgpt'],
+      }),
+    );
+    await registerQuotaTui(api, {});
 
     await flushAsyncTasks();
 
@@ -469,12 +482,16 @@ describe('quota tui plugin', () => {
       theme: { current: { text: 'white', textMuted: 'gray' } },
     } as unknown as TuiPluginApi;
 
-    await registerQuotaTui(api, {
-      minRefreshIntervalMs: 60_000,
-      pollIntervalMs: 0,
-      providerCacheTtlMs: 300_000,
-      visibleProviders: ['openrouter'],
-    });
+    vi.stubEnv(
+      'OPENCODE_CONFIG_DIR',
+      createQuotaFixture({
+        minRefreshIntervalMs: 60_000,
+        pollIntervalMs: 0,
+        providerCacheTtlMs: 300_000,
+        visibleProviders: ['openrouter'],
+      }),
+    );
+    await registerQuotaTui(api, {});
     await flushAsyncTasks();
 
     expect(fetchProviderLines).toHaveBeenCalledTimes(1);
@@ -611,12 +628,16 @@ describe('quota tui plugin', () => {
       theme: { current: { text: 'white', textMuted: 'gray' } },
     } as unknown as TuiPluginApi;
 
-    await registerQuotaTui(api, {
-      minRefreshIntervalMs: 60_000,
-      pollIntervalMs: 0,
-      providerCacheTtlMs: 60_000,
-      visibleProviders: ['openrouter'],
-    });
+    vi.stubEnv(
+      'OPENCODE_CONFIG_DIR',
+      createQuotaFixture({
+        minRefreshIntervalMs: 60_000,
+        pollIntervalMs: 0,
+        providerCacheTtlMs: 60_000,
+        visibleProviders: ['openrouter'],
+      }),
+    );
+    await registerQuotaTui(api, {});
 
     await flushAsyncTasks();
 
@@ -735,12 +756,16 @@ describe('quota tui plugin', () => {
       theme: { current: { text: 'white', textMuted: 'gray' } },
     } as unknown as TuiPluginApi;
 
-    await registerQuotaTui(api, {
-      minRefreshIntervalMs: 1_000,
-      pollIntervalMs: 0,
-      providerCacheTtlMs: 60_000,
-      visibleProviders: ['openrouter'],
-    });
+    vi.stubEnv(
+      'OPENCODE_CONFIG_DIR',
+      createQuotaFixture({
+        minRefreshIntervalMs: 1_000,
+        pollIntervalMs: 0,
+        providerCacheTtlMs: 60_000,
+        visibleProviders: ['openrouter'],
+      }),
+    );
+    await registerQuotaTui(api, {});
 
     await flushAsyncTasks();
 
@@ -856,12 +881,16 @@ describe('quota tui plugin', () => {
       theme: { current: { text: 'white', textMuted: 'gray' } },
     } as unknown as TuiPluginApi;
 
-    await registerQuotaTui(api, {
-      minRefreshIntervalMs: 0,
-      pollIntervalMs: 0,
-      providerCacheTtlMs: 60_000,
-      visibleProviders: ['openrouter'],
-    });
+    vi.stubEnv(
+      'OPENCODE_CONFIG_DIR',
+      createQuotaFixture({
+        minRefreshIntervalMs: 0,
+        pollIntervalMs: 0,
+        providerCacheTtlMs: 60_000,
+        visibleProviders: ['openrouter'],
+      }),
+    );
+    await registerQuotaTui(api, {});
 
     await flushAsyncTasks();
 
@@ -1000,7 +1029,7 @@ describe('quota tui plugin', () => {
   });
 
   it('returns a stable error for malformed OpenRouter credit payloads', async () => {
-    vi.stubEnv('OPENROUTER_API_KEY', 'openrouter-token');
+    vi.stubEnv('OPENCODE_CONFIG_DIR', createAuthFixture({ openrouter: { apiKey: 'openrouter-token' } }));
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('null', { status: 200 }));
 
     await expect(fetchOpenRouterQuota()).resolves.toEqual({
@@ -1009,15 +1038,15 @@ describe('quota tui plugin', () => {
   });
 
   it('returns unavailable when DeepSeek has no configured auth', async () => {
-    vi.stubEnv('DEEPSEEK_API_KEY', '');
+    vi.stubEnv('OPENCODE_CONFIG_DIR', mkdtempSync(join(tmpdir(), 'opencode-noauth-')));
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     await expect(fetchDeepSeekQuota()).resolves.toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('fetches DeepSeek balance with bearer auth from the environment', async () => {
-    vi.stubEnv('DEEPSEEK_API_KEY', 'deepseek-token');
+  it('fetches DeepSeek balance with bearer auth from auth.json', async () => {
+    vi.stubEnv('OPENCODE_CONFIG_DIR', createAuthFixture({ deepseek: { apiKey: 'deepseek-token' } }));
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -1057,10 +1086,9 @@ describe('quota tui plugin', () => {
     );
   });
 
-  it('falls back to DeepSeek auth.json api key fields', async () => {
-    vi.stubEnv('DEEPSEEK_API_KEY', '');
+  it('reads DeepSeek api key from auth.json', async () => {
     vi.stubEnv(
-      'XDG_DATA_HOME',
+      'OPENCODE_CONFIG_DIR',
       createAuthFixture({
         deepseek: { api_key: 'auth-json-token' },
       }),
@@ -1082,7 +1110,7 @@ describe('quota tui plugin', () => {
   });
 
   it('returns stable DeepSeek errors for malformed and non-ok responses', async () => {
-    vi.stubEnv('DEEPSEEK_API_KEY', 'deepseek-token');
+    vi.stubEnv('OPENCODE_CONFIG_DIR', createAuthFixture({ deepseek: { apiKey: 'deepseek-token' } }));
     const fetchMock = vi.spyOn(globalThis, 'fetch');
 
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ is_available: true }), { status: 200 }));
@@ -1095,7 +1123,7 @@ describe('quota tui plugin', () => {
   });
 
   it('routes DeepSeek network failures through the provider cache without crashing', async () => {
-    vi.stubEnv('DEEPSEEK_API_KEY', 'deepseek-token');
+    vi.stubEnv('OPENCODE_CONFIG_DIR', createAuthFixture({ deepseek: { apiKey: 'deepseek-token' } }));
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('network timeout'));
     const { providerCache, getCachedProviderLines } = createQuotaProviderCache({
       providerCacheTtlMilliseconds: 300_000,
@@ -1119,7 +1147,7 @@ describe('quota tui plugin', () => {
   });
 
   it('delegates DeepSeek provider result formatting to the provider adapter', async () => {
-    vi.stubEnv('DEEPSEEK_API_KEY', 'deepseek-token');
+    vi.stubEnv('OPENCODE_CONFIG_DIR', createAuthFixture({ deepseek: { apiKey: 'deepseek-token' } }));
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -1146,7 +1174,7 @@ describe('quota tui plugin', () => {
 
   it('sanitizes html and invalid-json responses from provider endpoints', async () => {
     vi.stubEnv(
-      'XDG_DATA_HOME',
+      'OPENCODE_CONFIG_DIR',
       createAuthFixture({
         'github-copilot': { type: 'oauth', access: 'copilot-token' },
         openai: { type: 'oauth', access: 'openai-token', account_id: 'acct-123' },
@@ -1189,7 +1217,7 @@ describe('quota tui plugin', () => {
   });
 
   it('sanitizes html bodies returned by non-ok responses', async () => {
-    vi.stubEnv('OPENROUTER_API_KEY', 'openrouter-token');
+    vi.stubEnv('OPENCODE_CONFIG_DIR', createAuthFixture({ openrouter: { apiKey: 'openrouter-token' } }));
 
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     fetchMock.mockResolvedValueOnce(
@@ -1392,7 +1420,7 @@ describe('quota tui plugin', () => {
 
   it('fetches usage and reset credits in parallel and merges the results', async () => {
     vi.stubEnv(
-      'XDG_DATA_HOME',
+      'OPENCODE_CONFIG_DIR',
       createAuthFixture({
         openai: { type: 'oauth', access: 'openai-token', account_id: 'acct-123' },
       }),
@@ -1447,7 +1475,7 @@ describe('quota tui plugin', () => {
 
   it('does not break OpenAI usage display when reset-credits fetch fails', async () => {
     vi.stubEnv(
-      'XDG_DATA_HOME',
+      'OPENCODE_CONFIG_DIR',
       createAuthFixture({
         openai: { type: 'oauth', access: 'openai-token', account_id: 'acct-123' },
       }),
@@ -1483,7 +1511,7 @@ describe('quota tui plugin', () => {
 
   it('returns error when usage fetch fails even if reset credits would succeed', async () => {
     vi.stubEnv(
-      'XDG_DATA_HOME',
+      'OPENCODE_CONFIG_DIR',
       createAuthFixture({
         openai: { type: 'oauth', access: 'openai-token', account_id: 'acct-123' },
       }),
@@ -1504,7 +1532,7 @@ describe('quota tui plugin', () => {
 
   it('does not fetch reset credits by default and omits resetCredits from the result', async () => {
     vi.stubEnv(
-      'XDG_DATA_HOME',
+      'OPENCODE_CONFIG_DIR',
       createAuthFixture({
         openai: { type: 'oauth', access: 'openai-token', account_id: 'acct-123' },
       }),
@@ -1539,7 +1567,7 @@ describe('quota tui plugin', () => {
 
   it('does not fetch reset credits when experimentalOpenAIResetCredits is explicitly false', async () => {
     vi.stubEnv(
-      'XDG_DATA_HOME',
+      'OPENCODE_CONFIG_DIR',
       createAuthFixture({
         openai: { type: 'oauth', access: 'openai-token', account_id: 'acct-123' },
       }),

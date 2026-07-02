@@ -24,7 +24,7 @@ import { fetchWithTimeout, httpErrorMessage, readJsonResponse } from './http.ts'
 import { firstDefined, isRecord, readBooleanField, readNumericField, readStringField } from './shared.ts';
 
 const readOpenAIToken = (): string | null => {
-  return readOauthAccessToken(['openai', 'chatgpt', 'codex', 'opencode']);
+  return readOauthAccessToken('openai');
 };
 
 const normalizeUsedPercent = (value: number): number => Math.max(0, Math.min(100, value));
