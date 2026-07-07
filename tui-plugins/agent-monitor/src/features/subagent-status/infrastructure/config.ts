@@ -23,9 +23,7 @@ export const readSubagentStatusOptions = (): unknown => {
     if (!isRecord(parsed)) return undefined;
 
     const sectionsRecord = isRecord(parsed.sections) ? parsed.sections : {};
-    const subagentSection = isRecord(sectionsRecord['subagent-status'])
-      ? sectionsRecord['subagent-status']
-      : {};
+    const subagentSection = isRecord(sectionsRecord['subagent-status']) ? sectionsRecord['subagent-status'] : {};
 
     return isRecord(subagentSection.options) ? subagentSection.options : undefined;
   } catch {
