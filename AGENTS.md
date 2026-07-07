@@ -364,4 +364,25 @@ Non-trivial logic (a branch, a loop, a parser, money/security) leaves ONE runnab
 `assert`-based self-check or one small `test_*.py`. No frameworks, no fixtures, no per-function
 suites unless asked. YAGNI for tests too.
 
+## SDD threshold
+
+SDD is for changes that introduce new logic, change behavior, or affect architecture. It is NOT for
+every change.
+
+The threshold is **complexity**, not file count. A repetitive rename across 10 files is still low
+complexity; a single-file parser with tricky state transitions is not.
+
+- **Small change (low complexity)**: mechanical, well-understood, predictable outcome. Skip SDD.
+  Implement directly. But verification is NOT optional — run the relevant review lens before
+  committing. A mechanical fix that breaks something is still a bug.
+- **Medium change (moderate complexity)**: new but contained logic, or you are not sure about the
+  scope yet. Use `/sdd-explore` first to confirm. If it confirms it is contained, implement directly
+  with review. If it reveals unexpected complexity, escalate to full SDD.
+- **Large change (high complexity)**: new feature, behavioral change, architecture impact. Full SDD
+  — `/sdd-new` → spec → design → tasks → apply → verify.
+
+When in doubt, start with `/sdd-explore`. It costs little and tells you which path to take.
+
+The rule: SDD gates planning, but verification gates every change regardless of size.
+
 <!-- /custom-preference:intelligence -->
