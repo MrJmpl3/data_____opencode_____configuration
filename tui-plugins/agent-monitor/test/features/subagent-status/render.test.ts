@@ -1,0 +1,590 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+  buildSubagentSnapshotView,
+  renderStatusLine,
+  renderStatusSnapshotLine,
+  splitSidebarVisibleSections,
+} from '../../../src/features/subagent-status/ui/view-model.ts';
+import {
+  collapseSubagentWorkItems,
+  visibleSubagentWorkItems,
+} from '../../../src/features/subagent-status/ui/collapse.ts';
+import { DEFAULT_SUBAGENT_VISIBILITY_POLICY } from '../../../src/features/subagent-status/shared/display.ts';
+import { hydrateSnapshotChild } from '../../../src/features/subagent-status/runtime/snapshot.ts';
+import {
+  formatContextCompact,
+  formatCount,
+  formatRelativeRecency,
+  formatSidebarCompactCount,
+  formatSidebarRunningMeta,
+  formatSidebarSectionHeading,
+  formatSidebarTerminalMeta,
+  formatSidebarTitle,
+  formatTokenCompact,
+  formatUsageCompact,
+  statusColor,
+  truncateLabel,
+} from '../../../src/features/subagent-status/ui/format.ts';
+import type { SubagentChild, SubagentState } from '../../../src/features/subagent-status/domain/types.ts';
+
+const child = (overrides: Partial<SubagentChild> = {}): SubagentChild => {
+  return {
+    id: 'ses_child',
+    title: 'Review auth changes',
+    parentID: 'ses_parent',
+    messageID: 'msg_1',
+    source: 'session',
+    targetSessionID: 'ses_child',
+    status: 'running',
+    color: 'yellow',
+    startedAt: '2026-06-04T10:00:00.000Z',
+    updatedAt: '2026-06-04T10:01:00.000Z',
+    elapsedMs: 61_000,
+    ...overrides,
+  };
+};
+
+describe('render', () => {
+  it('collapses matching synthetic and session rows into one visible execution', () => {
+    const synthetic = child({
+      id: 'tool:part_1',
+      title: 'Investigate flaky tests',
+      source: 'tool',
+      targetSessionID: 'ses_child',
+      agentName: 'tester',
+    });
+    const session = child({
+      id: 'ses_child',
+      title: 'Investigate flaky tests',
+      source: 'session',
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T10:04:00.000Z',
+      elapsedMs: 240_000,
+    });
+
+    expect(collapseSubagentWorkItems([synthetic, session])).toEqual([
+      expect.objectContaining({
+        id: 'tool:part_1',
+        status: 'done',
+        color: 'green',
+        targetSessionID: 'ses_child',
+        elapsedMs: 240_000,
+      }),
+    ]);
+  });
+
+  it('does not hide a real running session when a stale synthetic wrapper fails to match it', () => {
+    const staleSynthetic = child({
+      id: 'tool:stale_delegate',
+      title: 'delegate',
+      parentID: 'ses_other_parent',
+      messageID: 'msg_stale',
+      source: 'tool',
+      targetSessionID: 'ses_child',
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T10:00:30.000Z',
+      updatedAt: '2026-06-04T10:00:30.000Z',
+    });
+    const runningSession = child({
+      id: 'ses_child',
+      title: 'Investigate flaky tests',
+      parentID: 'ses_parent',
+      messageID: 'msg_1',
+      source: 'session',
+      status: 'running',
+      color: 'yellow',
+      targetSessionID: 'ses_child',
+    });
+
+    expect(collapseSubagentWorkItems([staleSynthetic, runningSession]).map((item) => item.id)).toEqual([
+      'tool:stale_delegate',
+      'ses_child',
+    ]);
+  });
+
+  it('keeps unmatched real sessions visible when one synthetic row ambiguously matches multiple sessions', () => {
+    const synthetic = child({
+      id: 'tool:delegate_1',
+      title: 'delegate',
+      source: 'tool',
+      messageID: 'msg_1',
+      parentID: 'ses_parent',
+      targetSessionID: undefined,
+    });
+    const primarySession = child({
+      id: 'ses_primary',
+      title: 'Investigate flaky tests',
+      source: 'session',
+      messageID: 'msg_1',
+      parentID: 'ses_parent',
+      startedAt: '2026-06-04T10:02:00.000Z',
+      updatedAt: '2026-06-04T10:02:00.000Z',
+    });
+    const secondarySession = child({
+      id: 'ses_secondary',
+      title: 'Investigate flaky tests',
+      source: 'session',
+      messageID: 'msg_1',
+      parentID: 'ses_parent',
+      startedAt: '2026-06-04T10:01:00.000Z',
+      updatedAt: '2026-06-04T10:01:00.000Z',
+    });
+
+    expect(collapseSubagentWorkItems([synthetic, primarySession, secondarySession]).map((item) => item.id)).toEqual([
+      'tool:delegate_1',
+      'ses_secondary',
+    ]);
+  });
+
+  it('keeps recent terminal rows visible while hiding stale done rows', () => {
+    const nowMs = Date.parse('2026-06-04T10:20:00.000Z');
+    const visibleDone = child({
+      id: 'done_recent',
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T10:15:00.000Z',
+    });
+    const hiddenDone = child({
+      id: 'done_old',
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T10:00:00.000Z',
+    });
+
+    expect(visibleSubagentWorkItems([visibleDone, hiddenDone], nowMs).map((item) => item.id)).toEqual(['done_recent']);
+  });
+
+  it('uses a configured done retention override when deciding completed row visibility', () => {
+    const nowMs = Date.parse('2026-06-04T10:20:00.000Z');
+    const doneExtended = child({
+      id: 'done_extended',
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T10:07:00.000Z',
+      updatedAt: '2026-06-04T10:07:00.000Z',
+    });
+
+    expect(visibleSubagentWorkItems([doneExtended], nowMs)).toEqual([]);
+    expect(
+      visibleSubagentWorkItems([doneExtended], nowMs, {
+        ...DEFAULT_SUBAGENT_VISIBILITY_POLICY,
+        doneRetentionMs: 15 * 60 * 1000,
+      }).map((item) => item.id),
+    ).toEqual(['done_extended']);
+  });
+
+  it('treats legacy stale rows as sticky error rows instead of aging them out like done rows', () => {
+    const nowMs = Date.parse('2026-06-04T10:20:00.000Z');
+    const staleVisible = child({
+      id: 'stale_visible',
+      status: 'stale',
+      color: 'gray',
+      endedAt: '2026-06-04T10:05:00.000Z',
+      updatedAt: '2026-06-04T10:05:00.000Z',
+    });
+    const staleExpired = child({
+      id: 'stale_expired',
+      status: 'stale',
+      color: 'gray',
+      endedAt: '2026-06-04T09:55:00.000Z',
+      updatedAt: '2026-06-04T09:55:00.000Z',
+    });
+    const doneExpired = child({
+      id: 'done_expired',
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T10:05:00.000Z',
+      updatedAt: '2026-06-04T10:05:00.000Z',
+    });
+    const errorSticky = child({
+      id: 'error_sticky',
+      status: 'error',
+      color: 'red',
+      endedAt: '2026-06-04T09:30:00.000Z',
+      updatedAt: '2026-06-04T09:30:00.000Z',
+    });
+
+    expect(
+      visibleSubagentWorkItems([staleVisible, staleExpired, doneExpired, errorSticky], nowMs).map((item) => item.id),
+    ).toEqual(['stale_visible', 'stale_expired', 'error_sticky']);
+  });
+
+  it('keeps legacy stale rows visible even when stale retention is zero', () => {
+    const nowMs = Date.parse('2026-06-04T10:20:00.000Z');
+    const staleExtended = child({
+      id: 'stale_extended',
+      status: 'stale',
+      color: 'gray',
+      endedAt: '2026-06-04T09:55:00.000Z',
+      updatedAt: '2026-06-04T09:55:00.000Z',
+    });
+
+    expect(visibleSubagentWorkItems([staleExtended], nowMs).map((item) => item.id)).toEqual(['stale_extended']);
+    expect(
+      visibleSubagentWorkItems([staleExtended], nowMs, {
+        ...DEFAULT_SUBAGENT_VISIBILITY_POLICY,
+        staleRetentionMs: 0,
+      }).map((item) => item.id),
+    ).toEqual(['stale_extended']);
+  });
+
+  it('keeps legacy stale rows visible alongside active work even when they are not part of the current running message', () => {
+    const nowMs = Date.parse('2026-06-04T10:20:00.000Z');
+    const runningChild = child({
+      id: 'ses_running',
+      messageID: 'msg_running',
+      status: 'running',
+      color: 'yellow',
+    });
+    const staleChild = child({
+      id: 'ses_stale',
+      messageID: 'msg_old',
+      status: 'stale',
+      color: 'gray',
+      endedAt: '2026-06-04T10:10:00.000Z',
+      updatedAt: '2026-06-04T10:10:00.000Z',
+    });
+    const doneChild = child({
+      id: 'ses_done',
+      messageID: 'msg_old',
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T10:10:00.000Z',
+      updatedAt: '2026-06-04T10:10:00.000Z',
+    });
+
+    expect(visibleSubagentWorkItems([runningChild, staleChild, doneChild], nowMs).map((item) => item.id)).toEqual([
+      'ses_running',
+      'ses_stale',
+    ]);
+  });
+
+  it('formats compact token/context text and aggregate statusline output', () => {
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+    const recentEndedAt = new Date(nowMs - 60_000).toISOString();
+
+    const doneChild = child({
+      id: 'ses_done',
+      title: 'Summarize results',
+      status: 'done',
+      color: 'green',
+      messageID: 'msg_active',
+      endedAt: recentEndedAt,
+      updatedAt: recentEndedAt,
+      elapsedMs: 120_000,
+      tokens: { input: 1200, output: 300, contextPercent: 42.3 },
+    });
+    const runningChild = child({
+      id: 'ses_running',
+      title: 'Run tests',
+      messageID: 'msg_active',
+      status: 'running',
+      color: 'yellow',
+    });
+    const state: SubagentState = {
+      children: {
+        ses_done: doneChild,
+        ses_running: runningChild,
+      },
+      countedChildIDs: { ses_done: true, ses_running: true },
+      purgedSessionIDs: {},
+      totalExecuted: 2,
+      updatedAt: '2026-06-04T10:02:00.000Z',
+    };
+
+    expect(formatTokenCompact(doneChild)).toBe('1.5k tok');
+    expect(formatContextCompact(doneChild)).toBe('42%');
+    expect(formatUsageCompact(doneChild)).toBe('1.5k tok 42%');
+    expect(renderStatusLine(state, nowMs)).toContain('Subagents: 1 run · 1 done · 0 err · Σ 2');
+    expect(renderStatusLine(state, nowMs)).toContain('Summarize results 1:59:00 1.5k tok 42%');
+  });
+
+  it('keeps token and context formatting semantically separate', () => {
+    const tokenOnlyChild = child({ tokens: { input: 1200, output: 300 } });
+    const contextOnlyChild = child({ tokens: { contextPercent: 42.3 } });
+
+    expect(formatTokenCompact(tokenOnlyChild)).toBe('1.5k tok');
+    expect(formatContextCompact(tokenOnlyChild)).toBe('');
+    expect(formatUsageCompact(tokenOnlyChild)).toBe('1.5k tok');
+
+    expect(formatTokenCompact(contextOnlyChild)).toBe('');
+    expect(formatContextCompact(contextOnlyChild)).toBe('42%');
+    expect(formatUsageCompact(contextOnlyChild)).toBe('42%');
+  });
+
+  it('truncates sidebar titles and keeps agent names out of the primary row label', () => {
+    const sidebarChild = child({
+      title: 'Implement a much wider render treatment for the subagent sidebar than the layout can fit',
+      summary: 'Prioritize task name visibility even when metadata is long',
+      agentName: 'render-specialist',
+    });
+
+    expect(truncateLabel('   lots   of    gaps   ', 12)).toBe('lots of gaps');
+    expect(formatSidebarTitle(sidebarChild)).toBe('Prioritize task name visibi…');
+    expect(formatSidebarTitle(sidebarChild, true)).toBe('Prioritize task name visi…');
+    expect(formatSidebarTitle(sidebarChild)).not.toContain('render-specialist');
+  });
+
+  it('handles truncation boundaries for tiny widths and whitespace-only labels', () => {
+    expect(truncateLabel('x', 1)).toBe('x');
+    expect(truncateLabel('xy', 1)).toBe('…');
+    expect(truncateLabel('      ', 5)).toBe('');
+    expect(truncateLabel('exact width', 'exact width'.length)).toBe('exact width');
+  });
+
+  it('formats running and terminal sidebar metadata in compact fixed-width friendly chunks', () => {
+    const nowMs = Date.parse('2026-06-04T10:06:00.000Z');
+    const runningChild = child({
+      title: 'Review width handling',
+      agentName: 'render-specialist',
+      elapsedMs: 61_000,
+      tokens: { total: 1530, contextPercent: 42.3 },
+    });
+    const doneChild = child({
+      status: 'done',
+      endedAt: '2026-06-04T10:04:00.000Z',
+      updatedAt: '2026-06-04T10:04:00.000Z',
+      elapsedMs: 4 * 60 * 1000,
+      tokens: { total: 1530, contextPercent: 42.3 },
+    });
+
+    expect(formatSidebarRunningMeta(runningChild)).toBe('01:01 · @render-… · 1.5k 42%');
+    expect(formatRelativeRecency(doneChild.endedAt, nowMs)).toBe('2m ago');
+    expect(formatSidebarTerminalMeta(doneChild, nowMs)).toBe('2m ago · 1.5k 42% · 04:00');
+    expect(formatSidebarTerminalMeta({ ...doneChild, status: 'stale', color: 'gray' }, nowMs)).toBe(
+      '2m ago · 1.5k 42% · 04:00',
+    );
+    expect(formatCount(1200)).toBe('1,200');
+  });
+
+  it('keeps sidebar count and section labels compact for a static width', () => {
+    expect(formatSidebarCompactCount(12)).toBe('12');
+    expect(formatSidebarCompactCount(1200)).toBe('1.2k');
+    expect(formatSidebarCompactCount(999_999)).toBe('999k');
+    expect(formatSidebarCompactCount(1_250_000)).toBe('1.3M');
+    expect(formatSidebarCompactCount(123_456_789_012_345)).toBe('123T');
+    expect(formatSidebarCompactCount(Number.MAX_SAFE_INTEGER)).toBe('999T+');
+    expect(formatSidebarCompactCount(NaN)).toBe('0');
+    expect(formatSidebarSectionHeading('Very Long Sidebar Section Name', 1234)).toBe('Very Long Sidebar Section Nam…');
+  });
+
+  it('splits visible sidebar rows into active and recent sections without reordering within each group', () => {
+    const runningChild = child({ id: 'ses_running' });
+    const staleChild = child({ id: 'ses_stale', status: 'stale', color: 'gray' });
+    const errorChild = child({ id: 'ses_error', status: 'error', color: 'red' });
+    const doneChild = child({ id: 'ses_done', status: 'done', color: 'green' });
+
+    const sections = splitSidebarVisibleSections([runningChild, staleChild, errorChild, doneChild]);
+
+    expect(sections.active.map((item) => item.id)).toEqual(['ses_running']);
+    expect(sections.recent.map((item) => item.id)).toEqual(['ses_stale', 'ses_error', 'ses_done']);
+  });
+
+  it('keeps tracked totals honest when visible rows are pruned', () => {
+    const nowMs = Date.parse('2026-06-04T10:20:00.000Z');
+    const recentDone = child({
+      id: 'done_recent',
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T10:15:00.000Z',
+    });
+    const staleDone = child({
+      id: 'done_old',
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T09:30:00.000Z',
+    });
+
+    const view = buildSubagentSnapshotView(
+      [recentDone, staleDone].map((c) => hydrateSnapshotChild(c, nowMs)),
+      nowMs,
+    );
+
+    expect(view.trackedCounts).toEqual({ running: 0, done: 2, stale: 0, error: 0 });
+    expect(view.visibleCounts).toEqual({ running: 0, done: 1, stale: 0, error: 0 });
+    expect(view.visibleChildren.map((item) => item.id)).toEqual(['done_recent']);
+    expect(
+      renderStatusLine(
+        {
+          children: { done_recent: recentDone, done_old: staleDone },
+          countedChildIDs: {},
+          purgedSessionIDs: {},
+          totalExecuted: 2,
+          updatedAt: '2026-06-04T10:20:00.000Z',
+        },
+        nowMs,
+      ),
+    ).toContain('2 done');
+  });
+
+  it('keeps stale zombie rows separate from failed aggregate counts', () => {
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+    const staleChild = child({
+      id: 'ses_stale',
+      title: 'Zombie child',
+      status: 'stale',
+      color: 'gray',
+      endedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T11:55:00.000Z',
+    });
+    const failedChild = child({
+      id: 'ses_failed',
+      title: 'Failed child',
+      status: 'error',
+      color: 'red',
+      endedAt: '2026-06-04T11:56:00.000Z',
+      updatedAt: '2026-06-04T11:56:00.000Z',
+    });
+
+    const view = buildSubagentSnapshotView(
+      [staleChild, failedChild].map((item) => hydrateSnapshotChild(item, nowMs)),
+      nowMs,
+    );
+
+    expect(view.trackedCounts).toEqual({ running: 0, done: 0, stale: 1, error: 1 });
+    expect(view.visibleChildren.map((item) => item.id)).toEqual(['ses_failed', 'ses_stale']);
+  });
+
+  it('renders recently failed counts without adding stale zombie rows', () => {
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+    const staleChild = child({
+      id: 'ses_stale',
+      title: 'Zombie child',
+      status: 'stale',
+      color: 'gray',
+      endedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T11:55:00.000Z',
+    });
+    const failedChild = child({
+      id: 'ses_failed',
+      title: 'Failed child',
+      status: 'error',
+      color: 'red',
+      endedAt: '2026-06-04T11:56:00.000Z',
+      updatedAt: '2026-06-04T11:56:00.000Z',
+    });
+    const state: SubagentState = {
+      children: { ses_stale: staleChild, ses_failed: failedChild },
+      countedChildIDs: { ses_stale: true, ses_failed: true },
+      purgedSessionIDs: {},
+      totalExecuted: 2,
+      updatedAt: '2026-06-04T12:00:00.000Z',
+    };
+
+    expect(renderStatusLine(state, nowMs)).toContain('Subagents: 0 run · 0 done · 1 err · Σ 2');
+    expect(renderStatusSnapshotLine(state, nowMs)).toContain('Subagents snapshot: 0 run · 0 done · 1 err · Σ 2');
+  });
+
+  it('maps statuses to the expected color keys', () => {
+    expect(statusColor('running')).toBe('yellow');
+    expect(statusColor('done')).toBe('green');
+    expect(statusColor('stale')).toBe('red');
+    expect(statusColor('error')).toBe('red');
+  });
+
+  it('returns syncing indicator from renderStatusLine when state.recovering is true', () => {
+    const state: SubagentState = {
+      children: {},
+      countedChildIDs: {},
+      purgedSessionIDs: {},
+      totalExecuted: 0,
+      updatedAt: '2026-06-04T12:00:00.000Z',
+      recovering: true,
+    };
+
+    const result = renderStatusLine(state);
+    expect(result).toBe('⟳ syncing...');
+  });
+
+  it('returns syncing indicator from renderStatusSnapshotLine when state.recovering is true', () => {
+    const state: SubagentState = {
+      children: {},
+      countedChildIDs: {},
+      purgedSessionIDs: {},
+      totalExecuted: 0,
+      updatedAt: '2026-06-04T12:00:00.000Z',
+      recovering: true,
+    };
+
+    const result = renderStatusSnapshotLine(state);
+    expect(result).toBe('⟳ syncing...');
+  });
+
+  it('returns normal aggregate when state.recovering is false', () => {
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+    const state: SubagentState = {
+      children: {},
+      countedChildIDs: {},
+      purgedSessionIDs: {},
+      totalExecuted: 0,
+      updatedAt: '2026-06-04T12:00:00.000Z',
+      recovering: false,
+    };
+
+    const result = renderStatusLine(state, nowMs);
+    expect(result).toContain('Subagents:');
+  });
+
+  it('renders localized aggregate labels in Spanish for renderStatusLine', async () => {
+    vi.resetModules();
+    process.env.LANG = 'es_AR.UTF-8';
+
+    const { renderStatusLine: renderEs } = await import('../../../src/features/subagent-status/ui/view-model.ts');
+
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+    const state: SubagentState = {
+      children: {
+        ses_running: child({ id: 'ses_running', status: 'running', color: 'yellow' }),
+        ses_done: child({
+          id: 'ses_done',
+          status: 'done',
+          color: 'green',
+          endedAt: '2026-06-04T11:59:00.000Z',
+          updatedAt: '2026-06-04T11:59:00.000Z',
+        }),
+        ses_error: child({
+          id: 'ses_error',
+          status: 'error',
+          color: 'red',
+          endedAt: '2026-06-04T11:58:00.000Z',
+          updatedAt: '2026-06-04T11:58:00.000Z',
+        }),
+      },
+      countedChildIDs: {},
+      purgedSessionIDs: {},
+      totalExecuted: 3,
+      updatedAt: '2026-06-04T12:00:00.000Z',
+    };
+
+    const result = renderEs(state, nowMs);
+    expect(result).toContain('Subagentes:');
+    expect(result).toContain('act');
+    expect(result).toContain('listo');
+    expect(result).toContain('err');
+  });
+
+  it('renders localized snapshot aggregate labels in Spanish for renderStatusSnapshotLine', async () => {
+    vi.resetModules();
+    process.env.LANG = 'es_AR.UTF-8';
+
+    const { renderStatusSnapshotLine: renderSnapshotEs } =
+      await import('../../../src/features/subagent-status/ui/view-model.ts');
+
+    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
+    const state: SubagentState = {
+      children: {
+        ses_running: child({ id: 'ses_running', status: 'running', color: 'yellow' }),
+      },
+      countedChildIDs: {},
+      purgedSessionIDs: {},
+      totalExecuted: 1,
+      updatedAt: '2026-06-04T12:00:00.000Z',
+    };
+
+    const result = renderSnapshotEs(state, nowMs);
+    expect(result).toContain('Subagentes snapshot:');
+  });
+});

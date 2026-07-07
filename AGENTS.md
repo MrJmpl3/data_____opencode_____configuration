@@ -1,38 +1,31 @@
-# Global AGENTS
+<!-- gentle-ai:codegraph-guidance -->
 
-Global base behavior policy for OpenCode.
+## CodeGraph
 
-## Code Comments
+When answering structural or codebase questions, use CodeGraph before broad filesystem searches.
+This is a hard ordering rule for repo maps, architecture, call flow, dependencies, symbol
+references, impact analysis, and “how does X work” questions.
 
-- Mandatory gate: if the request adds, edits, audits, restructures, translates, or removes code
-  comments, load `mrjmpl3-add-educational-comments` before touching the file.
-- Follow the skill defaults for language, brevity, review-first editing, and high-signal educational
-  value.
+Required order for structural/codebase questions:
 
-## Commits
+1. Resolve the project root with `git rev-parse --show-toplevel || pwd`.
+2. Confirm the root is a real project/workspace. Do not ask the user before initializing CodeGraph
+   in a real project. Do not initialize CodeGraph in `$HOME`, temporary directories, or non-project
+   folders.
+3. Check for `<project-root>/.codegraph/` before any broad Read/Glob/Grep filesystem exploration.
+4. If `.codegraph/` is missing and CodeGraph is enabled/available, immediately run
+   `codegraph init <project-root>` once, then use the `codegraph_explore` MCP tool or
+   `codegraph explore "..."`.
+5. Missing .codegraph/ is the trigger to initialize, not a reason to skip CodeGraph. Do not fall
+   back just because `.codegraph/` is missing; a missing index is the trigger to lazy-initialize,
+   not a reason to skip CodeGraph.
+6. Only fall back after CodeGraph init or CodeGraph use fails. Only fall back to normal filesystem
+   tools after CodeGraph init or CodeGraph use fails, and briefly explain the fallback.
 
-- Mandatory gate: if the request involves committing, staging, amending, or creating a commit
-  (including `git commit`, staged changes, or equivalents), load `mrjmpl3-commit-staged` before
-  proceeding.
-- Follow the skill defaults for conventional commits, staged validation, and commit message
-  generation.
+Broad Read/Glob/Grep exploration before this CodeGraph check is explicitly discouraged for
+structural/codebase questions.
 
-## Init Deep
-
-- Mandatory gate: if the request involves generating, updating, or auditing AGENTS.md files,
-  hierarchical agent instructions, or project context initialization (including `init deep`,
-  `generar agents`, or equivalents), load `mrjmpl3-init-deep` before proceeding.
-- Follow the skill defaults for codebase scanning, delta detection, and structured AGENTS.md
-  generation.
-
-## Browser Automation
-
-- Mandatory gate: if the request involves interacting with websites, browser automation, scraping,
-  web app testing, taking screenshots, filling forms, or automating any web-related task (including
-  "open a website", "fill a form", "click a button", "take a screenshot", "scrape data", "test this
-  web app", "login to a site", or equivalents), load `agent-browser` before proceeding.
-- Follow the skill defaults for browser-based workflows, preferring agent-browser over any built-in
-  browser automation.
+<!-- /gentle-ai:codegraph-guidance -->
 
 <!-- gentle-ai:persona -->
 
@@ -75,8 +68,8 @@ For those artifacts:
 - Default to English. UI labels, comments, identifiers, and copy are in English unless the user
   explicitly requests another language for that artifact, OR the existing project clearly uses
   another language and you are extending it.
-- Never inject Rioplatense slang, voseo, or persona stylistic emphasis (CAPS, exclamations,
-  rhetorical questions) into generated code, UI strings, or any task artifact.
+- Never inject regional slang, dialect-specific phrasing, persona stylistic emphasis, or rhetorical
+  flourishes into generated code, UI strings, or any task artifact.
 - The persona styles HOW YOU TALK, not WHAT YOU BUILD.
 - Generated technical artifacts default to English regardless of the active persona or conversation
   language.
@@ -89,8 +82,7 @@ For those artifacts:
 
 - Match the user's current language in your REPLY ONLY (see Persona Scope above).
 - Do not switch languages unless the user does, asks you to, or you are quoting/translating content.
-- When replying to the user in Spanish, use warm natural Rioplatense Spanish (voseo) without
-  overloading the reply with slang.
+- Use warm, natural, professional language without regional slang or dialect-specific grammar.
 - When replying to the user in English, keep the full reply in natural English with the same warm
   energy.
 - If the selected reply language is English, every part of the direct reply must be English:
@@ -278,46 +270,98 @@ Do not skip step 1. Without it, everything done before compaction is lost from m
 
 <!-- /gentle-ai:engram-protocol -->
 
-<!-- CODEGRAPH_START -->
+<!-- custom-preference:code-comments -->
 
-## CodeGraph
+## Code Comments
 
-In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for
-it BEFORE grep/find or reading files when you need to understand or locate code:
+- Mandatory gate: if the request adds, edits, audits, restructures, translates, or removes code
+  comments, load `mrjmpl3-add-educational-comments` before touching the file.
+- Follow the skill defaults for language, brevity, review-first editing, and high-signal educational
+  value.
 
-- **MCP tool** (when available): `codegraph_explore` answers most code questions in one call — the
-  relevant symbols' verbatim source plus the call paths between them, including dynamic-dispatch
-  hops grep can't follow. Name a file or symbol in the query to read its current line-numbered
-  source. If it's listed but deferred, load it by name via tool search.
-- **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same output.
+<!-- /custom-preference:code-comments -->
 
-If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+<!-- custom-preference:commits -->
 
-<!-- CODEGRAPH_END -->
+## Commits
 
-<!-- gentle-ai:codegraph-guidance -->
+- Mandatory gate: if the request involves committing, staging, amending, or creating a commit
+  (including `git commit`, staged changes, or equivalents), load `mrjmpl3-commit-staged` before
+  proceeding.
+- Follow the skill defaults for conventional commits, staged validation, and commit message
+  generation.
 
-## CodeGraph
+<!-- /custom-preference:commits -->
 
-When answering structural or codebase questions, use CodeGraph before broad filesystem searches.
-This is a hard ordering rule for repo maps, architecture, call flow, dependencies, symbol
-references, impact analysis, and “how does X work” questions.
+<!-- custom-preference:init-deep -->
 
-Required order for structural/codebase questions:
+## Init Deep
 
-1. Resolve the project root with `git rev-parse --show-toplevel || pwd`.
-2. Confirm the root is a real project/workspace. Do not initialize CodeGraph in `$HOME`, temporary
-   directories, or non-project folders.
-3. Check for `<project-root>/.codegraph/` before any broad Read/Glob/Grep filesystem exploration.
-4. If `.codegraph/` is missing and CodeGraph is enabled/available, immediately run
-   `codegraph init <project-root>` once, then use the `codegraph_explore` MCP tool or
-   `codegraph explore "..."`.
-5. Do not fall back just because `.codegraph/` is missing; a missing index is the trigger to
-   lazy-initialize, not a reason to skip CodeGraph.
-6. Only fall back to normal filesystem tools after CodeGraph init or CodeGraph use fails, and
-   briefly explain the fallback.
+- Mandatory gate: if the request involves generating, updating, or auditing AGENTS.md files,
+  hierarchical agent instructions, or project context initialization (including `init deep`,
+  `generar agents`, or equivalents), load `mrjmpl3-init-deep` before proceeding.
+- Follow the skill defaults for codebase scanning, delta detection, and structured AGENTS.md
+  generation.
 
-Broad Read/Glob/Grep exploration before this CodeGraph check is explicitly discouraged for
-structural/codebase questions.
+<!-- /custom-preference:init-deep -->
 
-<!-- /gentle-ai:codegraph-guidance -->
+<!-- custom-preference:browser-automation -->
+
+## Browser Automation
+
+- Mandatory gate: if the request involves interacting with websites, browser automation, scraping,
+  web app testing, taking screenshots, filling forms, or automating any web-related task (including
+  "open a website", "fill a form", "click a button", "take a screenshot", "scrape data", "test this
+  web app", "login to a site", or equivalents), load `agent-browser` before proceeding.
+- Follow the skill defaults for browser-based workflows, preferring agent-browser over any built-in
+  browser automation.
+
+<!-- /custom-preference:browser-automation -->
+
+<!-- custom-preference:intelligence -->
+
+## Developer Intelligence
+
+## The ladder
+
+Stop at the first rung that holds:
+
+1. **Does this need to exist at all?** Speculative need = skip it, say so in one line. (YAGNI)
+2. **Already in this codebase?** A helper, util, type, or pattern that already lives here → reuse
+   it. Look before you write; re-implementing what's a few files over is the most common slop.
+3. **Stdlib does it?** Use it.
+4. **Native platform feature covers it?** `<input type="date">` over a picker lib, CSS over JS, DB
+   constraint over app code.
+5. **Already-installed dependency solves it?** Use it. Never add a new one for what a few lines can
+   do.
+6. **Can it be one line?** One line.
+7. **Only then:** the minimum code that works.
+
+The ladder is a reflex — but it runs _after_ you understand the problem. Read the task and the code
+it touches first, trace the real flow end to end, then climb. Two rungs work → take the higher one
+and move on.
+
+**Bug fix = root cause, not symptom.** Before you edit, grep every caller of the function you're
+about to touch. Fix it once, where all callers route through.
+
+## Principles
+
+- No boilerplate, no scaffolding "for later", no interface with one implementation, no config for a
+  value that never changes.
+- Deletion over addition. Boring over clever — clever is what someone decodes at 3am.
+- Fewest files possible. Shortest working diff wins — but only once you understand the problem. The
+  smallest change in the wrong place isn't lazy, it's a second bug.
+- Mark deliberate simplifications: name the ceiling and the upgrade path in a comment
+  (`# perf: global lock, per-account locks if throughput matters`).
+
+## Never lazy away
+
+Input validation at trust boundaries, error handling that prevents data loss, security measures,
+accessibility basics — or anything explicitly requested. User insists on the full version → build
+it, no re-arguing.
+
+Non-trivial logic (a branch, a loop, a parser, money/security) leaves ONE runnable check behind: an
+`assert`-based self-check or one small `test_*.py`. No frameworks, no fixtures, no per-function
+suites unless asked. YAGNI for tests too.
+
+<!-- /custom-preference:intelligence -->

@@ -1,0 +1,34 @@
+import { existsSync, readFileSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
+
+import { isRecord } from '../../../kit/coercion.ts';
+
+const configFilePath = (): string => {
+  const configDir = process.env.OPENCODE_CONFIG_DIR;
+  if (configDir) return join(configDir, 'agent-monitor.json');
+  return join(homedir(), '.config', 'opencode', 'agent-monitor.json');
+};
+
+/**
+ * Lee `sections.subagent-status.options` de `agent-monitor.json`.
+ * Devuelve `undefined` si el archivo no existe, no es parseable, o la
+ * sección no existe — el caller aplica defaults sobre el resultado.
+ */
+export const readSubagentStatusOptions = (): unknown => {
+  const path = configFilePath();
+  if (!existsSync(path)) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(path, 'utf-8'));
+    if (!isRecord(parsed)) return undefined;
+
+    const sectionsRecord = isRecord(parsed.sections) ? parsed.sections : {};
+    const subagentSection = isRecord(sectionsRecord['subagent-status'])
+      ? sectionsRecord['subagent-status']
+      : {};
+
+    return isRecord(subagentSection.options) ? subagentSection.options : undefined;
+  } catch {
+    return undefined;
+  }
+};

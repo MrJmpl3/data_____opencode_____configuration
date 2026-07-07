@@ -98,13 +98,10 @@ These plugins now live as flat runtime entrypoints under [`plugins/`](./plugins)
 
 The [`tui-plugins/`](./tui-plugins) directory contains OpenCode TUI extensions.
 
-| Plugin                    | Purpose                                               |
-| ------------------------- | ----------------------------------------------------- |
-| `mrjmpl3-cache`           | Cache-related status information.                     |
-| `gentle-logo.tsx`         | Gentle AI branding for the TUI.                       |
-| `mrjmpl3-limits`          | Limit-related status information.                     |
-| `mrjmpl3-quota`           | Provider quota display.                               |
-| `mrjmpl3-subagent-status` | Subagent status, idle state, and recovery visibility. |
+| Plugin            | Purpose                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------- |
+| `gentle-logo.tsx` | Gentle AI branding for the TUI.                                                                         |
+| `agent-monitor`   | Unified sidebar with limits, cache, quota, subagent, cost, context-fill, speed, and cache-TTL sections. |
 
 These extensions are wired from [`tui.json`](./tui.json).
 
@@ -179,7 +176,7 @@ For package-local checks, run commands inside the relevant plugin directory.
 Example:
 
 ```bash
-cd tui-plugins/mrjmpl3-subagent-status
+cd tui-plugins/agent-monitor
 npm test
 npm run typecheck
 ```
@@ -302,13 +299,10 @@ Estos plugins ahora viven como entrypoints planos de runtime dentro de [`plugins
 
 El directorio [`tui-plugins/`](./tui-plugins) contiene extensiones para la TUI de OpenCode.
 
-| Plugin                    | Propósito                                         |
-| ------------------------- | ------------------------------------------------- |
-| `mrjmpl3-cache`           | Información de estado relacionada con caché.      |
-| `gentle-logo.tsx`         | Branding de Gentle AI para la TUI.                |
-| `mrjmpl3-limits`          | Información de estado relacionada con límites.    |
-| `mrjmpl3-quota`           | Visualización de cuotas por proveedor.            |
-| `mrjmpl3-subagent-status` | Estado de subagentes, inactividad y recuperación. |
+| Plugin            | Propósito                                                                                                 |
+| ----------------- | --------------------------------------------------------------------------------------------------------- |
+| `gentle-logo.tsx` | Branding de Gentle AI para la TUI.                                                                        |
+| `agent-monitor`   | Sidebar unificado con secciones de limits, cache, quota, subagent, cost, context-fill, speed y cache-TTL. |
 
 Estas extensiones se conectan desde [`tui.json`](./tui.json).
 
@@ -386,7 +380,7 @@ correspondiente.
 Ejemplo:
 
 ```bash
-cd tui-plugins/mrjmpl3-subagent-status
+cd tui-plugins/agent-monitor
 npm test
 npm run typecheck
 ```
