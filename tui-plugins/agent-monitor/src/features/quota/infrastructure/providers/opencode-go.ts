@@ -143,7 +143,10 @@ export const fetchOpencodeGoDashboard = async (
     undefined,
     signal,
   );
-  if (!response.ok) return { error: httpErrorMessage('OpenCode Go', response) };
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    return { error: httpErrorMessage('OpenCode Go', response, errorText) };
+  }
 
   const html = await response.text();
   const data = {

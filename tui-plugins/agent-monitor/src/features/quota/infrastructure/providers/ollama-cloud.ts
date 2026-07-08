@@ -150,7 +150,8 @@ export const fetchOllamaCloudQuota = async (
   }
 
   if (!response.ok) {
-    return { error: httpErrorMessage(OLLAMA_CLOUD_PROVIDER_LABEL, response) };
+    const errorText = await response.text().catch(() => '');
+    return { error: httpErrorMessage(OLLAMA_CLOUD_PROVIDER_LABEL, response, errorText) };
   }
 
   const html = await response.text();

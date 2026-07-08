@@ -1,6 +1,7 @@
 import type { SubagentChild, SubagentState } from '../types.ts';
 
 import { timestampMs, toNonNegativeInteger } from '../../../../kit/coercion.ts';
+
 import {
   isDelegationLikeChild,
   isRealSessionChild,
@@ -17,6 +18,8 @@ import {
 } from './core.ts';
 
 // ─── helpers ───────────────────────────────────────────────────────────────
+
+const MAX_PURGED_SESSION_IDS = 500;
 
 export const isTerminalStatus = (
   status: SubagentChild['status'],
@@ -38,6 +41,18 @@ const rememberPurgedSession = (
   const sessionId = resolveSessionIdentity(child);
   if (!sessionId) return;
   state.purgedSessionIDs[sessionId] = true;
+
+  // Cap the map so it cannot grow unboundedly over a long-running session.
+  // Remove oldest entries (insertion order) when exceeding the limit.
+  // The cap is checked only when we exceed the threshold, so bulk calls
+  // (from prune loops) only pay the O(keys) cost once per batch.
+  const keys = Object.keys(state.purgedSessionIDs);
+  if (keys.length > MAX_PURGED_SESSION_IDS) {
+    const toRemove = keys.length - MAX_PURGED_SESSION_IDS;
+    for (let i = 0; i < toRemove; i++) {
+      delete state.purgedSessionIDs[keys[i]];
+    }
+  }
 };
 
 // ─── normalization ──────────────────────────────────────────────────────────

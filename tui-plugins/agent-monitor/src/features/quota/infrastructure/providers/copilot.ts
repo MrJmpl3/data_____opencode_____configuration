@@ -141,7 +141,10 @@ export const fetchCopilotQuota = async (signal?: AbortSignal): Promise<CopilotRe
     undefined,
     signal,
   );
-  if (!response.ok) return { error: httpErrorMessage('Copilot API', response) };
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    return { error: httpErrorMessage('Copilot API', response, errorText) };
+  }
 
   const dataResult = await readJsonResponse('Copilot API', response);
   if ('error' in dataResult) return dataResult;

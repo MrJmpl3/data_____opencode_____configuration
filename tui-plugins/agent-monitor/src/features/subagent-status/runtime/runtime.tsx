@@ -17,7 +17,7 @@ import {
 } from './prompt-props.ts';
 import { createEmptyState } from '../domain/state/core.ts';
 import type { SubagentState } from '../domain/types.ts';
-import { buildTuiSnapshot } from './snapshot.ts';
+import { buildTuiStructuralView, buildTimedSnapshot } from './snapshot.ts';
 import { HomeBottomView, SidebarView } from '../ui/view.tsx';
 import { normalizeSubagentStatusPluginOptions } from './options.ts';
 import { createTuiRuntime } from './tui-runtime.ts';
@@ -39,7 +39,12 @@ export const registerSubagentStatusTui = async (api: TuiPluginApi, options: unkn
     const [sessionId, setSessionId] = createSignal('');
     const [expanded, setExpanded] = createSignal(true);
     const [nowMs, setNowMs] = createSignal(Date.now());
-    const snapshot = createMemo(() => buildTuiSnapshot(state(), nowMs(), resolvedOptions.visibility));
+    // Structural view: sort, collapse, filter, count. Only recomputes when
+    // the state tree changes (events, refresh), NOT on every 1Hz tick.
+    const structuralView = createMemo(() => buildTuiStructuralView(state(), resolvedOptions.visibility));
+    // Timed overlay: applies elapsedMs hydration to visible children on every
+    // 1Hz tick. The expensive structural work stays cached in structuralView.
+    const snapshot = createMemo(() => buildTimedSnapshot(structuralView(), nowMs()));
     const promptFocusController = createPromptFocusController();
     const { isVisible, SlotProvider } = useSlotVisibility(api);
 

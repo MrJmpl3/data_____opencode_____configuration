@@ -15,6 +15,19 @@ import {
   resolveSyntheticTargetSessionID,
 } from './parse.ts';
 
+// Event types that can actually mutate SubagentState. Used by mergeEventState
+// to avoid cloning the entire state tree for irrelevant events (e.g.
+// tui.session.select, message.updated) that the bridge delivers but that
+// never change state.
+export const RELEVANT_EVENT_TYPES = new Set([
+  'session.created',
+  'session.updated',
+  'session.idle',
+  'session.error',
+  'session.status',
+  'message.part.updated',
+]);
+
 // ─── handling: process events ────────────────────────────────────────────────
 
 const handleSessionCreated = (state: SubagentState, event: EventLike): boolean => {

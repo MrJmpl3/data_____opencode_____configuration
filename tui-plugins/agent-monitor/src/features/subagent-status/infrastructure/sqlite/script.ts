@@ -335,7 +335,7 @@ open("/tmp/subagent-recovery-ran.txt", "w").close()
 print(json.dumps(result))
 `;
 
-const runSQLiteRecoveryScript = (databasePath: string, parentSessionID: string): string | undefined => {
+const runSQLiteRecoveryScript = async (databasePath: string, parentSessionID: string): Promise<string | undefined> => {
   debugLog(`[subagent-status] runSQLiteRecoveryScript called: db=${databasePath} parent=${parentSessionID}`);
   const result = spawnSync('python3', ['-c', READ_SQLITE_RECOVERY_SCRIPT, databasePath, parentSessionID], {
     encoding: 'utf8',
@@ -391,7 +391,7 @@ export const readSQLiteRecoveryRows = async (
 ): Promise<SQLiteRecoveryRow[]> => {
   if (!existsSync(databasePath)) return [];
 
-  const stdout = runSQLiteRecoveryScript(databasePath, parentSessionID);
+  const stdout = await runSQLiteRecoveryScript(databasePath, parentSessionID);
   if (!stdout) return [];
 
   try {
