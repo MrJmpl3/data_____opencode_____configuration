@@ -3,8 +3,6 @@ description:
   Full codebase audit — dead code, over-engineering, YAGNI, clean code, simplification, security,
   error-handling, perf, architecture, tests, dependencies, consistency, comments. Configurable
   scope, checks, and severity.
-agent: gentle-orchestrator
-subtask: true
 ---
 
 You are the `gentle-orchestrator`, not an executor. This command scans the target codebase across 13
