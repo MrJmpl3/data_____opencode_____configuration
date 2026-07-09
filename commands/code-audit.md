@@ -1,14 +1,14 @@
 ---
 description:
   Full codebase audit — dead code, over-engineering, YAGNI, clean code, simplification, security,
-  error-handling, perf, architecture, tests, dependencies, consistency, comments, readability, SOLID.
-  Configurable scope, checks, and severity.
+  error-handling, perf, architecture, tests, dependencies, consistency, comments, readability, SOLID,
+  observability, data integrity, concurrency. Configurable scope, checks, and severity.
 ---
 
-You are the `gentle-orchestrator`, not an executor. This command scans the target codebase across 15
+You are the `gentle-orchestrator`, not an executor. This command scans the target codebase across 18
 quality dimensions: dead code, over-engineering, YAGNI, clean code, simplification, security, error
 handling, performance, architecture, testing quality, dependencies, consistency, comments,
-readability, and SOLID.
+readability, SOLID, observability, data integrity, and concurrency.
 Each dimension is independently enabled/disabled via `--checks`. Delegate ALL actual analysis to
 sub-agents; do not do the work inline.
 
@@ -33,7 +33,8 @@ Parse `$ARGUMENTS` to extract optional parameters:
 
 Supported check values: `dead-code`, `over-engineering`, `yagni`, `clean-code`, `simplification`,
 `security`, `error-handling`, `performance`, `architecture`, `testing`, `dependencies`,
-`consistency`, `comments`, `readability`, `solid`, `all` (default).
+`consistency`, `comments`, `readability`, `solid`, `observability`, `integrity`, `concurrency`,
+`all` (default).
 
 Supported severity values: `critical`, `high`, `medium`, `low` (default: `low`).
 
@@ -181,6 +182,36 @@ or throw unexpected exceptions. `isinstance` checks that break polymorphism.
 directly. Concrete instantiation inside business logic (`new HttpClient()` inside a service).
 Static/class method coupling to concrete dependencies.
 
+### Observability — Logging, Metrics & Tracing
+
+`except Exception: pass` without any logging. Log messages without correlation identifiers
+(`request_id`, `session_id`, `user_id`). Critical code paths (auth decisions, payment mutations,
+state transitions) with zero logging. Logging inside hot loops that would flood disk on production
+load. Exception logging without stack trace or context (message-only). Missing health-check
+endpoints or readiness probes. Application metrics absent for key business or technical indicators
+(throughput, latency, error rate). Distributed tracing breadcrumbs missing across async/service
+boundaries.
+
+### Data Integrity — Validation, Transactions & Idempotency
+
+Input validation only on the client/frontend — backend trusts unsanitized data. Multi-write
+operations (DB + file system + external API) without transaction or compensation rollback. State
+mutations via `UPDATE`/`PUT` that assume the previous state without version/etag checks. Missing
+uniqueness constraints at the DB level that the application code assumes. File writes without atomic
+rename or fsync — partial writes survive crashes. Endpoints lacking idempotency keys (`Idempotency-Key`
+header or similar) where client retry would cause duplicates. Silent truncation or type coercion
+that loses data (float→int, `VARCHAR(255)` overflow).
+
+### Concurrency — Race Conditions & Async Safety
+
+Mutable shared state without synchronization (lock, semaphore, or channel). Lazy initialization
+without double-checked locking or `once.Do` equivalent. Promises/futures launched and forgotten
+without error handling (fire-and-forget). Unsafe iteration over collections being mutated
+concurrently (`ConcurrentModificationError`). Callbacks or event handlers that close over mutable
+loop variables. Async code using blocking I/O or `time.sleep()` — blocking the event loop.
+Deadlock potential from nested or out-of-order lock acquisition. Assumptions about single-threaded
+execution that break under load or in async contexts.
+
 ## Execution Steps
 
 1. **Resolve configuration**: parse `$ARGUMENTS`, ask questions if ambiguous, confirm scope with a
@@ -192,7 +223,8 @@ Static/class method coupling to concrete dependencies.
    - Map enabled checks to the appropriate review sub-agent and launch one per group:
       - `review-readability`: dead-code, over-engineering, yagni, clean-code, simplification,
         consistency, comments, readability, solid
-      - `review-reliability`: error-handling, performance, testing
+      - `review-reliability`: error-handling, performance, testing, integrity, concurrency
+      - `review-resilience`: observability
       - `review-risk`: security, dependencies, architecture
    - Each review sub-agent receives:
      - The check's rules (from the definition above)
@@ -215,7 +247,7 @@ Static/class method coupling to concrete dependencies.
    # Code Audit Results — {scope}
 
    > Generado el {date} por `gentle-orchestrator` con subagentes `review-readability`,
-   > `review-risk`, `review-reliability`
+   > `review-risk`, `review-reliability`, `review-resilience`
 
    ## Configuration
 
@@ -305,6 +337,9 @@ Return a structured report with this shape:
 | Dependencies      | {n}      | {n}  | {n}    | {n} | {n}   |
 | Readability       | {n}      | {n}  | {n}    | {n} | {n}   |
 | SOLID             | {n}      | {n}  | {n}    | {n} | {n}   |
+| Observability     | {n}      | {n}  | {n}    | {n} | {n}   |
+| Data Integrity    | {n}      | {n}  | {n}    | {n} | {n}   |
+| Concurrency       | {n}      | {n}  | {n}    | {n} | {n}   |
 | Consistency       | {n}      | {n}  | {n}    | {n} | {n}   |
 | Comments          | {n}      | {n}  | {n}    | {n} | {n}   |
 | **Total**         | **{n}**  | **{n}**| **{n}**| **{n}**| **{n}** |
@@ -312,7 +347,7 @@ Return a structured report with this shape:
 ### Findings
 
 #### {severity} — {file}:{line}
-- **Category**: {one of the 15 check names}
+- **Category**: {one of the 18 check names}
 - **Description**: {what is wrong}
 - **Evidence**: {specific code reference}
 - **Suggested fix**: {how to resolve}
