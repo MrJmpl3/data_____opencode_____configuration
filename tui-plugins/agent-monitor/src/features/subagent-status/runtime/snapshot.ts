@@ -73,10 +73,7 @@ export const buildTuiStructuralView = (
  * Applies per-tick time-sensitive data (elapsedMs hydration) to a pre-computed
  * structural view. O(visibleChildren) — cheap enough to run every 1Hz tick.
  */
-export const buildTimedSnapshot = (
-  structural: TuiStructuralView,
-  nowMs: number,
-): TuiSnapshot => {
+export const buildTimedSnapshot = (structural: TuiStructuralView, nowMs: number): TuiSnapshot => {
   const hydratedVisible = structural.visibleChildren.map((child) => hydrateSnapshotChild(child, nowMs));
 
   return {
