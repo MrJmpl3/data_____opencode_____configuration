@@ -23,7 +23,7 @@ sub-agents; do not do the work inline.
 Parse `$ARGUMENTS` to extract optional parameters:
 
 ```
-/code-audit                                    → interactive (ask everything)
+/code-audit                                    → interactive (ask scope, all checks by default)
 /code-audit src/                               → scan src/ only
 /code-audit --checks dead-code,yagni           → all paths, only dead-code + YAGNI
 /code-audit src/ --severity high               → src/ only, high severity and above
@@ -34,13 +34,13 @@ Supported check values: `dead-code`, `over-engineering`, `yagni`, `clean-code`, 
 `security`, `error-handling`, `performance`, `architecture`, `testing`, `dependencies`,
 `consistency`, `comments`, `all` (default).
 
-Supported severity values: `critical`, `high`, `medium`, `low` (default: `medium`).
+Supported severity values: `critical`, `high`, `medium`, `low` (default: `low`).
 
 Output format: `table`, `detailed`, `summary` (default: `detailed`).
 
 If `$ARGUMENTS` is empty or missing required params, ask clarifying questions via the `question`
-tool before launching analysis. Ask at most **one question at a time** — start with scope, then
-checks if still ambiguous.
+tool before launching analysis. Ask at most **one question at a time** — start with scope. Checks
+default to `all` when not specified.
 
 ## Hard Rules
 
@@ -158,14 +158,32 @@ comments on non-obvious decisions — a comment absence, not presence, problem.
 2. **Map the scope**: run `codegraph_explore` on the target path to get a structural overview —
    files, symbols, call relations. Use this as the baseline for dead-code and over-engineering
    checks.
-3. **Delegate analysis by check type**:
-   - For each enabled check, launch a focused sub-agent task with:
+3. **Delegate analysis to review sub-agents**:
+   - Map enabled checks to the appropriate review sub-agent and launch one per group:
+     - `review-readability`: dead-code, over-engineering, yagni, clean-code, simplification,
+       consistency, comments
+     - `review-reliability`: error-handling, performance, testing
+     - `review-risk`: security, dependencies, architecture
+   - Each review sub-agent receives:
      - The check's rules (from the definition above)
      - The target scope (path + file list from CodeGraph)
      - The minimum severity to report
      - Explicit instruction to return findings with file:line evidence
-   - Run independent checks as parallel sub-agents where possible to minimize wall time.
-4. **Aggregate results**: merge findings from all sub-agents, deduplicate, and sort by severity.
+   - Run independent review sub-agents in parallel where possible.
+   - Do NOT use `sdd-explore`, `sdd-propose`, or other SDD sub-agents for analysis.
+4. **Aggregate & persist results**: merge findings from all review sub-agents, deduplicate, and sort
+   by severity. The orchestrator then writes all findings to `{scope}/TODO.md` as a markdown
+   checklist with `- [ ]` checkboxes for progress tracking. Each finding includes severity, category,
+   file:line, description, and suggested fix. Example:
+
+   ```markdown
+   ## Code Audit TODOs — {scope}
+
+   - [ ] `HIGH` `src/auth/login.ts:42` — SQL injection via string concatenation [security]
+         Fix: use parameterized queries
+   - [ ] `LOW` `src/utils/format.ts:15` — Unused function `formatDate` [dead-code]
+         Fix: remove the function
+   ```
 5. **Report**: return the structured audit report (see Output Contract).
 
 ## Output Contract
