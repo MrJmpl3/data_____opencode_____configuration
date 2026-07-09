@@ -2,13 +2,15 @@
 description:
   Full codebase audit — dead code, over-engineering, YAGNI, clean code, simplification, security,
   error-handling, perf, architecture, tests, dependencies, consistency, comments, readability, SOLID,
-  observability, data integrity, concurrency. Configurable scope, checks, and severity.
+  observability, data integrity, concurrency, configuration hygiene, production readiness.
+  Configurable scope, checks, and severity.
 ---
 
-You are the `gentle-orchestrator`, not an executor. This command scans the target codebase across 18
+You are the `gentle-orchestrator`, not an executor. This command scans the target codebase across 20
 quality dimensions: dead code, over-engineering, YAGNI, clean code, simplification, security, error
 handling, performance, architecture, testing quality, dependencies, consistency, comments,
-readability, SOLID, observability, data integrity, and concurrency.
+readability, SOLID, observability, data integrity, concurrency, configuration hygiene, and
+production readiness.
 Each dimension is independently enabled/disabled via `--checks`. Delegate ALL actual analysis to
 sub-agents; do not do the work inline.
 
@@ -34,7 +36,7 @@ Parse `$ARGUMENTS` to extract optional parameters:
 Supported check values: `dead-code`, `over-engineering`, `yagni`, `clean-code`, `simplification`,
 `security`, `error-handling`, `performance`, `architecture`, `testing`, `dependencies`,
 `consistency`, `comments`, `readability`, `solid`, `observability`, `integrity`, `concurrency`,
-`all` (default).
+`config-hygiene`, `production-readiness`, `all` (default).
 
 Supported severity values: `critical`, `high`, `medium`, `low` (default: `low`).
 
@@ -212,6 +214,27 @@ loop variables. Async code using blocking I/O or `time.sleep()` — blocking the
 Deadlock potential from nested or out-of-order lock acquisition. Assumptions about single-threaded
 execution that break under load or in async contexts.
 
+### Configuration Hygiene — Setup & Environment
+
+Hardcoded values that should be configurable (`localhost`, hardcoded ports, API URLs, timeouts,
+secret paths). Environment variables without validation, type coercion, or defaults — app crashes
+with cryptic errors on missing config. Configuration keys defined but never read (dead config).
+Duplicate configuration across multiple files that can drift. Missing or stale `.env.example` /
+`.env.dist` — onboarding friction. Configuration without schema or typing (strings where enums or
+numbers belong). Environment-specific overrides without a documented mechanism — dev/staging/prod
+configuration drift.
+
+### Production Readiness — Clean, Professional & Safe
+
+Debug artifacts left in production code (`print`, `console.log`, `debugger`, `var_dump`, `dd()`).
+Lint/type suppressions (`# noqa`, `// eslint-disable-next-line`) without an inline justification.
+Overly clever or terse code that sacrifices clarity for brevity — a junior should be able to read
+and modify it confidently. Code that mixes languages, idioms, or paradigms inconsistently within
+the same module. Missing input validation at public API boundaries (network, file, IPC). Temporary
+workarounds, hotfixes, or patches without a TODO/FIXME referencing a tracking ticket. Monkeys
+patches, `eval`/`exec`, or metaprogramming tricks without explanation and safety review. Public
+API surface that leaks implementation types — consumers couple to internals.
+
 ## Execution Steps
 
 1. **Resolve configuration**: parse `$ARGUMENTS`, ask questions if ambiguous, confirm scope with a
@@ -222,8 +245,9 @@ execution that break under load or in async contexts.
 3. **Delegate analysis to review sub-agents**:
    - Map enabled checks to the appropriate review sub-agent and launch one per group:
       - `review-readability`: dead-code, over-engineering, yagni, clean-code, simplification,
-        consistency, comments, readability, solid
-      - `review-reliability`: error-handling, performance, testing, integrity, concurrency
+        consistency, comments, readability, solid, production-readiness
+      - `review-reliability`: error-handling, performance, testing, integrity, concurrency,
+        config-hygiene
       - `review-resilience`: observability
       - `review-risk`: security, dependencies, architecture
    - Each review sub-agent receives:
@@ -340,6 +364,8 @@ Return a structured report with this shape:
 | Observability     | {n}      | {n}  | {n}    | {n} | {n}   |
 | Data Integrity    | {n}      | {n}  | {n}    | {n} | {n}   |
 | Concurrency       | {n}      | {n}  | {n}    | {n} | {n}   |
+| Config Hygiene    | {n}      | {n}  | {n}    | {n} | {n}   |
+| Production Ready  | {n}      | {n}  | {n}    | {n} | {n}   |
 | Consistency       | {n}      | {n}  | {n}    | {n} | {n}   |
 | Comments          | {n}      | {n}  | {n}    | {n} | {n}   |
 | **Total**         | **{n}**  | **{n}**| **{n}**| **{n}**| **{n}** |
@@ -347,7 +373,7 @@ Return a structured report with this shape:
 ### Findings
 
 #### {severity} — {file}:{line}
-- **Category**: {one of the 18 check names}
+- **Category**: {one of the 20 check names}
 - **Description**: {what is wrong}
 - **Evidence**: {specific code reference}
 - **Suggested fix**: {how to resolve}
