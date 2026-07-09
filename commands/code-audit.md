@@ -26,25 +26,27 @@ sub-agents; do not do the work inline.
 Parse `$ARGUMENTS` to extract optional parameters:
 
 ```
-/code-audit                                    → interactive (ask scope, all checks by default)
-/code-audit src/                               → scan src/ only
-/code-audit --checks dead-code,yagni           → all paths, only dead-code + YAGNI
-/code-audit src/ --severity high               → src/ only, high severity and above
-/code-audit src/ --checks dead-code --severity medium
+/code-audit                                              → ask everything
+/code-audit src/                                         → scope known, ask checks + severity + format
+/code-audit --checks dead-code,yagni                     → checks known, ask scope + severity + format
+/code-audit src/ --severity high                         → scope + severity known, ask checks + format
+/code-audit src/ --checks dead-code --severity medium     → all known, run directly
+/code-audit src/ --checks all --severity low --output detailed
 ```
 
 Supported check values: `dead-code`, `over-engineering`, `yagni`, `clean-code`, `simplification`,
 `security`, `error-handling`, `performance`, `architecture`, `testing`, `dependencies`,
 `consistency`, `comments`, `readability`, `solid`, `observability`, `integrity`, `concurrency`,
-`config-hygiene`, `production-readiness`, `all` (default).
+`config-hygiene`, `production-readiness`, `all`.
 
-Supported severity values: `critical`, `high`, `medium`, `low` (default: `low`).
+Supported severity values: `critical`, `high`, `medium`, `low`.
 
-Output format: `table`, `detailed`, `summary` (default: `detailed`).
+Output format: `table`, `detailed`, `summary`.
 
-If `$ARGUMENTS` is empty or missing required params, ask clarifying questions via the `question`
-tool before launching analysis. Ask at most **one question at a time** — start with scope. Checks
-default to `all` when not specified.
+For **every** parameter not explicitly provided in `$ARGUMENTS`, ask the user via the `question`
+tool — scope, checks, severity, and output format each default to *ask* when missing. Never assume
+a default unless the user explicitly stated it. Ask at most **one question at a time** — start with
+scope, then checks, then severity, then format.
 
 ## Hard Rules
 
