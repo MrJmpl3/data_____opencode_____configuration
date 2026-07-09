@@ -73,5 +73,5 @@ $RECYCLE.BIN/
 .terraform/
 .terraform.lock.hcl
 
-# Opencode Sidebar
+# Opencode Plugins
 agent-monitor.json

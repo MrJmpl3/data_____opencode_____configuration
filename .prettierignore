@@ -79,9 +79,6 @@ Desktop.ini
 *.orig
 *.rej
 
-# Go
-go-workspaces.json
-
 # Terraform
 *.tfstate
 *.tfstate.*

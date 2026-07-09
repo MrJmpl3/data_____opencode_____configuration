@@ -106,12 +106,13 @@ rules:
     - Group by phase, use hierarchical numbering
     - Keep tasks completable in one session
   apply:
-    - Follow existing code patterns
-    tdd: false           # Set to true to enable RED-GREEN-REFACTOR
-    test_command: ""
+    guidelines:
+      - Follow existing code patterns
+    tdd: false # Set to true to enable RED-GREEN-REFACTOR
+    test_command: ''
   verify:
-    test_command: ""
-    build_command: ""
+    test_command: ''
+    build_command: ''
     coverage_threshold: 0
   archive:
     - Warn before merging destructive deltas
