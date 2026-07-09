@@ -48,6 +48,11 @@ tool — scope, checks, severity, and output format each default to *ask* when m
 a default unless the user explicitly stated it. Ask at most **one question at a time** — start with
 scope, then checks, then severity, then format.
 
+After collecting all standard parameters, always ask: *"¿Instrucciones extra para el análisis?"*
+(custom project conventions, like *"una clase por archivo, máximo 200 líneas"*,
+*"siempre usar early returns"*, etc.). These extra instructions are passed verbatim to every review
+sub-agent so they can incorporate project-specific rules into their findings.
+
 ## Hard Rules
 
 - **Read-only audit**: never modify code during this command. Findings only.
@@ -256,6 +261,7 @@ API surface that leaks implementation types — consumers couple to internals.
      - The check's rules (from the definition above)
      - The target scope (path + file list from CodeGraph)
      - The minimum severity to report
+     - The user's extra instructions (if any), passed verbatim
      - Explicit instruction to return findings with file:line evidence
    - Run independent review sub-agents in parallel where possible.
    - Do NOT use `sdd-explore`, `sdd-propose`, or other SDD sub-agents for analysis.
@@ -281,6 +287,7 @@ API surface that leaks implementation types — consumers couple to internals.
    - **Scope**: {scope directories}
    - **Checks**: {selected checks}
    - **Severity threshold**: {minimum severity}
+   - **Extra instructions**: {user's extra rules, or "—"}
    - **Files analyzed**: {count} archivos
 
    ---
