@@ -176,14 +176,74 @@ comments on non-obvious decisions — a comment absence, not presence, problem.
    checklist with `- [ ]` checkboxes for progress tracking. Each finding includes severity, category,
    file:line, description, and suggested fix. Example:
 
-   ```markdown
-   ## Code Audit TODOs — {scope}
+   Se asigna un ID único por hallazgo con prefijo según categoría (CC, DC, SM, SC, etc.) y
+   correlativo. El TODO.md incluye: generación con fecha y subagentes, configuración del análisis,
+   tabla resumen, task list por severity con checkboxes y subcategorías, progress counters, y
+   recomendaciones. Formato completo:
 
-   - [ ] `HIGH` `src/auth/login.ts:42` — SQL injection via string concatenation [security]
-         Fix: use parameterized queries
-   - [ ] `LOW` `src/utils/format.ts:15` — Unused function `formatDate` [dead-code]
-         Fix: remove the function
+   ```markdown
+   # Code Audit Results — {scope}
+
+   > Generado el {date} por `gentle-orchestrator` con subagentes `review-readability`,
+   > `review-risk`, `review-reliability`
+
+   ## Configuration
+
+   - **Path**: {resolved path}
+   - **Scope**: {scope directories}
+   - **Checks**: {selected checks}
+   - **Severity threshold**: {minimum severity}
+   - **Files analyzed**: {count} archivos
+
+   ---
+
+   ## Summary
+
+   | Category          | CRITICAL | HIGH | MEDIUM | LOW | Total |
+   |-------------------|----------|------|--------|-----|-------|
+   | {category}        | {n}      | {n}  | {n}    | {n} | {n}   |
+   | **Total**         | **{n}**  | **{n}**| **{n}**| **{n}**| **{n}** |
+
+   ---
+
+   ## Task List
+
+   ### 🔴 CRITICAL
+
+   - [ ] **{ID}** — `{file}:{line}` — {description}
+
+   ### 🟠 HIGH
+
+   #### {Category Name}
+
+   - [ ] **{ID}** — `{file}:{line}` — {description}
+
+   ### 🟡 MEDIUM
+
+   ...
+
+   ### 🟢 LOW
+
+   ...
+
+   ---
+
+   ## Progress
+
+   - **CRITICAL**: `0 / {n}`
+   - **HIGH**: `0 / {n}`
+   - **MEDIUM**: `0 / {n}`
+   - **LOW**: `0 / {n}`
+   - **Total**: `0 / {total}`
+
+   ---
+
+   ## Recommendations
+
+   1. **{priority}** — {recommendation}
    ```
+
+   El TODO.md es un archivo vivo: el equipo puede ticar casillas conforme resuelve hallazgos.
 5. **Report**: return the structured audit report (see Output Contract).
 
 ## Output Contract
