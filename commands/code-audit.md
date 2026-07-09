@@ -1,8 +1,8 @@
 ---
 description:
   Full codebase audit — dead code, over-engineering, YAGNI, clean code, simplification, security,
-  error-handling, perf, architecture, tests, dependencies, consistency, comments, readability, SOLID,
-  observability, data integrity, concurrency, configuration hygiene, production readiness.
+  error-handling, perf, architecture, tests, dependencies, consistency, comments, readability,
+  SOLID, observability, data integrity, concurrency, configuration hygiene, production readiness.
   Configurable scope, checks, and severity.
 ---
 
@@ -10,9 +10,8 @@ You are the `gentle-orchestrator`, not an executor. This command scans the targe
 quality dimensions: dead code, over-engineering, YAGNI, clean code, simplification, security, error
 handling, performance, architecture, testing quality, dependencies, consistency, comments,
 readability, SOLID, observability, data integrity, concurrency, configuration hygiene, and
-production readiness.
-Each dimension is independently enabled/disabled via `--checks`. Delegate ALL actual analysis to
-sub-agents; do not do the work inline.
+production readiness. Each dimension is independently enabled/disabled via `--checks`. Delegate ALL
+actual analysis to sub-agents; do not do the work inline.
 
 ## Context
 
@@ -44,14 +43,14 @@ Supported severity values: `critical`, `high`, `medium`, `low`.
 Output format: `table`, `detailed`, `summary`.
 
 For **every** parameter not explicitly provided in `$ARGUMENTS`, ask the user via the `question`
-tool — scope, checks, severity, and output format each default to *ask* when missing. Never assume
-a default unless the user explicitly stated it. Ask at most **one question at a time** — start with
+tool — scope, checks, severity, and output format each default to _ask_ when missing. Never assume a
+default unless the user explicitly stated it. Ask at most **one question at a time** — start with
 scope, then checks, then severity, then format.
 
-After collecting all standard parameters, always ask: *"¿Instrucciones extra para el análisis?"*
-(custom project conventions, like *"una clase por archivo, máximo 200 líneas"*,
-*"siempre usar early returns"*, etc.). These extra instructions are passed verbatim to every review
-sub-agent so they can incorporate project-specific rules into their findings.
+After collecting all standard parameters, always ask: _"¿Instrucciones extra para el análisis?"_
+(custom project conventions, like _"una clase por archivo, máximo 200 líneas"_, _"siempre usar early
+returns"_, etc.). These extra instructions are passed verbatim to every review sub-agent so they can
+incorporate project-specific rules into their findings.
 
 ## Hard Rules
 
@@ -164,14 +163,14 @@ comments on non-obvious decisions — a comment absence, not presence, problem.
 
 ### Readability — Code Flow & Cognitive Load
 
-Poorly named identifiers (vague abbreviations, inconsistent terminology, misleading names). Functions
-that require reading the entire body to understand intent — missing intention-revealing names at
-extraction points. Deeply nested control flow that forces the reader to track multiple mental state
-variables. Long conditionals that could be replaced with well-named predicate functions or guard
-clauses. Inconsistent formatting that obscures structure (alignment, blank lines, grouping). Missing
-vertical spacing between logical sections. Side effects hidden inside functions that appear pure.
-Overloaded functions/methods that do different things based on parameter combinations without clear
-documentation.
+Poorly named identifiers (vague abbreviations, inconsistent terminology, misleading names).
+Functions that require reading the entire body to understand intent — missing intention-revealing
+names at extraction points. Deeply nested control flow that forces the reader to track multiple
+mental state variables. Long conditionals that could be replaced with well-named predicate functions
+or guard clauses. Inconsistent formatting that obscures structure (alignment, blank lines,
+grouping). Missing vertical spacing between logical sections. Side effects hidden inside functions
+that appear pure. Overloaded functions/methods that do different things based on parameter
+combinations without clear documentation.
 
 ### SOLID Principles — Design Quality
 
@@ -181,8 +180,8 @@ doing more than one thing at different abstraction levels.
 **OCP** — Open/Closed: switch/if-else chains that grow with every new variant instead of polymorphic
 dispatch or strategy pattern. Core logic that requires editing existing code to extend.
 
-**LSP** — Liskov Substitution: subclass overrides that weaken preconditions, strengthen postconditions,
-or throw unexpected exceptions. `isinstance` checks that break polymorphism.
+**LSP** — Liskov Substitution: subclass overrides that weaken preconditions, strengthen
+postconditions, or throw unexpected exceptions. `isinstance` checks that break polymorphism.
 
 **ISP** — Interface Segregation: interfaces with methods that many implementors leave empty or throw
 `NotImplementedError`. Callers depending on methods they don't use.
@@ -207,9 +206,9 @@ Input validation only on the client/frontend — backend trusts unsanitized data
 operations (DB + file system + external API) without transaction or compensation rollback. State
 mutations via `UPDATE`/`PUT` that assume the previous state without version/etag checks. Missing
 uniqueness constraints at the DB level that the application code assumes. File writes without atomic
-rename or fsync — partial writes survive crashes. Endpoints lacking idempotency keys (`Idempotency-Key`
-header or similar) where client retry would cause duplicates. Silent truncation or type coercion
-that loses data (float→int, `VARCHAR(255)` overflow).
+rename or fsync — partial writes survive crashes. Endpoints lacking idempotency keys
+(`Idempotency-Key` header or similar) where client retry would cause duplicates. Silent truncation
+or type coercion that loses data (float→int, `VARCHAR(255)` overflow).
 
 ### Concurrency — Race Conditions & Async Safety
 
@@ -217,9 +216,9 @@ Mutable shared state without synchronization (lock, semaphore, or channel). Lazy
 without double-checked locking or `once.Do` equivalent. Promises/futures launched and forgotten
 without error handling (fire-and-forget). Unsafe iteration over collections being mutated
 concurrently (`ConcurrentModificationError`). Callbacks or event handlers that close over mutable
-loop variables. Async code using blocking I/O or `time.sleep()` — blocking the event loop.
-Deadlock potential from nested or out-of-order lock acquisition. Assumptions about single-threaded
-execution that break under load or in async contexts.
+loop variables. Async code using blocking I/O or `time.sleep()` — blocking the event loop. Deadlock
+potential from nested or out-of-order lock acquisition. Assumptions about single-threaded execution
+that break under load or in async contexts.
 
 ### Configuration Hygiene — Setup & Environment
 
@@ -236,11 +235,11 @@ configuration drift.
 Debug artifacts left in production code (`print`, `console.log`, `debugger`, `var_dump`, `dd()`).
 Lint/type suppressions (`# noqa`, `// eslint-disable-next-line`) without an inline justification.
 Overly clever or terse code that sacrifices clarity for brevity — a junior should be able to read
-and modify it confidently. Code that mixes languages, idioms, or paradigms inconsistently within
-the same module. Missing input validation at public API boundaries (network, file, IPC). Temporary
+and modify it confidently. Code that mixes languages, idioms, or paradigms inconsistently within the
+same module. Missing input validation at public API boundaries (network, file, IPC). Temporary
 workarounds, hotfixes, or patches without a TODO/FIXME referencing a tracking ticket. Monkeys
-patches, `eval`/`exec`, or metaprogramming tricks without explanation and safety review. Public
-API surface that leaks implementation types — consumers couple to internals.
+patches, `eval`/`exec`, or metaprogramming tricks without explanation and safety review. Public API
+surface that leaks implementation types — consumers couple to internals.
 
 ## Execution Steps
 
@@ -251,12 +250,12 @@ API surface that leaks implementation types — consumers couple to internals.
    checks.
 3. **Delegate analysis to review sub-agents**:
    - Map enabled checks to the appropriate review sub-agent and launch one per group:
-      - `review-readability`: dead-code, over-engineering, yagni, clean-code, simplification,
-        consistency, comments, readability, solid, production-readiness
-      - `review-reliability`: error-handling, performance, testing, integrity, concurrency,
-        config-hygiene
-      - `review-resilience`: observability
-      - `review-risk`: security, dependencies, architecture
+     - `review-readability`: dead-code, over-engineering, yagni, clean-code, simplification,
+       consistency, comments, readability, solid, production-readiness
+     - `review-reliability`: error-handling, performance, testing, integrity, concurrency,
+       config-hygiene
+     - `review-resilience`: observability
+     - `review-risk`: security, dependencies, architecture
    - Each review sub-agent receives:
      - The check's rules (from the definition above)
      - The target scope (path + file list from CodeGraph)
@@ -267,8 +266,8 @@ API surface that leaks implementation types — consumers couple to internals.
    - Do NOT use `sdd-explore`, `sdd-propose`, or other SDD sub-agents for analysis.
 4. **Aggregate & persist results**: merge findings from all review sub-agents, deduplicate, and sort
    by severity. The orchestrator then writes all findings to `{scope}/TODO.md` as a markdown
-   checklist with `- [ ]` checkboxes for progress tracking. Each finding includes severity, category,
-   file:line, description, and suggested fix. Example:
+   checklist with `- [ ]` checkboxes for progress tracking. Each finding includes severity,
+   category, file:line, description, and suggested fix. Example:
 
    Se asigna un ID único por hallazgo con prefijo según categoría (CC, DC, SM, SC, etc.) y
    correlativo. El TODO.md incluye: generación con fecha y subagentes, configuración del análisis,
@@ -294,10 +293,10 @@ API surface that leaks implementation types — consumers couple to internals.
 
    ## Summary
 
-   | Category          | CRITICAL | HIGH | MEDIUM | LOW | Total |
-   |-------------------|----------|------|--------|-----|-------|
-   | {category}        | {n}      | {n}  | {n}    | {n} | {n}   |
-   | **Total**         | **{n}**  | **{n}**| **{n}**| **{n}**| **{n}** |
+   | Category   | CRITICAL | HIGH    | MEDIUM  | LOW     | Total   |
+   | ---------- | -------- | ------- | ------- | ------- | ------- |
+   | {category} | {n}      | {n}     | {n}     | {n}     | {n}     |
+   | **Total**  | **{n}**  | **{n}** | **{n}** | **{n}** | **{n}** |
 
    ---
 
@@ -339,6 +338,7 @@ API surface that leaks implementation types — consumers couple to internals.
    ```
 
    El TODO.md es un archivo vivo: el equipo puede ticar casillas conforme resuelve hallazgos.
+
 5. **Report**: return the structured audit report (see Output Contract).
 
 ## Output Contract
