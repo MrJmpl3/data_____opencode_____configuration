@@ -1,13 +1,14 @@
 ---
 description:
   Full codebase audit — dead code, over-engineering, YAGNI, clean code, simplification, security,
-  error-handling, perf, architecture, tests, dependencies, consistency, comments. Configurable
-  scope, checks, and severity.
+  error-handling, perf, architecture, tests, dependencies, consistency, comments, readability, SOLID.
+  Configurable scope, checks, and severity.
 ---
 
-You are the `gentle-orchestrator`, not an executor. This command scans the target codebase across 13
+You are the `gentle-orchestrator`, not an executor. This command scans the target codebase across 15
 quality dimensions: dead code, over-engineering, YAGNI, clean code, simplification, security, error
-handling, performance, architecture, testing quality, dependencies, consistency, and comment health.
+handling, performance, architecture, testing quality, dependencies, consistency, comments,
+readability, and SOLID.
 Each dimension is independently enabled/disabled via `--checks`. Delegate ALL actual analysis to
 sub-agents; do not do the work inline.
 
@@ -32,7 +33,7 @@ Parse `$ARGUMENTS` to extract optional parameters:
 
 Supported check values: `dead-code`, `over-engineering`, `yagni`, `clean-code`, `simplification`,
 `security`, `error-handling`, `performance`, `architecture`, `testing`, `dependencies`,
-`consistency`, `comments`, `all` (default).
+`consistency`, `comments`, `readability`, `solid`, `all` (default).
 
 Supported severity values: `critical`, `high`, `medium`, `low` (default: `low`).
 
@@ -151,6 +152,35 @@ Commented-out code blocks left as artifacts. TODO/FIXME without tracking referen
 ticket, or owner). Overly verbose explanations that should be simplified code instead. Missing "why"
 comments on non-obvious decisions — a comment absence, not presence, problem.
 
+### Readability — Code Flow & Cognitive Load
+
+Poorly named identifiers (vague abbreviations, inconsistent terminology, misleading names). Functions
+that require reading the entire body to understand intent — missing intention-revealing names at
+extraction points. Deeply nested control flow that forces the reader to track multiple mental state
+variables. Long conditionals that could be replaced with well-named predicate functions or guard
+clauses. Inconsistent formatting that obscures structure (alignment, blank lines, grouping). Missing
+vertical spacing between logical sections. Side effects hidden inside functions that appear pure.
+Overloaded functions/methods that do different things based on parameter combinations without clear
+documentation.
+
+### SOLID Principles — Design Quality
+
+**SRP** — Single Responsibility: classes/modules with multiple unrelated reasons to change. Methods
+doing more than one thing at different abstraction levels.
+
+**OCP** — Open/Closed: switch/if-else chains that grow with every new variant instead of polymorphic
+dispatch or strategy pattern. Core logic that requires editing existing code to extend.
+
+**LSP** — Liskov Substitution: subclass overrides that weaken preconditions, strengthen postconditions,
+or throw unexpected exceptions. `isinstance` checks that break polymorphism.
+
+**ISP** — Interface Segregation: interfaces with methods that many implementors leave empty or throw
+`NotImplementedError`. Callers depending on methods they don't use.
+
+**DIP** — Dependency Inversion: high-level modules importing low-level implementation details
+directly. Concrete instantiation inside business logic (`new HttpClient()` inside a service).
+Static/class method coupling to concrete dependencies.
+
 ## Execution Steps
 
 1. **Resolve configuration**: parse `$ARGUMENTS`, ask questions if ambiguous, confirm scope with a
@@ -160,10 +190,10 @@ comments on non-obvious decisions — a comment absence, not presence, problem.
    checks.
 3. **Delegate analysis to review sub-agents**:
    - Map enabled checks to the appropriate review sub-agent and launch one per group:
-     - `review-readability`: dead-code, over-engineering, yagni, clean-code, simplification,
-       consistency, comments
-     - `review-reliability`: error-handling, performance, testing
-     - `review-risk`: security, dependencies, architecture
+      - `review-readability`: dead-code, over-engineering, yagni, clean-code, simplification,
+        consistency, comments, readability, solid
+      - `review-reliability`: error-handling, performance, testing
+      - `review-risk`: security, dependencies, architecture
    - Each review sub-agent receives:
      - The check's rules (from the definition above)
      - The target scope (path + file list from CodeGraph)
@@ -273,6 +303,8 @@ Return a structured report with this shape:
 | Architecture      | {n}      | {n}  | {n}    | {n} | {n}   |
 | Testing           | {n}      | {n}  | {n}    | {n} | {n}   |
 | Dependencies      | {n}      | {n}  | {n}    | {n} | {n}   |
+| Readability       | {n}      | {n}  | {n}    | {n} | {n}   |
+| SOLID             | {n}      | {n}  | {n}    | {n} | {n}   |
 | Consistency       | {n}      | {n}  | {n}    | {n} | {n}   |
 | Comments          | {n}      | {n}  | {n}    | {n} | {n}   |
 | **Total**         | **{n}**  | **{n}**| **{n}**| **{n}**| **{n}** |
@@ -280,7 +312,7 @@ Return a structured report with this shape:
 ### Findings
 
 #### {severity} — {file}:{line}
-- **Category**: {one of the 13 check names}
+- **Category**: {one of the 15 check names}
 - **Description**: {what is wrong}
 - **Evidence**: {specific code reference}
 - **Suggested fix**: {how to resolve}
