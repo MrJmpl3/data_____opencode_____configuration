@@ -123,7 +123,8 @@ export const readQuotaConfig = (): QuotaFileConfig | null => {
     }
 
     return config;
-  } catch {
+  } catch (e) {
+    console.warn('[agent-monitor] Failed to parse agent-monitor.json:', e instanceof Error ? e.message : String(e));
     return null;
   }
 };

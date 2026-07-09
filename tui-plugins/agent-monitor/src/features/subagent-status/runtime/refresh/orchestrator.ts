@@ -80,7 +80,8 @@ const hydrateRecoverySourcesSafely = async (input: {
       { directory: input.directory, parentSessionID: input.parentSessionID },
       input.recoverySources,
     );
-  } catch {
+  } catch (e) {
+    console.warn('[agent-monitor] Recovery hydration failed:', e instanceof Error ? e.message : String(e));
     return createEmptyRecoveryResult();
   }
 };
@@ -141,7 +142,11 @@ export const createTuiRuntimeRefresh = (
     let nextState: SubagentState;
     try {
       nextState = cloneState(input.state.getState());
-    } catch {
+    } catch (e) {
+      console.warn(
+        '[agent-monitor] Failed to clone state for event processing:',
+        e instanceof Error ? e.message : String(e),
+      );
       return;
     }
     const changed = applySubagentEvent(nextState, normalizedEvent);
@@ -219,10 +224,12 @@ export const createTuiRuntimeRefresh = (
         nextState,
         input.staleRunningProbeStateBySessionId,
         staleRunningProbeTargets,
-        authoritativeSessionIDs,
-        runningEvidenceSessionIDs,
-        input.staleRunningProbePolicy,
-        Date.now(),
+        {
+          authoritativeSessionIDs,
+          runningEvidenceSessionIDs,
+          policy: input.staleRunningProbePolicy,
+          nowMs: Date.now(),
+        },
       );
       const pruned = pruneTerminalChildren(nextState);
       nextState.recovering = false;
@@ -239,8 +246,8 @@ export const createTuiRuntimeRefresh = (
       }
 
       await input.syncState(nextState, input.createPersistMeta('refresh'));
-    } catch {
-      // Refresh is best-effort.
+    } catch (e) {
+      console.warn('[agent-monitor] Refresh failed:', e instanceof Error ? e.message : String(e));
     }
   });
 
@@ -260,8 +267,8 @@ export const createTuiRuntimeRefresh = (
       }
 
       await input.syncState(nextState, input.createPersistMeta('refresh'));
-    } catch {
-      // Token backfill is best-effort.
+    } catch (e) {
+      console.warn('[agent-monitor] Token backfill failed:', e instanceof Error ? e.message : String(e));
     }
   });
 

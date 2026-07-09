@@ -101,6 +101,168 @@ export const shouldPreserveStateOnStartup = (input?: { preserveStateOnStartup?: 
   return input?.preserveStateOnStartup === true;
 };
 
+// ponytail: original `loadState` bundled file I/O, JSON parsing, schema validation, child hydration,
+// token normalization, execution-count reconciliation, recovery source hydration and pruning
+// into one ~130-line function. Splitting it keeps each step independently testable and makes the
+// recovery fallback (retry with inferred parent) easier to reason about.
+
+const parsePersistedState = (raw: string): SubagentState | null => {
+  // ponytail: returns null on parse failure or shape mismatch so the caller can fall back to
+  // an empty state without leaking exception handling into the orchestration code.
+  const parsed = safeReadJSON(raw);
+  if (!isRecord(parsed)) return null;
+
+  const state = createEmptyState();
+  state.updatedAt = typeof parsed.updatedAt === 'string' ? parsed.updatedAt : state.updatedAt;
+
+  if (isRecord(parsed.countedChildIDs)) {
+    for (const [id, value] of Object.entries(parsed.countedChildIDs)) {
+      // ponytail: only boolean `true` entries are kept — any other shape (including objects or
+      // strings) is treated as a corrupt entry and dropped silently.
+      if (value === true && id) state.countedChildIDs[id] = true;
+    }
+  }
+  if (isRecord(parsed.purgedSessionIDs)) {
+    for (const [id, value] of Object.entries(parsed.purgedSessionIDs)) {
+      // ponytail: `ses_` prefix guard prevents restoring purged-session markers written by a
+      // different runtime that may not match the current session-id scheme.
+      if (value === true && id.startsWith('ses_')) state.purgedSessionIDs[id] = true;
+    }
+  }
+  state.totalExecuted = Math.max(
+    toNonNegativeInteger(parsed.totalExecuted) ?? 0,
+    Object.keys(state.countedChildIDs).length,
+  );
+
+  const rawChildren = isRecord(parsed.children) ? parsed.children : {};
+  for (const child of hydrateChildren(rawChildren, state.updatedAt)) {
+    clearPurgedSession(state, child.id);
+    state.children[child.id] = child;
+  }
+
+  return state;
+};
+
+const hydrateChildren = (rawChildren: Record<string, unknown>, fallbackTimestamp: string): SubagentChild[] => {
+  // ponytail: input is a `Record<string, unknown>` (the persisted children map), not an array,
+  // because the JSON shape is keyed by child id. The function still returns an array so the
+  // caller can iterate without managing the key simultaneously.
+  const children: SubagentChild[] = [];
+  for (const [id, value] of Object.entries(rawChildren)) {
+    if (!isRecord(value)) continue;
+    if (!isHydratablePersistedChild(value)) continue;
+
+    // ponytail: tokens are normalized one-field-at-a-time so a partially-populated record
+    // (e.g. only `input`) survives; the final `undefined` check drops the bag entirely when
+    // every sub-field is absent.
+    const tokens = isRecord(value.tokens)
+      ? {
+          input: toFiniteNumber(value.tokens.input),
+          output: toFiniteNumber(value.tokens.output),
+          total: toFiniteNumber(value.tokens.total),
+          contextPercent: toFiniteNumber(value.tokens.contextPercent),
+        }
+      : undefined;
+
+    const child = normalizeChild(
+      {
+        id: typeof value.id === 'string' ? value.id : id,
+        title: typeof value.title === 'string' ? value.title : id,
+        summary: typeof value.summary === 'string' ? value.summary : undefined,
+        agentName: typeof value.agentName === 'string' ? value.agentName : undefined,
+        parentID: value.parentID,
+        messageID: typeof value.messageID === 'string' ? value.messageID : undefined,
+        source:
+          value.source === 'session' || value.source === 'subtask' || value.source === 'tool'
+            ? value.source
+            : undefined,
+        targetSessionID: typeof value.targetSessionID === 'string' ? value.targetSessionID : undefined,
+        status: value.status,
+        color:
+          value.color === 'green' || value.color === 'red' || value.color === 'yellow' || value.color === 'gray'
+            ? value.color
+            : undefined,
+        startedAt: typeof value.startedAt === 'string' ? value.startedAt : fallbackTimestamp,
+        updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : fallbackTimestamp,
+        endedAt: typeof value.endedAt === 'string' ? value.endedAt : undefined,
+        elapsedMs: toFiniteNumber(value.elapsedMs),
+        tokens:
+          tokens?.input === undefined &&
+          tokens?.output === undefined &&
+          tokens?.total === undefined &&
+          tokens?.contextPercent === undefined
+            ? undefined
+            : tokens,
+      },
+      Date.parse(fallbackTimestamp),
+    );
+    children.push(child);
+  }
+  return children;
+};
+
+const reconcileExecutionCounts = (state: SubagentState): void => {
+  for (const child of Object.values(state.children)) {
+    if (child.source === 'subtask' && child.targetSessionID && state.countedChildIDs[child.id]) {
+      rekeyCountedExecution(state, child.id, child.targetSessionID);
+    }
+
+    const countIdentity = resolveExecutionCountIdentity(state, child);
+    if (countIdentity && !state.countedChildIDs[countIdentity]) {
+      state.countedChildIDs[countIdentity] = true;
+    }
+  }
+  syncExecutionState(state);
+};
+
+const applyRecoveryIfNeeded = async (
+  state: SubagentState,
+  options: {
+    recoveryContext?: RecoveryContext;
+    recoverySources?: RecoverySource[];
+  },
+): Promise<boolean> => {
+  if (!options.recoverySources || options.recoverySources.length === 0) return false;
+
+  const contextParentID = options.recoveryContext?.parentSessionID;
+  const inferredParentID = inferParentSessionID(state);
+  // ponytail: the second pass with the inferred parent is only useful when the state already
+  // has children to anchor the inference — an empty state can't disambiguate a parent.
+  const shouldRetryWithInferredParent =
+    !!inferredParentID && inferredParentID !== contextParentID && Object.keys(state.children).length > 0;
+
+  const directory = options.recoveryContext?.directory ?? process.cwd();
+
+  await hydrateStateFromRecoverySources(
+    state,
+    { directory, parentSessionID: contextParentID },
+    options.recoverySources,
+  );
+
+  if (shouldRetryWithInferredParent) {
+    await hydrateStateFromRecoverySources(
+      state,
+      { directory, parentSessionID: inferredParentID },
+      options.recoverySources,
+    );
+  }
+
+  return true;
+};
+
+const pruneOnLoad = (state: SubagentState): boolean => {
+  // ponytail: returns true when anything was pruned so the caller can decide whether to bump
+  // `updatedAt`. Two distinct passes run because terminal-vs-orphan membership is computed
+  // independently and must each be re-evaluated on every load.
+  const prunedTerminalChildren = pruneTerminalChildren(state, Date.now());
+  const prunedOrphanedSyntheticChildren = pruneOrphanedSyntheticRunningChildren(state);
+  if (prunedTerminalChildren || prunedOrphanedSyntheticChildren) {
+    state.updatedAt = new Date().toISOString();
+    return true;
+  }
+  return false;
+};
+
 export const loadState = async (
   statePath: string,
   options: {
@@ -110,122 +272,11 @@ export const loadState = async (
 ): Promise<SubagentState> => {
   try {
     const raw = await readFile(statePath, 'utf8');
-    const parsed = safeReadJSON(raw);
-    if (!isRecord(parsed)) return createEmptyState();
+    const state = parsePersistedState(raw) ?? createEmptyState();
 
-    const state = createEmptyState();
-    state.updatedAt = typeof parsed.updatedAt === 'string' ? parsed.updatedAt : state.updatedAt;
-
-    if (isRecord(parsed.countedChildIDs)) {
-      for (const [id, value] of Object.entries(parsed.countedChildIDs)) {
-        if (value === true && id) state.countedChildIDs[id] = true;
-      }
-    }
-    if (isRecord(parsed.purgedSessionIDs)) {
-      for (const [id, value] of Object.entries(parsed.purgedSessionIDs)) {
-        if (value === true && id.startsWith('ses_')) state.purgedSessionIDs[id] = true;
-      }
-    }
-    state.totalExecuted = Math.max(
-      toNonNegativeInteger(parsed.totalExecuted) ?? 0,
-      Object.keys(state.countedChildIDs).length,
-    );
-
-    const rawChildren = isRecord(parsed.children) ? parsed.children : {};
-    for (const [id, value] of Object.entries(rawChildren)) {
-      if (!isRecord(value)) continue;
-      if (!isHydratablePersistedChild(value)) continue;
-
-      const tokens = isRecord(value.tokens)
-        ? {
-            input: toFiniteNumber(value.tokens.input),
-            output: toFiniteNumber(value.tokens.output),
-            total: toFiniteNumber(value.tokens.total),
-            contextPercent: toFiniteNumber(value.tokens.contextPercent),
-          }
-        : undefined;
-
-      const child = normalizeChild(
-        {
-          id: typeof value.id === 'string' ? value.id : id,
-          title: typeof value.title === 'string' ? value.title : id,
-          summary: typeof value.summary === 'string' ? value.summary : undefined,
-          agentName: typeof value.agentName === 'string' ? value.agentName : undefined,
-          parentID: value.parentID,
-          messageID: typeof value.messageID === 'string' ? value.messageID : undefined,
-          source:
-            value.source === 'session' || value.source === 'subtask' || value.source === 'tool'
-              ? value.source
-              : undefined,
-          targetSessionID: typeof value.targetSessionID === 'string' ? value.targetSessionID : undefined,
-          status: value.status,
-          color:
-            value.color === 'green' || value.color === 'red' || value.color === 'yellow' || value.color === 'gray'
-              ? value.color
-              : undefined,
-          startedAt: typeof value.startedAt === 'string' ? value.startedAt : state.updatedAt,
-          updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : state.updatedAt,
-          endedAt: typeof value.endedAt === 'string' ? value.endedAt : undefined,
-          elapsedMs: toFiniteNumber(value.elapsedMs),
-          tokens:
-            tokens?.input === undefined &&
-            tokens?.output === undefined &&
-            tokens?.total === undefined &&
-            tokens?.contextPercent === undefined
-              ? undefined
-              : tokens,
-        },
-        Date.parse(state.updatedAt),
-      );
-      clearPurgedSession(state, child.id);
-      state.children[child.id] = child;
-    }
-
-    for (const child of Object.values(state.children)) {
-      if (child.source === 'subtask' && child.targetSessionID && state.countedChildIDs[child.id]) {
-        rekeyCountedExecution(state, child.id, child.targetSessionID);
-      }
-
-      const countIdentity = resolveExecutionCountIdentity(state, child);
-      if (countIdentity && !state.countedChildIDs[countIdentity]) {
-        state.countedChildIDs[countIdentity] = true;
-      }
-    }
-
-    syncExecutionState(state);
-
-    if (options.recoverySources && options.recoverySources.length > 0) {
-      const contextParentID = options.recoveryContext?.parentSessionID;
-      const inferredParentID = inferParentSessionID(state);
-      const shouldRetryWithInferredParent =
-        inferredParentID && inferredParentID !== contextParentID && Object.keys(state.children).length > 0;
-
-      await hydrateStateFromRecoverySources(
-        state,
-        {
-          directory: options.recoveryContext?.directory ?? process.cwd(),
-          parentSessionID: contextParentID,
-        },
-        options.recoverySources,
-      );
-
-      if (shouldRetryWithInferredParent) {
-        await hydrateStateFromRecoverySources(
-          state,
-          {
-            directory: options.recoveryContext?.directory ?? process.cwd(),
-            parentSessionID: inferredParentID,
-          },
-          options.recoverySources,
-        );
-      }
-    }
-
-    const prunedTerminalChildren = pruneTerminalChildren(state, Date.now());
-    const prunedOrphanedSyntheticChildren = pruneOrphanedSyntheticRunningChildren(state);
-    if (prunedTerminalChildren || prunedOrphanedSyntheticChildren) {
-      state.updatedAt = new Date().toISOString();
-    }
+    reconcileExecutionCounts(state);
+    await applyRecoveryIfNeeded(state, options);
+    pruneOnLoad(state);
 
     return state;
   } catch {
@@ -255,8 +306,8 @@ export const persistSnapshot = async (
     await saveState(statePath, state);
     await saveStatusText(textPath, artifacts.statusText);
     await saveDebugSnapshot(resolveDebugPath(statePath), artifacts.debugSnapshot);
-  } catch {
-    // Persistence is best-effort.
+  } catch (e) {
+    console.warn('[agent-monitor] Failed to persist snapshot:', e instanceof Error ? e.message : String(e));
   }
 };
 

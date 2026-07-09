@@ -65,7 +65,12 @@ describe('stale running probe helpers', () => {
     });
 
     const firstTargets = resolveStaleRunningProbeTargets(state, probeState, policy, 1_000);
-    settleStaleRunningProbeTargets(state, probeState, firstTargets, new Set(['ses_child']), new Set(), policy, 1_000);
+    settleStaleRunningProbeTargets(state, probeState, firstTargets, {
+      authoritativeSessionIDs: new Set(['ses_child']),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs: 1_000,
+    });
     expect(probeState.get('ses_child')).toMatchObject({
       attempts: 1,
       missingRunningEvidenceAttempts: 0,
@@ -111,7 +116,12 @@ describe('stale running probe helpers', () => {
     let nowMs = baseNowMs;
     let targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
     expect(targets).toEqual(['ses_child']);
-    settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, nowMs);
+    settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs,
+    });
     expect(probeState.get('ses_child')).toMatchObject({
       attempts: 1,
       missingRunningEvidenceAttempts: 1,
@@ -124,7 +134,12 @@ describe('stale running probe helpers', () => {
     nowMs = baseNowMs + 1_000;
     targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
     expect(targets).toEqual(['ses_child']);
-    settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, nowMs);
+    settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs,
+    });
     expect(probeState.get('ses_child')).toMatchObject({
       attempts: 2,
       missingRunningEvidenceAttempts: 2,
@@ -134,7 +149,14 @@ describe('stale running probe helpers', () => {
     nowMs = baseNowMs + 3_000;
     targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
     expect(targets).toEqual(['ses_child']);
-    expect(settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, nowMs)).toBe(true);
+    expect(
+      settleStaleRunningProbeTargets(state, probeState, targets, {
+        authoritativeSessionIDs: new Set(),
+        runningEvidenceSessionIDs: new Set(),
+        policy,
+        nowMs,
+      }),
+    ).toBe(true);
     expect(probeState.has('ses_child')).toBe(false);
     expect(state.children.ses_child).toMatchObject({
       status: 'error',
@@ -163,10 +185,20 @@ describe('stale running probe helpers', () => {
     });
 
     let targets = resolveStaleRunningProbeTargets(state, probeState, policy, 1_000);
-    settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(['ses_child']), policy, 1_000);
+    settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(['ses_child']),
+      policy,
+      nowMs: 1_000,
+    });
 
     targets = resolveStaleRunningProbeTargets(state, probeState, policy, 2_000);
-    settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(['ses_child']), policy, 2_000);
+    settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(['ses_child']),
+      policy,
+      nowMs: 2_000,
+    });
 
     expect(state.children.ses_child).toMatchObject({ status: 'running' });
     expect(probeState.get('ses_child')).toMatchObject({
@@ -196,7 +228,12 @@ describe('stale running probe helpers', () => {
     let nowMs = baseNowMs;
     let targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
     expect(targets).toEqual(['ses_child']);
-    settleStaleRunningProbeTargets(state, probeState, targets, new Set(['ses_child']), new Set(), policy, nowMs);
+    settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(['ses_child']),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs,
+    });
     expect(probeState.get('ses_child')).toMatchObject({
       attempts: 1,
       missingRunningEvidenceAttempts: 0,
@@ -205,15 +242,12 @@ describe('stale running probe helpers', () => {
     nowMs = baseNowMs + 1_000;
     targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
     expect(targets).toEqual(['ses_child']);
-    const changed = settleStaleRunningProbeTargets(
-      state,
-      probeState,
-      targets,
-      new Set(['ses_child']),
-      new Set(),
+    const changed = settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(['ses_child']),
+      runningEvidenceSessionIDs: new Set(),
       policy,
       nowMs,
-    );
+    });
 
     expect(changed).toBe(false);
     expect(probeState.get('ses_child')).toMatchObject({
@@ -229,7 +263,14 @@ describe('stale running probe helpers', () => {
     targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
     expect(targets).toEqual(['ses_child']);
 
-    expect(settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, nowMs)).toBe(false);
+    expect(
+      settleStaleRunningProbeTargets(state, probeState, targets, {
+        authoritativeSessionIDs: new Set(),
+        runningEvidenceSessionIDs: new Set(),
+        policy,
+        nowMs,
+      }),
+    ).toBe(false);
     expect(state.children.ses_child).toMatchObject({ status: 'running' });
     expect(probeState.get('ses_child')).toMatchObject({
       attempts: 2,
@@ -261,15 +302,12 @@ describe('stale running probe helpers', () => {
     });
 
     const targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    const changed = settleStaleRunningProbeTargets(
-      state,
-      probeState,
-      targets,
-      new Set(['ses_child']),
-      new Set(),
+    const changed = settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(['ses_child']),
+      runningEvidenceSessionIDs: new Set(),
       policy,
       nowMs,
-    );
+    });
 
     expect(changed).toBe(true);
     expect(probeState.has('ses_child')).toBe(false);
@@ -304,15 +342,12 @@ describe('stale running probe helpers', () => {
     });
 
     const targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    const changed = settleStaleRunningProbeTargets(
-      state,
-      probeState,
-      targets,
-      new Set(['ses_child']),
-      new Set(['ses_child']),
+    const changed = settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(['ses_child']),
+      runningEvidenceSessionIDs: new Set(['ses_child']),
       policy,
       nowMs,
-    );
+    });
 
     expect(changed).toBe(true);
     expect(probeState.has('ses_child')).toBe(false);
@@ -347,15 +382,12 @@ describe('stale running probe helpers', () => {
     });
 
     const targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    const changed = settleStaleRunningProbeTargets(
-      state,
-      probeState,
-      targets,
-      new Set(['ses_child']),
-      new Set(['ses_child']),
+    const changed = settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(['ses_child']),
+      runningEvidenceSessionIDs: new Set(['ses_child']),
       policy,
       nowMs,
-    );
+    });
 
     expect(changed).toBe(false);
     expect(state.children.ses_child).toMatchObject({
@@ -385,23 +417,47 @@ describe('stale running probe helpers', () => {
 
     let nowMs = baseNowMs;
     let targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    settleStaleRunningProbeTargets(state, probeState, targets, new Set(['ses_child']), new Set(), policy, nowMs);
+    settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(['ses_child']),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs,
+    });
 
     nowMs = baseNowMs + 1_000;
     targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    settleStaleRunningProbeTargets(state, probeState, targets, new Set(['ses_child']), new Set(), policy, nowMs);
+    settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(['ses_child']),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs,
+    });
 
     expect(probeState.get('ses_child')).toMatchObject({ missingRunningEvidenceAttempts: 0 });
 
     nowMs = baseNowMs + 3_000;
     targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    expect(settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, nowMs)).toBe(false);
+    expect(
+      settleStaleRunningProbeTargets(state, probeState, targets, {
+        authoritativeSessionIDs: new Set(),
+        runningEvidenceSessionIDs: new Set(),
+        policy,
+        nowMs,
+      }),
+    ).toBe(false);
     expect(state.children.ses_child).toMatchObject({ status: 'running' });
     expect(probeState.get('ses_child')).toMatchObject({ missingRunningEvidenceAttempts: 1 });
 
     nowMs = baseNowMs + 5_000;
     targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    expect(settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, nowMs)).toBe(true);
+    expect(
+      settleStaleRunningProbeTargets(state, probeState, targets, {
+        authoritativeSessionIDs: new Set(),
+        runningEvidenceSessionIDs: new Set(),
+        policy,
+        nowMs,
+      }),
+    ).toBe(true);
     expect(state.children.ses_child).toMatchObject({ status: 'error' });
   });
 
@@ -434,7 +490,12 @@ describe('stale running probe helpers', () => {
     });
 
     const targets = resolveStaleRunningProbeTargets(state, probeState, policy, baseNowMs);
-    const changed = settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, baseNowMs);
+    const changed = settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs: baseNowMs,
+    });
     const nextProbeState = probeState.get('ses_child');
 
     expect(changed).toBe(false);
@@ -464,14 +525,24 @@ describe('stale running probe helpers', () => {
 
     const targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
     expect(
-      settleStaleRunningProbeTargets(state, probeState, targets, new Set(['ses_child']), new Set(), policy, nowMs),
+      settleStaleRunningProbeTargets(state, probeState, targets, {
+        authoritativeSessionIDs: new Set(['ses_child']),
+        runningEvidenceSessionIDs: new Set(),
+        policy,
+        nowMs,
+      }),
     ).toBe(false);
     expect(probeState.get('ses_child')).toMatchObject({ attempts: 0, missingRunningEvidenceAttempts: 0 });
     expect(Number.isFinite(probeState.get('ses_child')?.attempts)).toBe(true);
     expect(Number.isFinite(probeState.get('ses_child')?.missingRunningEvidenceAttempts)).toBe(true);
 
     expect(
-      settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, nowMs + 1_000),
+      settleStaleRunningProbeTargets(state, probeState, targets, {
+        authoritativeSessionIDs: new Set(),
+        runningEvidenceSessionIDs: new Set(),
+        policy,
+        nowMs: nowMs + 1_000,
+      }),
     ).toBe(true);
     expect(state.children.ses_child).toMatchObject({ status: 'error' });
   });
@@ -495,15 +566,12 @@ describe('stale running probe helpers', () => {
     });
 
     const targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    const changed = settleStaleRunningProbeTargets(
-      state,
-      probeState,
-      targets,
-      new Set(),
-      new Set(['ses_child']),
+    const changed = settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(['ses_child']),
       policy,
       nowMs,
-    );
+    });
 
     expect(changed).toBe(false);
     expect(state.children.ses_child).toMatchObject({
@@ -535,7 +603,12 @@ describe('stale running probe helpers', () => {
     });
 
     const targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    const changed = settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, nowMs);
+    const changed = settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs,
+    });
 
     expect(changed).toBe(true);
     expect(probeState.has('ses_child')).toBe(false);
@@ -566,17 +639,32 @@ describe('stale running probe helpers', () => {
 
     let nowMs = baseNowMs;
     let targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, nowMs);
+    settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs,
+    });
     expect(probeState.get('ses_child')).toMatchObject({ missingRunningEvidenceAttempts: 1 });
 
     nowMs = baseNowMs + 1_000;
     targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(['ses_child']), policy, nowMs);
+    settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(['ses_child']),
+      policy,
+      nowMs,
+    });
     expect(probeState.get('ses_child')).toMatchObject({ missingRunningEvidenceAttempts: 0 });
 
     nowMs = baseNowMs + 3_000;
     targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    const changed = settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, nowMs);
+    const changed = settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs,
+    });
 
     expect(changed).toBe(false);
     expect(state.children.ses_child).toMatchObject({ status: 'running' });
@@ -612,7 +700,12 @@ describe('debug gating for stale-probe console.log replacements', () => {
 
     setDebugEnabled(false);
     const targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, nowMs);
+    settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs,
+    });
 
     expect(console.log).not.toHaveBeenCalled();
   });
@@ -639,7 +732,12 @@ describe('debug gating for stale-probe console.log replacements', () => {
 
     setDebugEnabled(true);
     const targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    settleStaleRunningProbeTargets(state, probeState, targets, new Set(), new Set(), policy, nowMs);
+    settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs,
+    });
 
     expect(console.log).toHaveBeenCalled();
   });

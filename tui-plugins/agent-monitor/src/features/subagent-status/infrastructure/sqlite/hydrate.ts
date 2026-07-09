@@ -97,132 +97,212 @@ const resolveAmbiguousStepFinishStatus = (part: Record<string, unknown>): 'done'
   return reason === 'stop' ? 'done' : undefined;
 };
 
-export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStatus => {
-  let completedAtMs = 0;
-  let errorAtMs = 0;
-  let ambiguousCompletedAtMs = 0;
-  let ambiguousErrorAtMs = 0;
-  let latestStepStartAtMs = 0;
-  let fallbackTerminalStatus: Exclude<SubagentChild['status'], 'running'> | undefined;
-  let fallbackTerminalTokens: SubagentTokens | undefined;
-  let latestTokens: SubagentTokens | undefined;
-  let completedTokens: SubagentTokens | undefined;
-  let errorTokens: SubagentTokens | undefined;
+// ponytail: PartClassification is a discriminated description of what one
+// `part` payload means for terminal-status recovery. A single part may carry
+// multiple contributions (e.g. a step-start timestamp AND an explicit
+// terminal status), so the shape is intentionally additive rather than a
+// single tag.
+type PartClassification = {
+  // step-start timestamp (ms since epoch) when the part is a step-start;
+  // undefined when the part is not a step-start or its start time is missing.
+  startedAtMs: number | undefined;
+  // Explicit terminal evidence (session.error, session.*, or a session-scoped
+  // completed part). `endedAtMs` is undefined when the part carries no
+  // terminal timestamp — in that case it acts as a status-only fallback.
+  // ponytail: status is `TerminalStatus` (excludes 'running'). The reducer
+  // treats anything that is not 'error' as a completion source, preserving
+  // the original loop's `status === 'error'` branch.
+  explicit: { status: TerminalStatus; endedAtMs: number | undefined } | undefined;
+  // Ambiguous terminal evidence from a step-finish part. Only present when
+  // the part resolves to a parseable terminal timestamp; otherwise dropped,
+  // matching the original `continue` behavior.
+  ambiguous: { status: 'done' | 'error'; endedAtMs: number } | undefined;
+};
 
-  if (parts.length === 0) {
-    return { status: 'running', updatedAt: undefined, endedAt: undefined, tokens: undefined };
+type TerminalStatus = Exclude<SubagentChild['status'], 'running'>;
+
+type RecoveryAccumulator = {
+  // Latest (max) step-start timestamp seen across all step-start parts.
+  // ponytail: used as a stale guard for the ambiguous step-finish evidence —
+  // if the most recent step-start is newer than the ambiguous finish, we
+  // assume the session resumed and prefer `running`.
+  latestStepStartAtMs: number;
+  // Explicit terminal evidence with a parseable timestamp.
+  completedAtMs: number;
+  errorAtMs: number;
+  completedTokens: SubagentTokens | undefined;
+  errorTokens: SubagentTokens | undefined;
+  // Explicit terminal evidence WITHOUT a parseable timestamp: we still trust
+  // the status, but cannot compute an endedAt. Acts as a last-resort fallback
+  // when no timestamped evidence exists.
+  fallbackTerminalStatus: TerminalStatus | undefined;
+  fallbackTerminalTokens: SubagentTokens | undefined;
+  // Ambiguous (step-finish) terminal evidence with a parseable timestamp.
+  ambiguousCompletedAtMs: number;
+  ambiguousErrorAtMs: number;
+  // Union of every raw tokens payload encountered — used as the base when
+  // merging the final reported tokens so we never lose partially-seen counts.
+  latestTokens: SubagentTokens | undefined;
+};
+
+const createEmptyAccumulator = (): RecoveryAccumulator => ({
+  latestStepStartAtMs: 0,
+  completedAtMs: 0,
+  errorAtMs: 0,
+  completedTokens: undefined,
+  errorTokens: undefined,
+  fallbackTerminalStatus: undefined,
+  fallbackTerminalTokens: undefined,
+  ambiguousCompletedAtMs: 0,
+  ambiguousErrorAtMs: 0,
+  latestTokens: undefined,
+});
+
+const classifyPartStatus = (part: unknown): PartClassification | undefined => {
+  if (!isRecord(part)) return undefined;
+
+  const state = isRecord(part.state) ? part.state : undefined;
+
+  let startedAtMs: number | undefined;
+  if (normalizedString(part.type) === 'step-start') {
+    const startedAt = resolvePartStartTimestamp(part);
+    if (startedAt) {
+      const parsed = Date.parse(startedAt);
+      startedAtMs = Number.isNaN(parsed) ? undefined : parsed;
+    }
   }
 
-  for (const part of parts) {
-    if (!isRecord(part)) continue;
-
-    const state = isRecord(part.state) ? part.state : undefined;
-    const rawTokens = normalizeSubagentTokens(part.tokens);
-    latestTokens = mergeSubagentTokens(latestTokens, rawTokens);
-
-    if (normalizedString(part.type) === 'step-start') {
-      const startedAt = resolvePartStartTimestamp(part);
-      if (startedAt) {
-        const startedAtMs = Date.parse(startedAt);
-        latestStepStartAtMs = Number.isNaN(startedAtMs)
-          ? latestStepStartAtMs
-          : Math.max(latestStepStartAtMs, startedAtMs);
-      }
-    }
-
-    const status = resolveExplicitSessionTerminalStatus(part, state);
-    if (!status) {
-      const ambiguousStatus = resolveAmbiguousStepFinishStatus(part);
-      if (!ambiguousStatus) continue;
-
-      const endedAt = resolvePartTerminalTimestamp(part);
-      if (!endedAt) continue;
-
-      const endedAtMs = Date.parse(endedAt);
-      if (Number.isNaN(endedAtMs)) continue;
-
-      if (ambiguousStatus === 'error') {
-        if (endedAtMs >= ambiguousErrorAtMs) {
-          ambiguousErrorAtMs = endedAtMs;
-          errorTokens = mergeSubagentTokens(errorTokens, rawTokens);
-        }
-        continue;
-      }
-
-      if (endedAtMs >= ambiguousCompletedAtMs) {
-        ambiguousCompletedAtMs = endedAtMs;
-        completedTokens = mergeSubagentTokens(completedTokens, rawTokens);
-      }
-      continue;
-    }
-
+  let explicit: PartClassification['explicit'];
+  const explicitStatus = resolveExplicitSessionTerminalStatus(part, state);
+  if (explicitStatus) {
     const endedAt = resolvePartTerminalTimestamp(part);
-    if (!endedAt) {
-      fallbackTerminalStatus = status;
-      fallbackTerminalTokens = mergeSubagentTokens(fallbackTerminalTokens, rawTokens);
-      continue;
+    let endedAtMs: number | undefined;
+    if (endedAt) {
+      const parsed = Date.parse(endedAt);
+      endedAtMs = Number.isNaN(parsed) ? undefined : parsed;
     }
+    explicit = { status: explicitStatus, endedAtMs };
+  }
 
-    const endedAtMs = Date.parse(endedAt);
-    if (status === 'error') {
-      if (endedAtMs >= errorAtMs) {
-        errorAtMs = endedAtMs;
-        errorTokens = mergeSubagentTokens(errorTokens, rawTokens);
+  let ambiguous: PartClassification['ambiguous'];
+  if (!explicit) {
+    const ambiguousStatus = resolveAmbiguousStepFinishStatus(part);
+    if (ambiguousStatus) {
+      const endedAt = resolvePartTerminalTimestamp(part);
+      if (endedAt) {
+        const parsed = Date.parse(endedAt);
+        if (!Number.isNaN(parsed)) {
+          ambiguous = { status: ambiguousStatus, endedAtMs: parsed };
+        }
       }
-
-      continue;
-    }
-
-    if (endedAtMs >= completedAtMs) {
-      completedAtMs = endedAtMs;
-      completedTokens = mergeSubagentTokens(completedTokens, rawTokens);
     }
   }
 
-  if (errorAtMs > completedAtMs) {
-    const endedAt = toISOString(errorAtMs);
+  return { startedAtMs, explicit, ambiguous };
+};
+
+// ponytail: foldPart applies one classified part's contributions to the
+// accumulator. It is the only place that mutates accumulator state, so the
+// reduction shape stays auditable: every branch here corresponds to a
+// distinct recovery evidence source.
+const foldPart = (acc: RecoveryAccumulator, part: unknown): RecoveryAccumulator => {
+  const classification = classifyPartStatus(part);
+  if (!classification) return acc;
+
+  const rawTokens = normalizeSubagentTokens(isRecord(part) ? part.tokens : undefined);
+  acc.latestTokens = mergeSubagentTokens(acc.latestTokens, rawTokens);
+
+  if (classification.startedAtMs !== undefined) {
+    acc.latestStepStartAtMs = Math.max(acc.latestStepStartAtMs, classification.startedAtMs);
+  }
+
+  if (classification.explicit) {
+    const { status, endedAtMs } = classification.explicit;
+    if (endedAtMs === undefined) {
+      // ponytail: status-only fallback (no terminal timestamp). The original
+      // loop overwrote this on every such part; we preserve that last-wins
+      // semantic for compatibility.
+      acc.fallbackTerminalStatus = status;
+      acc.fallbackTerminalTokens = mergeSubagentTokens(acc.fallbackTerminalTokens, rawTokens);
+    } else if (status === 'error') {
+      if (endedAtMs >= acc.errorAtMs) {
+        acc.errorAtMs = endedAtMs;
+        acc.errorTokens = mergeSubagentTokens(acc.errorTokens, rawTokens);
+      }
+    } else if (endedAtMs >= acc.completedAtMs) {
+      acc.completedAtMs = endedAtMs;
+      acc.completedTokens = mergeSubagentTokens(acc.completedTokens, rawTokens);
+    }
+  } else if (classification.ambiguous) {
+    const { status, endedAtMs } = classification.ambiguous;
+    if (status === 'error') {
+      if (endedAtMs >= acc.ambiguousErrorAtMs) {
+        acc.ambiguousErrorAtMs = endedAtMs;
+        acc.errorTokens = mergeSubagentTokens(acc.errorTokens, rawTokens);
+      }
+    } else if (endedAtMs >= acc.ambiguousCompletedAtMs) {
+      acc.ambiguousCompletedAtMs = endedAtMs;
+      acc.completedTokens = mergeSubagentTokens(acc.completedTokens, rawTokens);
+    }
+  }
+
+  return acc;
+};
+
+// ponytail: decideRecoveredStatus encodes the priority of evidence sources
+// observed during recovery. Order matters:
+//   1. Explicit terminal with a timestamp wins (error beats done on ties).
+//   2. Explicit terminal without a timestamp is a status-only fallback.
+//   3. Ambiguous step-finish evidence is used only when it is at least as
+//      new as the most recent step-start (else the session likely resumed).
+const decideRecoveredStatus = (acc: RecoveryAccumulator): RecoveredStatus => {
+  if (acc.errorAtMs > acc.completedAtMs) {
+    const endedAt = toISOString(acc.errorAtMs);
 
     return {
       status: 'error',
       updatedAt: endedAt,
       endedAt,
-      tokens: mergeSubagentTokens(latestTokens, errorTokens),
+      tokens: mergeSubagentTokens(acc.latestTokens, acc.errorTokens),
       evidence: 'explicit',
     };
   }
 
-  if (completedAtMs > 0) {
-    const endedAt = toISOString(completedAtMs);
+  if (acc.completedAtMs > 0) {
+    const endedAt = toISOString(acc.completedAtMs);
 
     return {
       status: 'done',
       updatedAt: endedAt,
       endedAt,
-      tokens: mergeSubagentTokens(latestTokens, completedTokens),
+      tokens: mergeSubagentTokens(acc.latestTokens, acc.completedTokens),
       evidence: 'explicit',
     };
   }
 
-  if (fallbackTerminalStatus) {
+  if (acc.fallbackTerminalStatus) {
     return {
-      status: fallbackTerminalStatus,
+      status: acc.fallbackTerminalStatus,
       updatedAt: undefined,
       endedAt: undefined,
-      tokens: mergeSubagentTokens(latestTokens, fallbackTerminalTokens),
+      tokens: mergeSubagentTokens(acc.latestTokens, acc.fallbackTerminalTokens),
       evidence: 'explicit',
     };
   }
 
-  const ambiguousStatus = ambiguousErrorAtMs > ambiguousCompletedAtMs ? 'error' : 'done';
-  const ambiguousAtMs = Math.max(ambiguousCompletedAtMs, ambiguousErrorAtMs);
-  if (ambiguousAtMs > 0 && ambiguousAtMs >= latestStepStartAtMs) {
+  const ambiguousStatus: TerminalStatus = acc.ambiguousErrorAtMs > acc.ambiguousCompletedAtMs ? 'error' : 'done';
+  const ambiguousAtMs = Math.max(acc.ambiguousCompletedAtMs, acc.ambiguousErrorAtMs);
+  if (ambiguousAtMs > 0 && ambiguousAtMs >= acc.latestStepStartAtMs) {
     const endedAt = toISOString(ambiguousAtMs);
 
     return {
       status: ambiguousStatus,
       updatedAt: endedAt,
       endedAt,
-      tokens: mergeSubagentTokens(latestTokens, ambiguousStatus === 'error' ? errorTokens : completedTokens),
+      tokens: mergeSubagentTokens(
+        acc.latestTokens,
+        ambiguousStatus === 'error' ? acc.errorTokens : acc.completedTokens,
+      ),
       evidence: 'ambiguous',
     };
   }
@@ -231,8 +311,20 @@ export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStat
     status: 'running',
     updatedAt: undefined,
     endedAt: undefined,
-    tokens: latestTokens,
+    tokens: acc.latestTokens,
   };
+};
+
+export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStatus => {
+  if (parts.length === 0) {
+    return { status: 'running', updatedAt: undefined, endedAt: undefined, tokens: undefined };
+  }
+
+  // ponytail: the reducer loop replaces the previous 10+ mutable accumulators
+  // with a single accumulator object, keeping the fold step local and pure
+  // (returning a new acc, never mutating the caller's).
+  const accumulator = parts.reduce<RecoveryAccumulator>(foldPart, createEmptyAccumulator());
+  return decideRecoveredStatus(accumulator);
 };
 
 export const safeParseParts = (values: readonly string[]): unknown[] => {

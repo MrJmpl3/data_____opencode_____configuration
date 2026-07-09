@@ -42,7 +42,11 @@ export const hydrateChildStatusesFromClient = async (
 
   try {
     statusBySessionID = await sessionClient.readStatusMap();
-  } catch {
+  } catch (e) {
+    console.warn(
+      '[agent-monitor] Failed to fetch client session status map:',
+      e instanceof Error ? e.message : String(e),
+    );
     statusBySessionID = {};
   }
 
@@ -67,7 +71,11 @@ export const hydrateChildStatusesFromClient = async (
 
         try {
           clientActivity = analyzeMessages(await sessionClient.readMessages(sessionId));
-        } catch {
+        } catch (e) {
+          console.warn(
+            `[agent-monitor] Failed to read messages for session ${sessionId}:`,
+            e instanceof Error ? e.message : String(e),
+          );
           clientActivity = emptyMessageActivity();
         }
 
@@ -87,7 +95,11 @@ export const hydrateChildStatusesFromClient = async (
 
       try {
         clientActivity = analyzeMessages(await sessionClient.readMessages(sessionId));
-      } catch {
+      } catch (e) {
+        console.warn(
+          `[agent-monitor] Failed to read messages for session ${sessionId}:`,
+          e instanceof Error ? e.message : String(e),
+        );
         clientActivity = emptyMessageActivity();
       }
 
@@ -107,15 +119,10 @@ export const hydrateChildStatusesFromClient = async (
 
       // Delegate all non-running paths (no-status running evidence, terminal, ambiguous guard) to shared function
       changed =
-        hydrateChildFromSessionActivity(
-          sessionId,
-          children,
-          clientSessionStatus,
-          enrichedActivity,
-          state,
-          runningEvidenceSessionIDs,
+        hydrateChildFromSessionActivity(sessionId, children, clientSessionStatus, enrichedActivity, state, {
+          runningEvidenceIDs: runningEvidenceSessionIDs,
           options,
-        ) || changed;
+        }) || changed;
     }),
   );
 
@@ -158,15 +165,10 @@ export const hydrateChildStatusesFromTuiState = (
     // All other paths (running, terminal from messages, running evidence) handled by shared logic
     const messageActivity = getTuiMessageActivity(sessionId);
     changed =
-      hydrateChildFromSessionActivity(
-        sessionId,
-        children,
-        sessionStatus,
-        messageActivity,
-        state,
-        runningEvidenceSessionIDs,
+      hydrateChildFromSessionActivity(sessionId, children, sessionStatus, messageActivity, state, {
+        runningEvidenceIDs: runningEvidenceSessionIDs,
         options,
-      ) || changed;
+      }) || changed;
   }
 
   if (changed) state.updatedAt = new Date().toISOString();

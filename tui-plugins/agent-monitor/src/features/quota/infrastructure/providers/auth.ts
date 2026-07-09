@@ -16,7 +16,8 @@ const readAuthJson = (): Record<string, unknown> | null => {
   try {
     const parsed: unknown = JSON.parse(readFileSync(path, 'utf-8'));
     return isRecord(parsed) ? parsed : null;
-  } catch {
+  } catch (e) {
+    console.warn('[agent-monitor] Failed to read auth.json:', e instanceof Error ? e.message : String(e));
     return null;
   }
 };

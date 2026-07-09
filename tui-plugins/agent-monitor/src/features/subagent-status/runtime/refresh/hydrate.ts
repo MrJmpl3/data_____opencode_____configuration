@@ -29,15 +29,6 @@ export type StatusHydrationOptions = {
   terminalRecoverySessionIDs?: ReadonlySet<string>;
 };
 
-/**
- * Strategy for reading session status and message activity from different sources.
- * Used by wrapper functions to abstract how status/activity data is obtained.
- */
-export type HydrationStrategy = {
-  readSessionStatus: (sessionId: string) => unknown;
-  readMessageActivity: (sessionId: string) => MessageActivity;
-};
-
 export const isRecoveryProtectedFromRunning = (
   sessionId: string,
   options: StatusHydrationOptions | undefined,
@@ -249,6 +240,17 @@ export const groupTargetRowsBySessionID = (
   return groups;
 };
 
+// ponytail: Grouping the two "context" arguments into a single optional object
+// keeps the data args (sessionId, children, sessionStatus, messageActivity,
+// state) flowing positionally — they're the per-call inputs that every reader
+// needs to see. The two trailing knobs (runningEvidenceIDs collector and
+// recovery-protection options) are shared state, not call data, and bundling
+// them prevents the easy mistake of swapping them at the call site.
+export type HydrationContext = {
+  runningEvidenceIDs?: RunningEvidenceCollector;
+  options?: StatusHydrationOptions;
+};
+
 /**
  * Shared per-session hydration logic.
  *
@@ -267,9 +269,10 @@ export const hydrateChildFromSessionActivity = (
   sessionStatus: unknown,
   messageActivity: MessageActivity,
   state: SubagentState,
-  runningEvidenceIDs: RunningEvidenceCollector | undefined,
-  options: StatusHydrationOptions | undefined,
+  context: HydrationContext = {},
 ): boolean => {
+  const runningEvidenceIDs = context.runningEvidenceIDs;
+  const options = context.options;
   const status = deriveSessionStatus(sessionStatus);
   const terminalStatus = deriveTerminalSessionStatus(sessionStatus);
   const blockRunningEvidence = isRecoveryProtectedFromRunning(sessionId, options);

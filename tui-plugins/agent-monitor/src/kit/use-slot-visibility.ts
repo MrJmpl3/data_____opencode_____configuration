@@ -20,6 +20,9 @@ export function useSlotVisibility(_api: TuiPluginApi): {
   const SlotProvider = (_ctx: unknown, _slotInput: unknown): JSX.Element => {
     setVisible(true);
     onCleanup(() => setVisible(false));
+    // ponytail: SlotProvider is never actually rendered — it's a side-effect-only
+    // render function that sets visibility on mount and cleans up on unmount.
+    // Solid requires the return type to be JSX.Element, but there's no real DOM.
     return undefined as unknown as JSX.Element;
   };
 

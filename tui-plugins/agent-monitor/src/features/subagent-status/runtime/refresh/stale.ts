@@ -93,15 +93,26 @@ export const resolveStaleRunningProbeTargets = (
   return targetSessionIds;
 };
 
+// ponytail: Grouping the four probe-evolution knobs into a single context keeps
+// the call-site self-documenting and leaves the hot loop signature small. The
+// orchestrator already has these four values in scope together, so passing them
+// as a tuple would just rename the same arg list — an explicit object pays for
+// itself by surviving future additions (e.g. metrics, cancellation tokens) without
+// breaking every caller.
+export type SettleStaleProbeContext = {
+  authoritativeSessionIDs: ReadonlySet<string>;
+  runningEvidenceSessionIDs: ReadonlySet<string>;
+  policy: StaleRunningProbePolicy;
+  nowMs: number;
+};
+
 export const settleStaleRunningProbeTargets = (
   state: SubagentState,
   probeStateBySessionId: Map<string, StaleRunningProbeState>,
   sessionIds: string[],
-  authoritativeSessionIDs: ReadonlySet<string>,
-  runningEvidenceSessionIDs: ReadonlySet<string>,
-  policy: StaleRunningProbePolicy,
-  nowMs: number,
+  context: SettleStaleProbeContext,
 ): boolean => {
+  const { authoritativeSessionIDs, runningEvidenceSessionIDs, policy, nowMs } = context;
   let changed = false;
 
   for (const sessionId of sessionIds) {

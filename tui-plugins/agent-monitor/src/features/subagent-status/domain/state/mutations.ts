@@ -60,6 +60,85 @@ const shouldPreserveSameTerminalTiming = (
   return Boolean(existing && isTerminalStatus(existing.status) && existing.status === nextStatus);
 };
 
+// ponytail: Source resolution prefers the incoming value, falls back to the
+// stored one, and as a last resort infers 'session' from a ses_-prefixed id.
+// Keeping the chain isolated makes the precedence readable in one place.
+const resolveSourceForUpsert = (
+  input: Pick<SubagentChild, 'id' | 'source'>,
+  existing: SubagentChild | undefined,
+): SubagentChild['source'] =>
+  input.source ?? existing?.source ?? (input.id.startsWith('ses_') ? 'session' : undefined);
+
+const isKnownStatus = (status: SubagentChild['status'] | undefined): status is SubagentChild['status'] =>
+  status === 'done' || status === 'error' || status === 'stale' || status === 'running';
+
+const resolveIncomingStatus = (
+  input: Partial<Pick<SubagentChild, 'status'>>,
+  existing: SubagentChild | undefined,
+): SubagentChild['status'] => (isKnownStatus(input.status) ? input.status : (existing?.status ?? 'running'));
+
+const isStaleEvidence = (existing: SubagentChild | undefined, incomingEvidenceMs: number): boolean =>
+  Boolean(existing && incomingEvidenceMs < childEvidenceTimestampMs(existing));
+
+// ponytail: A terminal child transitions back to running only when (a) the
+// caller explicitly opts in, (b) the new evidence is strictly newer, and (c)
+// the incoming status is running. Otherwise we'd silently rewrite history
+// and break the terminal contract.
+const shouldReopenTerminal = (
+  existing: SubagentChild | undefined,
+  incomingStatus: SubagentChild['status'],
+  incomingEvidenceMs: number,
+  allowTerminalReopen: boolean | undefined,
+): boolean =>
+  Boolean(
+    existing &&
+      isTerminalStatus(existing.status) &&
+      incomingStatus === 'running' &&
+      allowTerminalReopen === true &&
+      incomingEvidenceMs > childEvidenceTimestampMs(existing),
+  );
+
+interface TimingPreservation {
+  preserveExistingTiming: boolean;
+  preserveSameTerminalTiming: boolean;
+  reopenTerminal: boolean;
+}
+
+const computeTimingPreservation = (
+  existing: SubagentChild | undefined,
+  incomingStatus: SubagentChild['status'],
+  incomingEvidenceMs: number,
+  allowTerminalReopen: boolean | undefined,
+): TimingPreservation => {
+  const reopenTerminal = shouldReopenTerminal(existing, incomingStatus, incomingEvidenceMs, allowTerminalReopen);
+  const preserveSameTerminalTiming = shouldPreserveSameTerminalTiming(existing, incomingStatus);
+  const staleEvidence = isStaleEvidence(existing, incomingEvidenceMs);
+  const preserveExistingTiming = Boolean(
+    existing &&
+      (preserveSameTerminalTiming ||
+        staleEvidence ||
+        (isTerminalStatus(existing.status) && incomingStatus === 'running' && !reopenTerminal)),
+  );
+  return { preserveExistingTiming, preserveSameTerminalTiming, reopenTerminal };
+};
+
+// ponytail: Field-by-field equality on 12 normalized properties avoids a
+// deep-equal helper but still lets the upsert return false when nothing
+// observable changed. Tokens are compared structurally via sameTokens.
+const hasChildFieldChanges = (existing: SubagentChild, next: SubagentChild): boolean =>
+  existing.title !== next.title ||
+  existing.summary !== next.summary ||
+  existing.agentName !== next.agentName ||
+  existing.parentID !== next.parentID ||
+  existing.messageID !== next.messageID ||
+  existing.source !== next.source ||
+  existing.targetSessionID !== next.targetSessionID ||
+  existing.status !== next.status ||
+  existing.startedAt !== next.startedAt ||
+  existing.updatedAt !== next.updatedAt ||
+  existing.endedAt !== next.endedAt ||
+  !sameTokens(existing.tokens, next.tokens);
+
 /** Inserta o actualiza un child en estado running. Si ya existe, mergea
  *  campos parciales. Si es terminal-reopen, permite reactivar. */
 export const upsertRunningChild = (
@@ -84,17 +163,14 @@ export const upsertRunningChild = (
 ): boolean => {
   const now = new Date().toISOString();
   const existing = state.children[input.id];
-  const source = input.source ?? existing?.source ?? (input.id.startsWith('ses_') ? 'session' : undefined);
+  const source = resolveSourceForUpsert(input, existing);
   const observedUpdatedAt = safeTimestamp(input.updatedAt, now);
   const observedStartedAt = safeTimestamp(input.startedAt, existing?.startedAt ?? observedUpdatedAt);
   const targetSessionID = sanitizeTargetSessionID(
     input.targetSessionID ?? existing?.targetSessionID,
     input.id.startsWith('ses_') ? input.id : undefined,
   );
-  const incomingStatus =
-    input.status === 'done' || input.status === 'error' || input.status === 'stale' || input.status === 'running'
-      ? input.status
-      : (existing?.status ?? 'running');
+  const incomingStatus = resolveIncomingStatus(input, existing);
   const sessionIdentity = resolveSessionIdentity({ id: input.id, targetSessionID });
   if (!existing && sessionIdentity && state.purgedSessionIDs[sessionIdentity] && !options.allowPurgedSessionRestore) {
     return false;
@@ -104,22 +180,12 @@ export const upsertRunningChild = (
     clearPurgedSession(state, sessionIdentity);
   }
 
-  const existingEvidenceMs = existing ? childEvidenceTimestampMs(existing) : 0;
   const incomingEvidenceMs = timestampMs(input.endedAt ?? observedUpdatedAt ?? observedStartedAt);
-  const staleEvidence = Boolean(existing && incomingEvidenceMs < existingEvidenceMs);
-  const reopenTerminal = Boolean(
-    existing &&
-    isTerminalStatus(existing.status) &&
-    incomingStatus === 'running' &&
-    options.allowTerminalReopen === true &&
-    incomingEvidenceMs > existingEvidenceMs,
-  );
-  const preserveSameTerminalTiming = shouldPreserveSameTerminalTiming(existing, incomingStatus);
-  const preserveExistingTiming = Boolean(
-    existing &&
-    (preserveSameTerminalTiming ||
-      staleEvidence ||
-      (isTerminalStatus(existing.status) && incomingStatus === 'running' && !reopenTerminal)),
+  const { preserveExistingTiming, preserveSameTerminalTiming } = computeTimingPreservation(
+    existing,
+    incomingStatus,
+    incomingEvidenceMs,
+    options.allowTerminalReopen,
   );
   const status = preserveExistingTiming ? existing!.status : incomingStatus;
   const nextUpdatedAt = preserveExistingTiming ? existing!.updatedAt : observedUpdatedAt;
@@ -158,21 +224,7 @@ export const upsertRunningChild = (
     tokens: mergeTokens(existing?.tokens, input.tokens),
   });
 
-  if (
-    existing &&
-    existing.title === next.title &&
-    existing.summary === next.summary &&
-    existing.agentName === next.agentName &&
-    existing.parentID === next.parentID &&
-    existing.messageID === next.messageID &&
-    existing.source === next.source &&
-    existing.targetSessionID === next.targetSessionID &&
-    existing.status === next.status &&
-    existing.startedAt === next.startedAt &&
-    existing.updatedAt === next.updatedAt &&
-    existing.endedAt === next.endedAt &&
-    sameTokens(existing.tokens, next.tokens)
-  ) {
+  if (existing && !hasChildFieldChanges(existing, next)) {
     return counted;
   }
 

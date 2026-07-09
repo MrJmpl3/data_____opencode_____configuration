@@ -169,19 +169,7 @@ export const fetchOpenAIQuota = async (
   return result;
 };
 
-// Re-export the OpenAI format/parse helpers so the cross-provider switch
-// in `components/quota-section.tsx` can keep importing from the provider
-// file. The implementations live in `domain.ts` (pure data transforms);
-// this file is just auth + fetch + error mapping.
-export {
-  formatOpenAIAdditionalRateLimitLabel,
-  formatOpenAIRateLimitTone,
-  formatOpenAILines,
-  formatUsedPercentQuota,
-  parseAdditionalRateLimits,
-  parseWindowFromAliases,
-};
-
-// `QuotaDisplayMode` is re-exported for callers that built their types
-// off this file's public surface.
-export type { QuotaDisplayMode };
+// Re-export formatOpenAILines so the cross-provider switch in quota-section.tsx
+// can keep importing from the provider file. Everything else is imported directly
+// from domain modules.
+export { formatOpenAILines };
