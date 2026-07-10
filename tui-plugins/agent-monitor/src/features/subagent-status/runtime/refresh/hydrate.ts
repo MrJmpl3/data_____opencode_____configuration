@@ -240,7 +240,7 @@ export const groupTargetRowsBySessionID = (
   return groups;
 };
 
-// ponytail: Grouping the two "context" arguments into a single optional object
+// Grouping the two "context" arguments into a single optional object
 // keeps the data args (sessionId, children, sessionStatus, messageActivity,
 // state) flowing positionally — they're the per-call inputs that every reader
 // needs to see. The two trailing knobs (runningEvidenceIDs collector and

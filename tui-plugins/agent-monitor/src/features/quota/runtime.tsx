@@ -51,7 +51,7 @@ export const subscribeRefreshTriggers = ({
     const handler = (payload: unknown): void => {
       onTrigger(eventName, readSessionIdFromEvent(payload));
     };
-    // ponytail: the event bus types are strict, but the string union above
+    // the event bus types are strict, but the string union above
     // matches the documented opencode events. Cast keeps the public surface
     // honest without an exhaustive event-name enum.
     unsubscribers.push(events.on(eventName as Parameters<typeof events.on>[0], handler));
@@ -71,7 +71,7 @@ export const registerSidebarTui: TuiPlugin = async (api: TuiPluginApi) => {
   const fileConfig = readQuotaConfig();
   const fileOptions = fileConfig?.options;
 
-  // ponytail: los numéricos pasan por `resolveNumericOptions` que ya clampa
+  // los numéricos pasan por `resolveNumericOptions` que ya clampa
   // no-finitos; los strings/listas caen tal cual y se filtran en
   // `resolveVisibleProviderIdsWithDiagnostics`. Spread plano alcanza.
   const options = { ...defaultQuotaSectionOptions, ...fileOptions };

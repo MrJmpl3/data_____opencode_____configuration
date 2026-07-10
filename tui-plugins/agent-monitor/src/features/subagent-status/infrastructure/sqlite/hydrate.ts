@@ -97,7 +97,7 @@ const resolveAmbiguousStepFinishStatus = (part: Record<string, unknown>): 'done'
   return reason === 'stop' ? 'done' : undefined;
 };
 
-// ponytail: PartClassification is a discriminated description of what one
+// PartClassification is a discriminated description of what one
 // `part` payload means for terminal-status recovery. A single part may carry
 // multiple contributions (e.g. a step-start timestamp AND an explicit
 // terminal status), so the shape is intentionally additive rather than a
@@ -109,7 +109,7 @@ type PartClassification = {
   // Explicit terminal evidence (session.error, session.*, or a session-scoped
   // completed part). `endedAtMs` is undefined when the part carries no
   // terminal timestamp — in that case it acts as a status-only fallback.
-  // ponytail: status is `TerminalStatus` (excludes 'running'). The reducer
+  // status is `TerminalStatus` (excludes 'running'). The reducer
   // treats anything that is not 'error' as a completion source, preserving
   // the original loop's `status === 'error'` branch.
   explicit: { status: TerminalStatus; endedAtMs: number | undefined } | undefined;
@@ -123,7 +123,7 @@ type TerminalStatus = Exclude<SubagentChild['status'], 'running'>;
 
 type RecoveryAccumulator = {
   // Latest (max) step-start timestamp seen across all step-start parts.
-  // ponytail: used as a stale guard for the ambiguous step-finish evidence —
+  // used as a stale guard for the ambiguous step-finish evidence —
   // if the most recent step-start is newer than the ambiguous finish, we
   // assume the session resumed and prefer `running`.
   latestStepStartAtMs: number;
@@ -201,7 +201,7 @@ const classifyPartStatus = (part: unknown): PartClassification | undefined => {
   return { startedAtMs, explicit, ambiguous };
 };
 
-// ponytail: foldPart applies one classified part's contributions to the
+// foldPart applies one classified part's contributions to the
 // accumulator. It is the only place that mutates accumulator state, so the
 // reduction shape stays auditable: every branch here corresponds to a
 // distinct recovery evidence source.
@@ -219,7 +219,7 @@ const foldPart = (acc: RecoveryAccumulator, part: unknown): RecoveryAccumulator 
   if (classification.explicit) {
     const { status, endedAtMs } = classification.explicit;
     if (endedAtMs === undefined) {
-      // ponytail: status-only fallback (no terminal timestamp). The original
+      // status-only fallback (no terminal timestamp). The original
       // loop overwrote this on every such part; we preserve that last-wins
       // semantic for compatibility.
       acc.fallbackTerminalStatus = status;
@@ -249,7 +249,7 @@ const foldPart = (acc: RecoveryAccumulator, part: unknown): RecoveryAccumulator 
   return acc;
 };
 
-// ponytail: decideRecoveredStatus encodes the priority of evidence sources
+// decideRecoveredStatus encodes the priority of evidence sources
 // observed during recovery. Order matters:
 //   1. Explicit terminal with a timestamp wins (error beats done on ties).
 //   2. Explicit terminal without a timestamp is a status-only fallback.
@@ -320,7 +320,7 @@ export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStat
     return { status: 'running', updatedAt: undefined, endedAt: undefined, tokens: undefined };
   }
 
-  // ponytail: the reducer loop replaces the previous 10+ mutable accumulators
+  // the reducer loop replaces the previous 10+ mutable accumulators
   // with a single accumulator object, keeping the fold step local and pure
   // (returning a new acc, never mutating the caller's).
   const accumulator = parts.reduce<RecoveryAccumulator>(foldPart, createEmptyAccumulator());
@@ -377,7 +377,7 @@ const mapRecoveredChild = (row: SQLiteRecoveryRow, hardStaleAfterMs: number): Ma
   };
 };
 
-// ponytail: `readRows` is an optional seam so unit tests can inject a fake
+// `readRows` is an optional seam so unit tests can inject a fake
 // row provider. Production callers rely on the default which spawns the
 // Python recovery script. The default value is computed lazily so tests that
 // pass a stub never touch `node:fs` or the `python3` binary.

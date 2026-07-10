@@ -204,7 +204,7 @@ export const QuotaSection = (props: QuotaSectionProps): JSX.Element => {
   const [lines, setLines] = createSignal<QuotaLine[]>([]);
   const [loading, setLoading] = createSignal(true);
   const [nowMs, setNowMs] = createSignal(Date.now());
-  // ponytail: el cache por instancia evita leaks entre mounts/unmounts.
+  // el cache por instancia evita leaks entre mounts/unmounts.
   // El TTL y el backoff ahora vienen de options, no de constantes hardcoded.
   const cacheAndFetcher = createQuotaProviderCache<ProviderFetchContext>({
     providerCacheTtlMilliseconds: resolved.providerCacheTtlMs,
@@ -229,7 +229,7 @@ export const QuotaSection = (props: QuotaSectionProps): JSX.Element => {
     doFetch().finally(() => setLoading(false));
   });
 
-  // ponytail: zero is allowed by resolveNumericOptions to disable polling;
+  // zero is allowed by resolveNumericOptions to disable polling;
   // skip the timer entirely so a disabled poll is truly free.
   if (resolved.pollIntervalMs > 0) {
     usePolling({
@@ -262,7 +262,7 @@ export const QuotaSection = (props: QuotaSectionProps): JSX.Element => {
     lifecycle: props.api.lifecycle,
     eventNames: REFRESH_TRIGGER_EVENTS,
     onTrigger: () => {
-      // ponytail: only invalidate — re-fetch is owned by the next poll
+      // only invalidate — re-fetch is owned by the next poll
       // tick. An immediate refetch would race the in-flight request
       // and double the network load. The first event after a long
       // quiet stretch will hit an empty cache and re-fetch naturally.

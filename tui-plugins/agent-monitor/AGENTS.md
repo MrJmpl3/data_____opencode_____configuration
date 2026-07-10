@@ -130,7 +130,6 @@ Reglas de dominio importantes:
 - `verbatimModuleSyntax` — imports tipo deben usar `import type`.
 - `allowImportingTsExtensions` — imports incluyen extensión `.ts`/`.tsx`.
 - No hay `tslib` ni helpers de runtime; el target ES2022 cubre los features modernos.
-- Los comentarios "ponytail" (`// ponytail:`) marcan decisiones deliberadas con contexto.
 - Los comentarios tienen tono educativo y profesional. Predominantemente en inglés técnico, con
   algunos comentarios estratégicos en español neutral donde explica decisiones de dominio.
 - Prettier: single quotes, trailing commas, printWidth 120, semicolons siempre.

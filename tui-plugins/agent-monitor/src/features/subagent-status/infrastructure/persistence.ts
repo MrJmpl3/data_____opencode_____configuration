@@ -64,7 +64,7 @@ const writeLocalFile = async (path: string, contents: string): Promise<void> => 
     await writeFile(tempPath, contents, { encoding: 'utf8', mode: STATUS_FILE_MODE });
     await rename(tempPath, path);
   } catch (error) {
-    // ponytail: Temp file cleanup is best-effort — if it fails the original
+    // Temp file cleanup is best-effort — if it fails the original
     // error (the write/rename failure) is what matters to the caller.
     await rm(tempPath, { force: true }).catch(() => undefined);
     throw error;
@@ -103,13 +103,13 @@ export const shouldPreserveStateOnStartup = (input?: { preserveStateOnStartup?: 
   return input?.preserveStateOnStartup === true;
 };
 
-// ponytail: original `loadState` bundled file I/O, JSON parsing, schema validation, child hydration,
+// original `loadState` bundled file I/O, JSON parsing, schema validation, child hydration,
 // token normalization, execution-count reconciliation, recovery source hydration and pruning
 // into one ~130-line function. Splitting it keeps each step independently testable and makes the
 // recovery fallback (retry with inferred parent) easier to reason about.
 
 const parsePersistedState = (raw: string): SubagentState | null => {
-  // ponytail: returns null on parse failure or shape mismatch so the caller can fall back to
+  // returns null on parse failure or shape mismatch so the caller can fall back to
   // an empty state without leaking exception handling into the orchestration code.
   const parsed = safeReadJSON(raw);
   if (!isRecord(parsed)) return null;
@@ -119,14 +119,14 @@ const parsePersistedState = (raw: string): SubagentState | null => {
 
   if (isRecord(parsed.countedChildIDs)) {
     for (const [id, value] of Object.entries(parsed.countedChildIDs)) {
-      // ponytail: only boolean `true` entries are kept — any other shape (including objects or
+      // only boolean `true` entries are kept — any other shape (including objects or
       // strings) is treated as a corrupt entry and dropped silently.
       if (value === true && id) state.countedChildIDs[id] = true;
     }
   }
   if (isRecord(parsed.purgedSessionIDs)) {
     for (const [id, value] of Object.entries(parsed.purgedSessionIDs)) {
-      // ponytail: `ses_` prefix guard prevents restoring purged-session markers written by a
+      // `ses_` prefix guard prevents restoring purged-session markers written by a
       // different runtime that may not match the current session-id scheme.
       if (value === true && id.startsWith('ses_')) state.purgedSessionIDs[id] = true;
     }
@@ -146,7 +146,7 @@ const parsePersistedState = (raw: string): SubagentState | null => {
 };
 
 const hydrateChildren = (rawChildren: Record<string, unknown>, fallbackTimestamp: string): SubagentChild[] => {
-  // ponytail: input is a `Record<string, unknown>` (the persisted children map), not an array,
+  // input is a `Record<string, unknown>` (the persisted children map), not an array,
   // because the JSON shape is keyed by child id. The function still returns an array so the
   // caller can iterate without managing the key simultaneously.
   const children: SubagentChild[] = [];
@@ -154,7 +154,7 @@ const hydrateChildren = (rawChildren: Record<string, unknown>, fallbackTimestamp
     if (!isRecord(value)) continue;
     if (!isHydratablePersistedChild(value)) continue;
 
-    // ponytail: tokens are normalized one-field-at-a-time so a partially-populated record
+    // tokens are normalized one-field-at-a-time so a partially-populated record
     // (e.g. only `input`) survives; the final `undefined` check drops the bag entirely when
     // every sub-field is absent.
     const tokens = isRecord(value.tokens)
@@ -228,7 +228,7 @@ const applyRecoveryIfNeeded = async (
 
   const contextParentID = options.recoveryContext?.parentSessionID;
   const inferredParentID = inferParentSessionID(state);
-  // ponytail: the second pass with the inferred parent is only useful when the state already
+  // the second pass with the inferred parent is only useful when the state already
   // has children to anchor the inference — an empty state can't disambiguate a parent.
   const shouldRetryWithInferredParent =
     !!inferredParentID && inferredParentID !== contextParentID && Object.keys(state.children).length > 0;
@@ -253,7 +253,7 @@ const applyRecoveryIfNeeded = async (
 };
 
 const pruneOnLoad = (state: SubagentState): boolean => {
-  // ponytail: returns true when anything was pruned so the caller can decide whether to bump
+  // returns true when anything was pruned so the caller can decide whether to bump
   // `updatedAt`. Two distinct passes run because terminal-vs-orphan membership is computed
   // independently and must each be re-evaluated on every load.
   const prunedTerminalChildren = pruneTerminalChildren(state, Date.now());

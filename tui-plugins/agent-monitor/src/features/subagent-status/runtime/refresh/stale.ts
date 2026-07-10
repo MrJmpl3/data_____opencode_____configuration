@@ -93,7 +93,7 @@ export const resolveStaleRunningProbeTargets = (
   return targetSessionIds;
 };
 
-// ponytail: Grouping the four probe-evolution knobs into a single context keeps
+// Grouping the four probe-evolution knobs into a single context keeps
 // the call-site self-documenting and leaves the hot loop signature small. The
 // orchestrator already has these four values in scope together, so passing them
 // as a tuple would just rename the same arg list — an explicit object pays for

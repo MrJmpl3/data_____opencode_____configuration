@@ -39,7 +39,7 @@ export const createCoalescedTaskRunner = <T>(task: (value: T) => Promise<void>):
     } finally {
       draining = false;
       currentBatch = undefined;
-      // ponytail: Re-entrancy guard — if schedule() was called during drain,
+      // Re-entrancy guard — if schedule() was called during drain,
       // pending was set but draining prevented the new cycle from starting.
       // Kick off a fresh drain with the latest value.
       if (pending) {

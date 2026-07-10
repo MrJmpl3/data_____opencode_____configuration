@@ -60,7 +60,7 @@ const shouldPreserveSameTerminalTiming = (
   return Boolean(existing && isTerminalStatus(existing.status) && existing.status === nextStatus);
 };
 
-// ponytail: Source resolution prefers the incoming value, falls back to the
+// Source resolution prefers the incoming value, falls back to the
 // stored one, and as a last resort infers 'session' from a ses_-prefixed id.
 // Keeping the chain isolated makes the precedence readable in one place.
 const resolveSourceForUpsert = (
@@ -80,7 +80,7 @@ const resolveIncomingStatus = (
 const isStaleEvidence = (existing: SubagentChild | undefined, incomingEvidenceMs: number): boolean =>
   Boolean(existing && incomingEvidenceMs < childEvidenceTimestampMs(existing));
 
-// ponytail: A terminal child transitions back to running only when (a) the
+// A terminal child transitions back to running only when (a) the
 // caller explicitly opts in, (b) the new evidence is strictly newer, and (c)
 // the incoming status is running. Otherwise we'd silently rewrite history
 // and break the terminal contract.
@@ -122,7 +122,7 @@ const computeTimingPreservation = (
   return { preserveExistingTiming, preserveSameTerminalTiming, reopenTerminal };
 };
 
-// ponytail: Field-by-field equality on 12 normalized properties avoids a
+// Field-by-field equality on 12 normalized properties avoids a
 // deep-equal helper but still lets the upsert return false when nothing
 // observable changed. Tokens are compared structurally via sameTokens.
 const hasChildFieldChanges = (existing: SubagentChild, next: SubagentChild): boolean =>
