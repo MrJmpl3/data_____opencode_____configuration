@@ -6,15 +6,14 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-const hasPython =
-  ((): boolean => {
-    try {
-      execFileSync('python3', ['--version'], { stdio: 'ignore', timeout: 5000 });
-      return true;
-    } catch {
-      return false;
-    }
-  })();
+const hasPython = ((): boolean => {
+  try {
+    execFileSync('python3', ['--version'], { stdio: 'ignore', timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+})();
 
 const itOrSkip = hasPython ? it : it.skip;
 const describeOrSkip = hasPython ? describe : describe.skip;
