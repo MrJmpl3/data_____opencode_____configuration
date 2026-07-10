@@ -1,5 +1,5 @@
 import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
-import { createSignal, onCleanup } from 'solid-js/dist/solid.js';
+import { createSignal, onCleanup } from 'solid-js';
 import type { Accessor, JSX } from 'solid-js';
 
 /**
@@ -22,8 +22,7 @@ export function useSlotVisibility(_api: TuiPluginApi): {
     onCleanup(() => setVisible(false));
     // SlotProvider is never actually rendered — it's a side-effect-only
     // render function that sets visibility on mount and cleans up on unmount.
-    // Solid requires the return type to be JSX.Element, but there's no real DOM.
-    return undefined as unknown as JSX.Element;
+    return (null as unknown) as JSX.Element;
   };
 
   return { isVisible, SlotProvider };

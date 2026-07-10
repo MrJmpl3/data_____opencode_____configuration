@@ -1,4 +1,4 @@
-import { createEffect, createRoot } from 'solid-js/dist/solid.js';
+import { createEffect, createRoot } from 'solid-js';
 import type { Accessor } from 'solid-js';
 
 /**

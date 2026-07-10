@@ -30,7 +30,6 @@ import type {
   QuotaProviderId,
 } from '../../domain/types.ts';
 
-import { TuiPanel } from './tui-panel.tsx';
 import { QuotaView } from './quota-view.tsx';
 
 export type QuotaSectionProps = {
@@ -57,83 +56,84 @@ type CachedProviderFetcher = (
  *  the next tick. Mirrors the events subscribed in main's runtime. */
 const REFRESH_TRIGGER_EVENTS = ['tui.session.select', 'session.idle', 'session.error'] as const;
 
+/** True when `result` is a provider error shape: `{ error: string }`. */
+const isProviderError = (result: unknown): result is { error: string } =>
+  typeof result === 'object' && result !== null && 'error' in result;
+
+const fetchOpencodeGoLines = async (
+  opencodeGoConfig: OpencodeGoConfig,
+  displayMode: QuotaDisplayMode,
+  setNowMs: (ms: number) => void,
+): Promise<QuotaLine[]> => {
+  if (!opencodeGoConfig || opencodeGoConfig.workspaces.length === 0) return [];
+
+  const fetchedAtMs = Date.now();
+  const settledWorkspaces = await Promise.all(
+    opencodeGoConfig.workspaces.map(async (workspace) => {
+      try {
+        return { workspace, result: await fetchOpencodeGoDashboard(workspace.workspaceId, opencodeGoConfig.authCookie) };
+      } catch (error: unknown) {
+        return { workspace, result: { error: error instanceof Error ? error.message : String(error) } };
+      }
+    }),
+  );
+
+  setNowMs(fetchedAtMs);
+  return settledWorkspaces.flatMap(({ workspace, result }) => {
+    if ('data' in result) {
+      return formatOpencodeGoWorkspaceLines(workspace, result.data, displayMode, fetchedAtMs);
+    }
+    return [headingLine(formatOpencodeGoWorkspaceHeading(workspace.label)), detailTextLine(result.error, 'error')];
+  });
+};
+
 export const fetchProviderLines = async (args: FetchProviderLinesArgs): Promise<ProviderFetchResult> => {
   const { providerId, opencodeGoConfig, displayMode, setNowMs } = args;
 
   switch (providerId) {
-    case 'opencode-go': {
-      if (!opencodeGoConfig || opencodeGoConfig.workspaces.length === 0) return [];
-
-      const fetchedAtMs = Date.now();
-      const settledWorkspaces = await Promise.all(
-        opencodeGoConfig.workspaces.map(async (workspace) => {
-          try {
-            return {
-              workspace,
-              result: await fetchOpencodeGoDashboard(workspace.workspaceId, opencodeGoConfig.authCookie),
-            };
-          } catch (error: unknown) {
-            return {
-              workspace,
-              result: { error: error instanceof Error ? error.message : String(error) },
-            };
-          }
-        }),
-      );
-
-      setNowMs(fetchedAtMs);
-      return settledWorkspaces.flatMap(({ workspace, result }) => {
-        if ('data' in result) {
-          return formatOpencodeGoWorkspaceLines(workspace, result.data, displayMode, fetchedAtMs);
-        }
-
-        return [headingLine(formatOpencodeGoWorkspaceHeading(workspace.label)), detailTextLine(result.error, 'error')];
-      });
-    }
+    case 'opencode-go':
+      return fetchOpencodeGoLines(opencodeGoConfig, displayMode, setNowMs);
 
     case 'github-copilot': {
-      const copilotResult = await fetchCopilotQuota();
-      if (copilotResult === null) return undefined;
-      if ('error' in copilotResult) return copilotResult.error;
-
+      const result = await fetchCopilotQuota();
+      if (result === null) return undefined;
+      if (isProviderError(result)) return result.error;
       const fetchedAtMs = Date.now();
       setNowMs(fetchedAtMs);
-      return formatCopilotLines(copilotResult, displayMode, fetchedAtMs);
+      return formatCopilotLines(result, displayMode, fetchedAtMs);
     }
 
     case 'openrouter': {
-      const openRouterResult = await fetchOpenRouterQuota();
-      if (openRouterResult === null) return undefined;
-      if ('error' in openRouterResult) return openRouterResult.error;
-      return formatOpenRouterLines(openRouterResult, displayMode);
+      const result = await fetchOpenRouterQuota();
+      if (result === null) return undefined;
+      if (isProviderError(result)) return result.error;
+      return formatOpenRouterLines(result, displayMode);
     }
 
     case 'openai': {
       const experimentalResetCredits = readQuotaConfig()?.options?.experimentalOpenAIResetCredits === true;
-      const openAIResult = await fetchOpenAIQuota({ experimentalResetCredits });
-      if (openAIResult === null) return undefined;
-      if ('error' in openAIResult) return openAIResult.error;
-
+      const result = await fetchOpenAIQuota({ experimentalResetCredits });
+      if (result === null) return undefined;
+      if (isProviderError(result)) return result.error;
       const fetchedAtMs = Date.now();
       setNowMs(fetchedAtMs);
-      return formatOpenAILines(openAIResult, displayMode, fetchedAtMs);
+      return formatOpenAILines(result, displayMode, fetchedAtMs);
     }
 
     case 'deepseek': {
-      const deepSeekResult = await fetchDeepSeekQuota();
-      if (deepSeekResult === null) return undefined;
-      if ('error' in deepSeekResult) return deepSeekResult.error;
-      return formatDeepSeekLines(deepSeekResult, displayMode);
+      const result = await fetchDeepSeekQuota();
+      if (result === null) return undefined;
+      if (isProviderError(result)) return result.error;
+      return formatDeepSeekLines(result, displayMode);
     }
 
     case 'ollama-cloud': {
-      const ollamaResult = await fetchOllamaCloudQuota();
-      if (ollamaResult === null) return undefined;
-      if ('error' in ollamaResult) return ollamaResult.error;
-
+      const result = await fetchOllamaCloudQuota();
+      if (result === null) return undefined;
+      if (isProviderError(result)) return result.error;
       const fetchedAtMs = Date.now();
       setNowMs(fetchedAtMs);
-      return formatOllamaCloudLines(ollamaResult, displayMode, fetchedAtMs);
+      return formatOllamaCloudLines(result, displayMode, fetchedAtMs);
     }
   }
 };
@@ -270,9 +270,11 @@ export const QuotaSection = (props: QuotaSectionProps): JSX.Element => {
     },
   });
 
+  const theme = () => props.api.theme.current;
   return (
-    <TuiPanel title="Quota" api={props.api}>
+    <box gap={0}>
+      <text fg={theme().text}>Quota</text>
       <QuotaView lines={lines()} nowMs={nowMs()} loading={loading()} api={props.api} />
-    </TuiPanel>
+    </box>
   );
 };
