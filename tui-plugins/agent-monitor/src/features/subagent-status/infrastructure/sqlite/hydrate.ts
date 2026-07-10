@@ -377,14 +377,21 @@ const mapRecoveredChild = (row: SQLiteRecoveryRow, hardStaleAfterMs: number): Ma
   };
 };
 
+// ponytail: `readRows` is an optional seam so unit tests can inject a fake
+// row provider. Production callers rely on the default which spawns the
+// Python recovery script. The default value is computed lazily so tests that
+// pass a stub never touch `node:fs` or the `python3` binary.
+export type ReadSQLiteRecoveryRows = (databasePath: string, parentSessionID: string) => Promise<SQLiteRecoveryRow[]>;
+
 export const createSQLiteRecoverySource = (
-  input: { databasePath?: string; hardStaleAfterMs?: number } = {},
+  input: { databasePath?: string; hardStaleAfterMs?: number; readRows?: ReadSQLiteRecoveryRows } = {},
 ): RecoverySource => {
   const databasePath = input.databasePath ?? resolveOpenCodeDatabasePath();
   const hardStaleAfterMs = Math.max(
     0,
     Math.floor(input.hardStaleAfterMs ?? DEFAULT_STALE_RUNNING_PROBE_POLICY.hardStaleAfterMs),
   );
+  const readRows = input.readRows ?? readSQLiteRecoveryRows;
 
   return {
     hydrateState: async (state: SubagentState, context: RecoveryContext): Promise<RecoveryResult | undefined> => {
@@ -395,7 +402,7 @@ export const createSQLiteRecoverySource = (
       }
 
       debugLog(`[subagent-status] hydrateState: parent=${parentSessionID} db=${databasePath}`);
-      const rows = await readSQLiteRecoveryRows(databasePath, parentSessionID);
+      const rows = await readRows(databasePath, parentSessionID);
       debugLog(`[subagent-status] hydrateState: rows=${rows.length}`);
       if (rows.length === 0) return undefined;
 

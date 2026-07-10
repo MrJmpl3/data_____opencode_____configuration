@@ -18,25 +18,35 @@ type DoneTokenCacheEntry = {
   tokens?: SubagentTokens;
 };
 
-const doneTokenCache = new Map<string, DoneTokenCacheEntry>();
+const createDoneTokenCache = (): {
+  cache: Map<string, DoneTokenCacheEntry>;
+  prune: (nowMs: number) => void;
+} => {
+  const cache = new Map<string, DoneTokenCacheEntry>();
 
-const pruneDoneTokenCache = (nowMs: number): void => {
-  for (const [sessionId, entry] of doneTokenCache) {
-    if (nowMs - entry.checkedAtMs <= DONE_TOKEN_CACHE_TTL_MS) continue;
-    doneTokenCache.delete(sessionId);
-  }
+  const prune = (nowMs: number): void => {
+    for (const [sessionId, entry] of cache) {
+      if (nowMs - entry.checkedAtMs <= DONE_TOKEN_CACHE_TTL_MS) continue;
+      cache.delete(sessionId);
+    }
 
-  while (doneTokenCache.size > DONE_TOKEN_CACHE_MAX_ENTRIES) {
-    const oldestSessionId = doneTokenCache.keys().next().value;
-    if (typeof oldestSessionId !== 'string') break;
-    doneTokenCache.delete(oldestSessionId);
-  }
+    while (cache.size > DONE_TOKEN_CACHE_MAX_ENTRIES) {
+      const oldestSessionId = cache.keys().next().value;
+      if (typeof oldestSessionId !== 'string') break;
+      cache.delete(oldestSessionId);
+    }
+  };
+
+  return { cache, prune };
 };
+
+const { cache: doneTokenCache, prune: pruneDoneTokenCache } = createDoneTokenCache();
 
 const safeRead = <T>(reader: () => T): T | undefined => {
   try {
     return reader();
-  } catch {
+  } catch (e) {
+    console.warn('[agent-monitor] safeRead failed:', e instanceof Error ? e.message : String(e));
     return undefined;
   }
 };

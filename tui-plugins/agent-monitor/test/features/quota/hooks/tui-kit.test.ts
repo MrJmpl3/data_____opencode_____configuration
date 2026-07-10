@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot } from 'solid-js';
 
-import { useClockTicker } from '../../../../src/features/quota/ui/hooks.ts';
+import { useClockTicker } from '../../../../src/kit/use-clock-ticker.ts';
 import { usePolling } from '../../../../src/kit/use-polling.ts';
 
 describe('usePolling', () => {
@@ -110,17 +110,19 @@ describe('useClockTicker', () => {
     });
   });
 
-  it('stops firing after the owning root is disposed', () => {
+  it('stops firing after the returned dispose is called', () => {
     const onTick = vi.fn();
     createRoot((dispose) => {
-      useClockTicker({ active: () => true, onTick, intervalMs: 1000 });
+      const stopTicker = useClockTicker({ active: () => true, onTick, intervalMs: 1000 });
 
       vi.advanceTimersByTime(1100);
       const callsBeforeDispose = onTick.mock.calls.length;
 
-      dispose();
+      stopTicker();
       vi.advanceTimersByTime(3000);
       expect(onTick.mock.calls.length).toBe(callsBeforeDispose);
+
+      dispose();
     });
   });
 });

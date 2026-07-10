@@ -24,36 +24,37 @@ export const createSerializedTaskQueue = <T>(task: (value: T) => Promise<void>):
 };
 
 export const createCoalescedTaskRunner = <T>(task: (value: T) => Promise<void>): ((value: T) => Promise<void>) => {
-  let inFlight = false;
-  let hasPending = false;
-  let pendingValue: T;
+  let draining = false;
+  let pending: { value: T } | undefined;
   let currentBatch: Promise<void> | undefined;
 
-  const schedule = async (value: T): Promise<void> => {
-    pendingValue = value;
-    hasPending = true;
-    if (inFlight) return currentBatch ?? Promise.resolve();
-
-    inFlight = true;
-    currentBatch = (async () => {
-      try {
-        while (hasPending) {
-          const current = pendingValue;
-          hasPending = false;
-          await task(current);
-        }
-      } finally {
-        inFlight = false;
-        if (hasPending) {
-          const next = pendingValue;
-          hasPending = false;
-          await schedule(next);
-        }
-        currentBatch = undefined;
+  const drain = async (): Promise<void> => {
+    draining = true;
+    try {
+      while (pending) {
+        const { value: current } = pending;
+        pending = undefined;
+        await task(current);
       }
-    })();
+    } finally {
+      draining = false;
+      currentBatch = undefined;
+      // ponytail: Re-entrancy guard — if schedule() was called during drain,
+      // pending was set but draining prevented the new cycle from starting.
+      // Kick off a fresh drain with the latest value.
+      if (pending) {
+        currentBatch = drain();
+        await currentBatch;
+      }
+    }
+  };
 
-    return currentBatch;
+  const schedule = (value: T): Promise<void> => {
+    pending = { value };
+    if (!draining) {
+      currentBatch = drain();
+    }
+    return currentBatch ?? Promise.resolve();
   };
 
   return schedule;

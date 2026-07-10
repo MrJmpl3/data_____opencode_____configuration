@@ -9,41 +9,28 @@ type MockApi = TuiPluginApi & {
   handlers: Map<string, EventHandler>;
 };
 
+// ponytail: only the surface this file asserts on is mocked explicitly
+// (slots.register calls, event.on bus, the `handlers` lookup map used in
+// `subscribeRefreshTriggers` tests). The runtime walks a few other members
+// to register features, so those are stubbed with no-ops. Everything else
+// is satisfied via `as unknown as TuiPluginApi` — adding new TuiPluginApi
+// members won't require a parallel change here.
 const createMockApi = (): MockApi => {
   const handlers = new Map<string, EventHandler>();
-  return {
-    client: {
-      session: {
-        children: vi.fn(async () => ({ data: [] })),
-        messages: vi.fn(async () => ({ data: [] })),
-        status: vi.fn(async () => ({ data: undefined })),
-      },
-      config: { get: vi.fn(async () => ({ data: {} })) },
-    },
+  const api = {
+    client: { session: {} },
+    slots: { register: vi.fn() },
     event: {
       on: (eventName: string, handler: EventHandler) => {
         handlers.set(eventName, handler);
         return () => handlers.delete(eventName);
       },
     },
-    keymap: { registerLayer: vi.fn() },
     lifecycle: { onDispose: () => {} },
-    mode: { current: () => 'normal', push: () => () => {} },
-    route: {
-      register: vi.fn(() => () => {}),
-      navigate: vi.fn(),
-      current: { name: 'home' },
-    },
-    slots: { register: vi.fn() },
-    state: {
-      session: { messages: vi.fn(() => []) },
-      part: vi.fn(() => []),
-      path: { directory: process.cwd() },
-    },
-    kv: { ready: true, get: vi.fn((_key: string, fallback: unknown) => fallback), set: vi.fn() },
-    theme: { current: { text: 'white', textMuted: 'gray' } },
+    state: { path: { directory: process.cwd() }, session: {} },
     handlers,
-  } as unknown as MockApi;
+  };
+  return api as unknown as MockApi;
 };
 
 describe('agent-monitor runtime (quota-only)', () => {

@@ -206,6 +206,7 @@ for part_row in cur.execute(
     try:
         part = json.loads(part_row[1])
     except Exception:
+        print(f"WARN: Failed to parse part content row {part_row[0] if part_row else '?'}", file=sys.stderr)
         continue
     if not isinstance(part, dict):
         continue

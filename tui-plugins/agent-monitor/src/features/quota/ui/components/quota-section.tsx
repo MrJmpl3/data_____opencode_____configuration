@@ -1,9 +1,9 @@
 /** @jsxImportSource @opentui/solid */
 import type { JSX } from 'solid-js';
-import { createSignal, onMount } from 'solid-js';
+import { createSignal, onCleanup, onMount } from 'solid-js';
 import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
 
-import { useClockTicker } from '../hooks.ts';
+import { useClockTicker } from '../../../../kit/use-clock-ticker.ts';
 import { usePolling } from '../../../../kit/use-polling.ts';
 import { createQuotaProviderCache } from '../../infrastructure/cache.ts';
 import { resolveNumericOptions, resolveVisibleProviderIdsWithDiagnostics } from '../../domain/options.ts';
@@ -243,11 +243,15 @@ export const QuotaSection = (props: QuotaSectionProps): JSX.Element => {
   }
 
   // 1Hz tick so the rendered "5h12m33s" counters actually count down
-  // between fetches.
-  useClockTicker({
-    active: () => lines().length > 0,
-    onTick: (tickNowMs: number) => setNowMs(tickNowMs),
-  });
+  // between fetches. The kit version returns a dispose handle that must
+  // be invoked on unmount; the internal setTimeout chain would otherwise
+  // keep firing past the component's lifetime.
+  onCleanup(
+    useClockTicker({
+      active: () => lines().length > 0,
+      onTick: (tickNowMs: number) => setNowMs(tickNowMs),
+    }),
+  );
 
   // Event-driven cache invalidation. The provider cache may hold stale
   // values when the session changes or a turn completes with errors;
