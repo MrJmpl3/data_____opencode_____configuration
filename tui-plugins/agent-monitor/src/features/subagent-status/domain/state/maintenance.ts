@@ -16,6 +16,7 @@ import {
   sanitizeTargetSessionID,
   sanitizeTokens,
 } from './core.ts';
+import { markChildStatus } from './mutations.ts';
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
@@ -224,6 +225,27 @@ export const pruneTerminalChildren = (state: SubagentState, now = Date.now()): b
   syncExecutionState(state);
 
   return changed;
+};
+
+/** Marks running children whose evidence is older than hardStaleAfterMs as error.
+ *  Extracted from tui-runtime.ts to keep domain logic with the domain. */
+export const markHardStaleRunningChildren = (
+  state: SubagentState,
+  hardStaleAfterMs: number,
+): void => {
+  if (hardStaleAfterMs <= 0) return;
+
+  const nowMs = Date.now();
+  for (const child of Object.values(state.children)) {
+    if (child.status !== 'running') continue;
+
+    const childEvidenceMs = childEvidenceTimestampMs(child);
+    if (nowMs - childEvidenceMs < hardStaleAfterMs) continue;
+
+    console.warn('[agent-monitor] hard-stale: marking', child.id, 'as error');
+    const errorAt = new Date(Math.max(nowMs, childEvidenceMs)).toISOString();
+    markChildStatus(state, child.id, 'error', errorAt);
+  }
 };
 
 export const pruneOrphanedSyntheticRunningChildren = (

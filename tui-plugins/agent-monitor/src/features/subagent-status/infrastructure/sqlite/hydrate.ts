@@ -255,64 +255,47 @@ const foldPart = (acc: RecoveryAccumulator, part: unknown): RecoveryAccumulator 
 //   2. Explicit terminal without a timestamp is a status-only fallback.
 //   3. Ambiguous step-finish evidence is used only when it is at least as
 //      new as the most recent step-start (else the session likely resumed).
+
+/** Shorthand to build a RecoveredStatus with shared timestamp+tokens pattern. */
+const terminalStatus = (
+  status: TerminalStatus,
+  endedAt: string | undefined,
+  tokens: SubagentTokens | undefined,
+  evidence: RecoveredStatus['evidence'] = 'explicit',
+): RecoveredStatus => ({ status, updatedAt: endedAt, endedAt, tokens, evidence });
+
 const decideRecoveredStatus = (acc: RecoveryAccumulator): RecoveredStatus => {
+  // 1. Explicit error evidence — most authoritative.
   if (acc.errorAtMs > acc.completedAtMs) {
-    const endedAt = toISOString(acc.errorAtMs);
-
-    return {
-      status: 'error',
-      updatedAt: endedAt,
-      endedAt,
-      tokens: mergeSubagentTokens(acc.latestTokens, acc.errorTokens),
-      evidence: 'explicit',
-    };
+    return terminalStatus('error', toISOString(acc.errorAtMs), mergeSubagentTokens(acc.latestTokens, acc.errorTokens));
   }
 
+  // 2. Explicit done evidence.
   if (acc.completedAtMs > 0) {
-    const endedAt = toISOString(acc.completedAtMs);
-
-    return {
-      status: 'done',
-      updatedAt: endedAt,
-      endedAt,
-      tokens: mergeSubagentTokens(acc.latestTokens, acc.completedTokens),
-      evidence: 'explicit',
-    };
+    return terminalStatus('done', toISOString(acc.completedAtMs), mergeSubagentTokens(acc.latestTokens, acc.completedTokens));
   }
 
+  // 3. Status-only fallback when the event stream stopped but the parent
+  //    recorded a terminal status (no precise timestamp).
   if (acc.fallbackTerminalStatus) {
-    return {
-      status: acc.fallbackTerminalStatus,
-      updatedAt: undefined,
-      endedAt: undefined,
-      tokens: mergeSubagentTokens(acc.latestTokens, acc.fallbackTerminalTokens),
-      evidence: 'explicit',
-    };
+    return terminalStatus(acc.fallbackTerminalStatus, undefined, mergeSubagentTokens(acc.latestTokens, acc.fallbackTerminalTokens));
   }
 
-  const ambiguousStatus: TerminalStatus = acc.ambiguousErrorAtMs > acc.ambiguousCompletedAtMs ? 'error' : 'done';
+  // 4. Ambiguous evidence: step-finish was seen but no explicit terminal
+  //    event. Only trust it if newer than the most recent step-start;
+  //    otherwise the session likely resumed after the ambiguous finish.
   const ambiguousAtMs = Math.max(acc.ambiguousCompletedAtMs, acc.ambiguousErrorAtMs);
   if (ambiguousAtMs > 0 && ambiguousAtMs >= acc.latestStepStartAtMs) {
-    const endedAt = toISOString(ambiguousAtMs);
-
-    return {
-      status: ambiguousStatus,
-      updatedAt: endedAt,
-      endedAt,
-      tokens: mergeSubagentTokens(
-        acc.latestTokens,
-        ambiguousStatus === 'error' ? acc.errorTokens : acc.completedTokens,
-      ),
-      evidence: 'ambiguous',
-    };
+    const ambiguousStatus: TerminalStatus = acc.ambiguousErrorAtMs > acc.ambiguousCompletedAtMs ? 'error' : 'done';
+    const tokens = mergeSubagentTokens(
+      acc.latestTokens,
+      ambiguousStatus === 'error' ? acc.errorTokens : acc.completedTokens,
+    );
+    return terminalStatus(ambiguousStatus, toISOString(ambiguousAtMs), tokens, 'ambiguous');
   }
 
-  return {
-    status: 'running',
-    updatedAt: undefined,
-    endedAt: undefined,
-    tokens: acc.latestTokens,
-  };
+  // 5. No terminal evidence at all — session still running.
+  return { status: 'running', updatedAt: undefined, endedAt: undefined, tokens: acc.latestTokens };
 };
 
 export const resolveRecoveredStatus = (parts: readonly unknown[]): RecoveredStatus => {

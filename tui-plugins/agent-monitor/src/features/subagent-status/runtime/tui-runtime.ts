@@ -8,9 +8,8 @@ import { normalizeSubagentStatusPluginOptions, type ResolvedSubagentStatusPlugin
 import { debugLog, setDebugEnabled } from '../shared/display.ts';
 import { resolveSessionSlotTransition } from './session/navigate.ts';
 import { createRuntimeSessionScopeHelpers } from './session/scope.ts';
-import { childEvidenceTimestampMs } from '../domain/state/maintenance.ts';
+import { markHardStaleRunningChildren } from '../domain/state/maintenance.ts';
 import { createEmptyState } from '../domain/state/core.ts';
-import { markChildStatus } from '../domain/state/mutations.ts';
 import type { SubagentState } from '../domain/types.ts';
 import {
   createPersistQueue,
@@ -101,22 +100,6 @@ export const createTuiRuntime = (
     await persistQueuedSnapshot(nextState, meta);
   };
 
-  const markHardStaleRunningChildren = (state: SubagentState): void => {
-    const hardStaleAfterMs = staleRunningProbePolicy.hardStaleAfterMs;
-    if (hardStaleAfterMs <= 0) return;
-
-    const nowMs = Date.now();
-    for (const child of Object.values(state.children)) {
-      if (child.status !== 'running') continue;
-
-      const childEvidenceMs = childEvidenceTimestampMs(child);
-      if (nowMs - childEvidenceMs < hardStaleAfterMs) continue;
-
-      const errorAt = new Date(Math.max(nowMs, childEvidenceMs)).toISOString();
-      markChildStatus(state, child.id, 'error', errorAt);
-    }
-  };
-
   const sessionScope = createRuntimeSessionScopeHelpers({
     getSessionId: input.getSessionId,
     setSessionId: input.setSessionId,
@@ -195,7 +178,7 @@ export const createTuiRuntime = (
           },
           recoverySources,
         });
-        markHardStaleRunningChildren(loadedState);
+        markHardStaleRunningChildren(loadedState, staleRunningProbePolicy.hardStaleAfterMs);
         await syncState(loadedState, createPersistMeta('load'));
       }
 
