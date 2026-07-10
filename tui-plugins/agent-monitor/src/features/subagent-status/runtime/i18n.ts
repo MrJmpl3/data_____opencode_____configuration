@@ -42,6 +42,11 @@ export const getLocale = (): Locale => {
   return cachedLocale;
 };
 
+/** Exposed for testability — reset the cached locale between tests. */
+export const resetLocale = (): void => {
+  cachedLocale = undefined;
+};
+
 export const t = (key: TranslationKey): string => {
   return translations[getLocale()][key] ?? translations.en[key];
 };

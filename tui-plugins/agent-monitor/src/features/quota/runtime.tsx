@@ -5,10 +5,13 @@
 import type { TuiPlugin, TuiPluginApi } from '@opencode-ai/plugin/tui';
 
 import { QuotaSection } from './ui/components/quota-section.tsx';
-import { defaultQuotaSectionOptions, resolveVisibleProviderIdsWithDiagnostics } from './domain/options.ts';
+import {
+  ALLOWED_PROVIDER_IDS,
+  defaultQuotaSectionOptions,
+  resolveVisibleProviderIdsWithDiagnostics,
+} from './domain/options.ts';
 import { readQuotaConfig } from './infrastructure/providers/config.ts';
 import { isRecord } from '../../kit/coercion.ts';
-const ALLOWED_PROVIDER_IDS = ['opencode-go', 'github-copilot', 'openrouter', 'openai', 'deepseek', 'ollama-cloud'];
 
 export const readSessionIdFromEvent = (payload: unknown): string | undefined => {
   if (!isRecord(payload)) return undefined;

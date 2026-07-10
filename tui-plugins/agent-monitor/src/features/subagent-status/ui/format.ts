@@ -201,6 +201,9 @@ export const formatSidebarTerminalMeta = (child: SubagentChild, nowMs = Date.now
   );
 };
 
+/** Locale-formatted human-readable count (e.g. "1,234"). Used for aggregate
+ *  display in HomeBottomView. For SI-suffix compact format see
+ *  {@link formatSidebarCompactCount}. */
 export const formatCount = (value: number): string => {
   return Math.max(0, Math.round(value)).toLocaleString('en-US');
 };

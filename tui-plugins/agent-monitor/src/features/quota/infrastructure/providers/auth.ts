@@ -66,6 +66,9 @@ export const readOpenAIAccountId = (token: string): string | null => {
   const fromAuth = readOauthAccountId(['openai', 'chatgpt', 'codex']);
   if (fromAuth) return fromAuth;
   try {
+    // ponytail: JWT signature verification skipped because the token comes from
+    // the user's local auth.json (trusted file). Only the chatgpt_account_id
+    // claim is read — no authorization decisions are made from this payload.
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf-8')) as unknown;
     if (!isRecord(payload)) return null;
     const jwtAccountId = payload.chatgpt_account_id;

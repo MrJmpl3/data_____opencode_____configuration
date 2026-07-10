@@ -11,7 +11,9 @@ export { registerSubagentStatusTui } from './src/features/subagent-status/runtim
 // subagent-status (110) arriba, quota (120) abajo.
 // El slot registry de OpenCode las mergea automáticamente por order ascendente.
 const tui: TuiPlugin = async (api) => {
-  await registerSidebarTui(api, undefined, {} as TuiPluginMeta);
+  // ponytail: TuiPluginMeta is currently empty — {} satisfies the expected
+  // shape and is safer than `as` (which would hide future required fields).
+  await registerSidebarTui(api, undefined, {} as unknown as TuiPluginMeta);
   await registerSubagentStatusTui(api, undefined);
 };
 

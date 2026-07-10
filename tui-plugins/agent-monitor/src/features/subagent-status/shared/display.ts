@@ -1,4 +1,7 @@
 // ── Debug ──────────────────────────────────────────────────────────
+// ponytail: Debug state is intentionally module-level (not instance-scoped)
+// because the debug flag is set once at startup via plugin options and never
+// changes mid-session. A factory would add indirection without benefit.
 let debugEnabled = false;
 
 export const setDebugEnabled = (value: boolean): void => {

@@ -38,7 +38,7 @@ export const defaultQuotaSectionOptions: QuotaSectionOptions = {
 // que callers muten la lista global; nuevos providers se agregan acá.
 const DEFAULT_VISIBLE_PROVIDERS: readonly QuotaProviderId[] = ['opencode-go', 'github-copilot', 'openrouter'];
 
-const ALLOWED_PROVIDER_IDS: readonly QuotaProviderId[] = [
+export const ALLOWED_PROVIDER_IDS: readonly QuotaProviderId[] = [
   'opencode-go',
   'github-copilot',
   'openrouter',

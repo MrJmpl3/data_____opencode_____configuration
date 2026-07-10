@@ -140,8 +140,8 @@ export const settleStaleRunningProbeTargets = (
       hasExceededHardStaleAge ||
       (!hasRunningEvidence && !hasAuthoritativePresenceGuard && missingRunningEvidenceAttempts >= policy.maxAttempts)
     ) {
-      debugLog(
-        `[subagent-status] stale-probe: marking ${sessionId} as error (hardStale=${hasExceededHardStaleAge} runningEvidence=${hasRunningEvidence} authGuard=${hasAuthoritativePresenceGuard} missingAttempts=${missingRunningEvidenceAttempts})`,
+      console.warn(
+        `[agent-monitor] stale-probe: marking ${sessionId} as error (hardStale=${hasExceededHardStaleAge} runningEvidence=${hasRunningEvidence} authGuard=${hasAuthoritativePresenceGuard} missingAttempts=${missingRunningEvidenceAttempts})`,
       );
       const errorAt = new Date(Math.max(nowMs, childEvidenceMs)).toISOString();
       const marked = markChildStatus(state, child.id, 'error', errorAt);

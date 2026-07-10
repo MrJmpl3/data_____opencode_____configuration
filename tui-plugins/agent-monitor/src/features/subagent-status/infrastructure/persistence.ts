@@ -64,6 +64,8 @@ const writeLocalFile = async (path: string, contents: string): Promise<void> => 
     await writeFile(tempPath, contents, { encoding: 'utf8', mode: STATUS_FILE_MODE });
     await rename(tempPath, path);
   } catch (error) {
+    // ponytail: Temp file cleanup is best-effort — if it fails the original
+    // error (the write/rename failure) is what matters to the caller.
     await rm(tempPath, { force: true }).catch(() => undefined);
     throw error;
   }

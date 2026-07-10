@@ -74,16 +74,25 @@ const renderStatusDetails = (children: readonly SubagentChild[]): string => {
     .join(' · ');
 };
 
+const buildSnapshotFromState = (
+  state: SubagentState,
+  nowMs: number,
+  visibilityPolicy: SubagentVisibilityPolicy,
+): { view: SubagentSnapshotView; details: string } => {
+  const hydratedChildren = Object.values(state.children).map((child) => hydrateSnapshotChild(child, nowMs));
+  const view = buildSubagentSnapshotView(hydratedChildren, nowMs, visibilityPolicy);
+  const details = renderStatusDetails(view.visibleChildren);
+  return { view, details };
+};
+
 export const renderStatusLine = (
   state: SubagentState,
   nowMs = Date.now(),
   visibilityPolicy: SubagentVisibilityPolicy = DEFAULT_SUBAGENT_VISIBILITY_POLICY,
 ): string => {
   if (state.recovering) return t('syncing');
-  const hydratedChildren = Object.values(state.children).map((child) => hydrateSnapshotChild(child, nowMs));
-  const view = buildSubagentSnapshotView(hydratedChildren, nowMs, visibilityPolicy);
+  const { view, details } = buildSnapshotFromState(state, nowMs, visibilityPolicy);
   const aggregate = `${renderAggregate(view.trackedCounts)} · Σ ${formatAggregateNumber(state.totalExecuted)}`;
-  const details = renderStatusDetails(view.visibleChildren);
   return details.length > 0 ? `${aggregate} · ${details}` : aggregate;
 };
 
@@ -93,9 +102,7 @@ export const renderStatusSnapshotLine = (
   visibilityPolicy: SubagentVisibilityPolicy = DEFAULT_SUBAGENT_VISIBILITY_POLICY,
 ): string => {
   if (state.recovering) return t('syncing');
-  const hydratedChildren = Object.values(state.children).map((child) => hydrateSnapshotChild(child, nowMs));
-  const view = buildSubagentSnapshotView(hydratedChildren, nowMs, visibilityPolicy);
+  const { view, details } = buildSnapshotFromState(state, nowMs, visibilityPolicy);
   const aggregate = `${renderSnapshotAggregate(view.trackedCounts)} · Σ ${formatAggregateNumber(state.totalExecuted)}`;
-  const details = renderStatusDetails(view.visibleChildren);
   return details.length > 0 ? `${aggregate} · ${details}` : aggregate;
 };

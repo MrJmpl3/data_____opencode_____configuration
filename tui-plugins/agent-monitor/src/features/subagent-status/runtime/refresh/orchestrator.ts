@@ -258,7 +258,11 @@ export const createTuiRuntimeRefresh = (
     try {
       if (!sessionId) return;
 
-      const nextState = cloneState(input.state.getState());
+      // Skip clone if no done children exist — nothing to backfill.
+      const currentState = input.state.getState();
+      if (!Object.values(currentState.children).some((c) => c.status === 'done')) return;
+
+      const nextState = cloneState(currentState);
       const hydrated = await hydrateChildTokensFromLogs(nextState);
       const pruned = pruneTerminalChildren(nextState);
       if (isInactiveSessionToken(sessionToken)) return;

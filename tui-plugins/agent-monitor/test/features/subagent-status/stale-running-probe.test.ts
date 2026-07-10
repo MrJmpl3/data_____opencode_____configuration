@@ -672,14 +672,14 @@ describe('stale running probe helpers', () => {
   });
 });
 
-describe('debug gating for stale-probe console.log replacements', () => {
+describe('debug gating for stale-probe console.warn replacements', () => {
   afterEach(() => {
     setDebugEnabled(false);
     vi.restoreAllMocks();
   });
 
-  it('does not call console.log for stale-probe decisions when debug is disabled', () => {
-    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  it('calls console.warn for stale-probe decisions', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     const probeState = new Map<string, StaleRunningProbeState>();
     const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
@@ -707,38 +707,6 @@ describe('debug gating for stale-probe console.log replacements', () => {
       nowMs,
     });
 
-    expect(console.log).not.toHaveBeenCalled();
-  });
-
-  it('calls console.log for stale-probe decisions when debug is enabled', () => {
-    vi.spyOn(console, 'log').mockImplementation(() => undefined);
-
-    const probeState = new Map<string, StaleRunningProbeState>();
-    const nowMs = Date.parse('2026-06-04T12:00:00.000Z');
-    const policy = resolveSubagentStatusPluginOptions({
-      staleRunningProbePolicy: { baseBackoffMs: 1_000, maxBackoffMs: 4_000, maxAttempts: 0 },
-    }).staleRunningProbePolicy;
-    const state = runningState({
-      ses_child: {
-        id: 'ses_child',
-        title: 'Real session',
-        parentID: 'ses_parent',
-        source: 'session',
-        status: 'running',
-        startedAt: '2026-06-04T11:55:00.000Z',
-        updatedAt: '2026-06-04T11:59:00.000Z',
-      },
-    });
-
-    setDebugEnabled(true);
-    const targets = resolveStaleRunningProbeTargets(state, probeState, policy, nowMs);
-    settleStaleRunningProbeTargets(state, probeState, targets, {
-      authoritativeSessionIDs: new Set(),
-      runningEvidenceSessionIDs: new Set(),
-      policy,
-      nowMs,
-    });
-
-    expect(console.log).toHaveBeenCalled();
+    expect(console.warn).toHaveBeenCalled();
   });
 });
