@@ -20,7 +20,11 @@ export const createRuntimeSessionScopeHelpers = (input: {
     return activeSessionToken;
   };
 
-  const persistEmptyScopedState = (): void => void input.syncState(createEmptyState(), input.createRefreshMeta());
+  const persistEmptyScopedState = (): void => {
+    input.syncState(createEmptyState(), input.createRefreshMeta()).catch((e) => {
+      console.warn('[agent-monitor] Failed to persist empty scoped state:', e instanceof Error ? e : String(e));
+    });
+  };
 
   const resetSessionScope = (): void => {
     invalidateSessionScope();

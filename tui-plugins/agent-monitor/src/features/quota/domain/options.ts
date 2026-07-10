@@ -34,8 +34,8 @@ export const defaultQuotaSectionOptions: QuotaSectionOptions = {
   providerErrorBackoffMs: DEFAULT_PROVIDER_ERROR_BACKOFF_MS,
 };
 
-// ponytail: defaults canónicos para `visibleProviders`. `readonly` impide
-// que callers muten la lista global; nuevos providers se agregan acá.
+// Default visible providers list. `readonly` prevents callers from mutating
+// the global list; new providers get added here.
 const DEFAULT_VISIBLE_PROVIDERS: readonly QuotaProviderId[] = ['opencode-go', 'github-copilot', 'openrouter'];
 
 export const ALLOWED_PROVIDER_IDS: readonly QuotaProviderId[] = [
@@ -133,20 +133,17 @@ interface ResolvedQuotaSectionOptions {
   providerErrorBackoffMs: number;
 }
 
-/** Subset of `QuotaSectionOptions` that the numeric resolver actually reads.
- *  Keeping the input narrow makes the resolver testable without having to
- *  build a full `QuotaSectionOptions` in every assertion. */
-type NumericQuotaOptions = Pick<
-  Partial<QuotaSectionOptions>,
-  'pollIntervalMs' | 'minRefreshIntervalMs' | 'providerCacheTtlMs' | 'providerErrorBackoffMs'
->;
-
 /**
  * Resolves and clamps every numeric option in one pass so the runtime layer
  * doesn't have to repeat the same defensive checks. Returns a flat shape with
  * safe, non-zero values for every key.
  */
-export const resolveNumericOptions = (options: NumericQuotaOptions): ResolvedQuotaSectionOptions => {
+export const resolveNumericOptions = (
+  options: Pick<
+    Partial<QuotaSectionOptions>,
+    'pollIntervalMs' | 'minRefreshIntervalMs' | 'providerCacheTtlMs' | 'providerErrorBackoffMs'
+  >,
+): ResolvedQuotaSectionOptions => {
   return {
     pollIntervalMs: clampNumberOption({
       value: options.pollIntervalMs,

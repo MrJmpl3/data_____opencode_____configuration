@@ -1,6 +1,6 @@
 import type { SubagentStatus } from './types.ts';
 
-import { isPlainObject as isRecord, normalizedString } from '../../../kit/coercion.ts';
+import { isRecord, normalizedString } from '../../../kit/coercion.ts';
 
 const RUNNING_SESSION_STATUS_VALUES = new Set([
   'busy',

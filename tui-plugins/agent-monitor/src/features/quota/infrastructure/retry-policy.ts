@@ -19,7 +19,12 @@ const parseBackoffResetMs = (message: string, pattern: RegExp): number => {
   const numericValue = rawValue.match(/^\d+(?:\.\d+)?/)?.[0];
   const resetValue = numericValue ? Number(numericValue) : Number.NaN;
   if (Number.isFinite(resetValue) && resetValue > 0) {
-    const resetAtMs = resetValue > 1_000_000_000 ? resetValue * 1000 : Date.now() + resetValue * 1000;
+    const resetAtMs =
+      resetValue > 1_000_000_000
+        ? resetValue > 10_000_000_000
+          ? resetValue // already epoch-ms
+          : resetValue * 1000 // epoch-seconds → ms
+        : Date.now() + resetValue * 1000; // delta-seconds
     return Math.max(0, resetAtMs - Date.now());
   }
 

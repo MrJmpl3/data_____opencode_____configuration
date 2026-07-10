@@ -26,7 +26,8 @@ export const readSubagentStatusOptions = (): unknown => {
     const subagentSection = isRecord(sectionsRecord['subagent-status']) ? sectionsRecord['subagent-status'] : {};
 
     return isRecord(subagentSection.options) ? subagentSection.options : undefined;
-  } catch {
+  } catch (e) {
+    console.warn('[agent-monitor] Failed to parse subagent-status config:', e instanceof Error ? e : String(e));
     return undefined;
   }
 };

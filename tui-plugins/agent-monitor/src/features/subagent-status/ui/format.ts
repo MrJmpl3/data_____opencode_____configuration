@@ -56,19 +56,15 @@ export const truncateLabel = (value: string, maxChars: number): string => {
   return `${normalized.slice(0, maxChars - 1).trimEnd()}${ELLIPSIS}`;
 };
 
-const formatCompactTokenCount = (total: number): string => {
+const formatTokenCount = (total: number, suffix = ''): string => {
   const value = Math.max(0, total);
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M tok`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k tok`;
-  return `${Math.round(value)} tok`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M${suffix}`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k${suffix}`;
+  return `${Math.round(value)}${suffix}`;
 };
 
-const formatSidebarTokenCount = (total: number): string => {
-  const value = Math.max(0, total);
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
-  return `${Math.round(value)}`;
-};
+const formatCompactTokenCount = (total: number): string => formatTokenCount(total, ' tok');
+const formatSidebarTokenCount = (total: number): string => formatTokenCount(total);
 
 const formatCompactPercentUsed = (percent: number): string => {
   return `${Math.max(0, Math.round(percent))}%`;

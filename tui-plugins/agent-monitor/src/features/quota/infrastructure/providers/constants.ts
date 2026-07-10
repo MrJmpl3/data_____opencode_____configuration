@@ -9,4 +9,5 @@ export const OLLAMA_CLOUD_SETTINGS_URL = 'https://ollama.com/settings';
 // Browser impersonation UA required because some provider APIs
 // (OpenAI, OpenRouter) return different response shapes when accessed
 // from non-browser contexts. This is a known, deliberate workaround.
+// TODO: track provider API changes that remove this requirement.
 export const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Gecko/20100101 Firefox/148.0';

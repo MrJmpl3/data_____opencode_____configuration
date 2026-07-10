@@ -22,7 +22,7 @@ import {
 import { createSQLiteRecoverySource } from '../infrastructure/sqlite/hydrate.ts';
 import { formatPersistedSnapshot, type PersistSnapshotMeta } from './snapshot.ts';
 import { createTuiRuntimeRefresh } from './refresh/orchestrator.ts';
-import { isPlainObject as isRecord } from '../../../kit/coercion.ts';
+import { isRecord } from '../../../kit/coercion.ts';
 
 export type TuiRuntime = {
   bootstrap: () => Promise<void>;

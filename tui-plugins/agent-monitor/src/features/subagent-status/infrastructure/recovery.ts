@@ -1,7 +1,7 @@
 import { clearPurgedSession, isRealSessionChild, resolveSessionIdentity } from '../domain/state/core.ts';
 import { syncExecutionState } from '../domain/state/maintenance.ts';
 import { markChildStatus, upsertRunningChild } from '../domain/state/mutations.ts';
-import { mergeChildDetails } from '../domain/state/mutate-details.ts';
+import { upsertChildDetails } from '../domain/state/mutate-details.ts';
 import type { SubagentChild, SubagentState } from '../domain/types.ts';
 
 export type RecoveryContext = {
@@ -44,7 +44,7 @@ export const applyRecoveredChildren = (
     clearPurgedSession(state, child.id);
     changed = upsertRunningChild(state, child, { allowPurgedSessionRestore: true }) || changed;
     changed =
-      mergeChildDetails(state, child.id, {
+      upsertChildDetails(state, child.id, {
         agentName: child.agentName,
         summary: child.summary,
         targetSessionID: child.targetSessionID,

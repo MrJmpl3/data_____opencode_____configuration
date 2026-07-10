@@ -1,4 +1,4 @@
-import { isPlainObject as isRecord } from '../../../kit/coercion.ts';
+import { isRecord } from '../../../kit/coercion.ts';
 import {
   DEFAULT_DONE_RETENTION_MS,
   DEFAULT_STALE_RETENTION_MS,

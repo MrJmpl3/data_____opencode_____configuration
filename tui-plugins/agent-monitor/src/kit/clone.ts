@@ -31,6 +31,7 @@ interface SubagentChild {
 export interface SubagentState {
   children: Record<string, SubagentChild>;
   countedChildIDs: Record<string, true>;
+  purgedSessionIDs?: Record<string, true>;
 }
 
 export const cloneState = <S extends SubagentState>(state: S): S => ({
@@ -45,4 +46,5 @@ export const cloneState = <S extends SubagentState>(state: S): S => ({
     ]),
   ),
   countedChildIDs: { ...state.countedChildIDs },
+  ...(state.purgedSessionIDs && { purgedSessionIDs: { ...state.purgedSessionIDs } }),
 });

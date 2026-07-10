@@ -29,10 +29,8 @@ export const isTerminalStatus = (
 export const childEvidenceTimestampMs = (child: Pick<SubagentChild, 'startedAt' | 'updatedAt' | 'endedAt'>): number =>
   timestampMs(child.endedAt ?? child.updatedAt ?? child.startedAt);
 
-export const terminalChildTimestamp = (child: SubagentChild): number => {
-  const parsed = Date.parse(child.endedAt ?? child.updatedAt ?? child.startedAt);
-  return Number.isNaN(parsed) ? 0 : parsed;
-};
+export const terminalChildTimestamp = (child: SubagentChild): number =>
+  childEvidenceTimestampMs(child) ?? 0;
 
 const rememberPurgedSession = (
   state: SubagentState,

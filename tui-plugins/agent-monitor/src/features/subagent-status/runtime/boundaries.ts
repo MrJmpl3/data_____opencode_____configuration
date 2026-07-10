@@ -1,6 +1,6 @@
 import type { TuiRouteCurrent } from '@opencode-ai/plugin/tui';
 
-import { asString, isPlainObject as isRecord } from '../../../kit/coercion.ts';
+import { asString, isRecord } from '../../../kit/coercion.ts';
 
 // ---------------------------------------------------------------------------
 // event-payload.ts

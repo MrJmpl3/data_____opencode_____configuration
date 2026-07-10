@@ -73,7 +73,8 @@ export const readOpenAIAccountId = (token: string): string | null => {
     if (!isRecord(payload)) return null;
     const jwtAccountId = payload.chatgpt_account_id;
     if (typeof jwtAccountId === 'string' && jwtAccountId.trim()) return jwtAccountId.trim();
-  } catch {
+  } catch (e) {
+    console.warn('[agent-monitor] Failed to decode OpenAI JWT:', e instanceof Error ? e : String(e));
     return null;
   }
   return null;

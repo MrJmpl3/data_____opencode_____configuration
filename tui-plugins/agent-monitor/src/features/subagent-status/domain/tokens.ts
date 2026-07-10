@@ -1,8 +1,9 @@
 import type { SubagentTokens } from './types.ts';
 
-import { isPlainObject as isRecord, toFiniteNumber } from '../../../kit/coercion.ts';
+import { isRecord, toFiniteNumber } from '../../../kit/coercion.ts';
 
-const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+/** @deprecated Use `toFiniteNumber(…) !== undefined` instead. */
+const isFiniteNumber = (value: unknown): value is number => toFiniteNumber(value) !== undefined;
 
 export const normalizeSubagentTokens = (input: unknown): SubagentTokens | undefined => {
   if (!isRecord(input)) return undefined;
@@ -27,7 +28,10 @@ export const normalizeSubagentTokens = (input: unknown): SubagentTokens | undefi
 };
 
 export const sameSubagentTokens = (left: SubagentTokens | undefined, right: SubagentTokens | undefined): boolean =>
-  JSON.stringify(left) === JSON.stringify(right);
+  left?.input === right?.input &&
+  left?.output === right?.output &&
+  left?.total === right?.total &&
+  left?.contextPercent === right?.contextPercent;
 
 export const mergeSubagentTokens = (
   existing: SubagentTokens | undefined,

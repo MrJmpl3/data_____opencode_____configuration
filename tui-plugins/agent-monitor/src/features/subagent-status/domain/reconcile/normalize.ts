@@ -1,6 +1,6 @@
 import { deriveSessionStatus as deriveOpenCodeSessionStatus } from '../session-status.ts';
 import type { SubagentChild, SubagentTokens } from '../types.ts';
-import { asString, isPlainObject as isRecord, timestampFromUnknown } from '../../../../kit/coercion.ts';
+import { asString, isRecord, timestampFromUnknown } from '../../../../kit/coercion.ts';
 
 const sessionTime = (input: Record<string, unknown>, key: 'created' | 'updated'): string | undefined => {
   const time = isRecord(input.time) ? input.time : undefined;

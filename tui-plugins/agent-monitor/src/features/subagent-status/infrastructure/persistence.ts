@@ -22,7 +22,7 @@ import {
   resolveExecutionCountIdentity,
   syncExecutionState,
 } from '../domain/state/maintenance.ts';
-import { isPlainObject as isRecord, toFiniteNumber, toNonNegativeInteger } from '../../../kit/coercion.ts';
+import { isRecord, toFiniteNumber, toNonNegativeInteger } from '../../../kit/coercion.ts';
 
 const STATUS_DIRNAME = 'agent-monitor';
 const STATUS_FILENAME = 'state.json';
@@ -281,7 +281,8 @@ export const loadState = async (
     pruneOnLoad(state);
 
     return state;
-  } catch {
+  } catch (e) {
+    console.warn('[agent-monitor] Failed to load state, starting fresh:', e instanceof Error ? e : String(e));
     return createEmptyState();
   }
 };

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { SubagentChild, SubagentTokens } from '../../domain/types.ts';
 import { normalizeSubagentTokens } from '../../domain/tokens.ts';
 import { debugLog } from '../../shared/display.ts';
-import { asString, isPlainObject as isRecord, toFiniteNumber } from '../../../../kit/coercion.ts';
+import { asString, isRecord, toFiniteNumber } from '../../../../kit/coercion.ts';
 
 export type SQLiteRecoveryRow = {
   id: string;
@@ -91,7 +91,8 @@ export const readSQLiteRecoveryRows = async (
   try {
     const parsed = JSON.parse(stdout);
     return Array.isArray(parsed) ? parsed.map(normalizeSQLiteRecoveryRow).filter((row) => row !== undefined) : [];
-  } catch {
+  } catch (e) {
+    console.warn('[agent-monitor] Failed to parse SQLite recovery output:', e instanceof Error ? e : String(e));
     return [];
   }
 };

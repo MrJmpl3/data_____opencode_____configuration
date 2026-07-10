@@ -43,8 +43,8 @@ export const installEventBridge = (
     for (const unsub of unsubs) {
       try {
         unsub();
-      } catch {
-        // Best effort cleanup.
+      } catch (e) {
+        console.warn('[agent-monitor] Failed to unsubscribe event:', e instanceof Error ? e : String(e));
       }
     }
   };

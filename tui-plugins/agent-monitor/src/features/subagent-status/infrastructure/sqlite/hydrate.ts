@@ -5,7 +5,7 @@ import type { SubagentChild, SubagentState, SubagentTokens } from '../../domain/
 import { mergeSubagentTokens, normalizeSubagentTokens } from '../../domain/tokens.ts';
 import { deriveTerminalSessionStatus } from '../../domain/session-status.ts';
 import { debugLog } from '../../shared/display.ts';
-import { isPlainObject as isRecord, normalizedString, timestampFromUnknown } from '../../../../kit/coercion.ts';
+import { isRecord, normalizedString, timestampFromUnknown } from '../../../../kit/coercion.ts';
 import { DEFAULT_STALE_RUNNING_PROBE_POLICY } from '../../runtime/options.ts';
 
 import { applyRecoveredChildren } from '../recovery.ts';

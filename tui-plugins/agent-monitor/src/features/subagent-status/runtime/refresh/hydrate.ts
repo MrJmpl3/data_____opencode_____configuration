@@ -4,11 +4,11 @@
 
 import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
 
-import { isPlainObject as isRecord, normalizedString, timestampFromUnknown } from '../../../../kit/coercion.ts';
+import { isRecord, normalizedString, timestampFromUnknown } from '../../../../kit/coercion.ts';
 import { deriveSessionStatus, deriveTerminalSessionStatus } from '../../domain/session-status.ts';
 import { isRealSessionChild } from '../../domain/state/core.ts';
 import { markChildRunning, markChildStatus } from '../../domain/state/mutations.ts';
-import { mergeChildDetails } from '../../domain/state/mutate-details.ts';
+import { upsertChildDetails } from '../../domain/state/mutate-details.ts';
 import type { SubagentChild, SubagentState } from '../../domain/types.ts';
 import { hasCompleteUsageMetrics } from '../../domain/tokens.ts';
 import { hydrateDoneChildTokens as hydrateDoneChildTokensFromLogs } from '../../infrastructure/logs.ts';
@@ -337,7 +337,7 @@ export const hydrateChildTokensFromLogs = async (state: SubagentState): Promise<
     const tokens = await hydrateDoneChildTokensFromLogs(sessionId);
     if (!tokens) continue;
 
-    changed = mergeChildDetails(state, child.id, { tokens }) || changed;
+    changed = upsertChildDetails(state, child.id, { tokens }) || changed;
   }
 
   return changed;

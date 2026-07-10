@@ -81,7 +81,7 @@ const hydrateRecoverySourcesSafely = async (input: {
       input.recoverySources,
     );
   } catch (e) {
-    console.warn('[agent-monitor] Recovery hydration failed:', e instanceof Error ? e.message : String(e));
+    console.warn('[agent-monitor] Recovery hydration failed:', e);
     return createEmptyRecoveryResult();
   }
 };
@@ -182,7 +182,8 @@ export const createTuiRuntimeRefresh = (
       let response: unknown;
       try {
         response = await sessionClient.listChildren(sessionId);
-      } catch {
+      } catch (e) {
+        console.warn('[agent-monitor] listChildren failed for', sessionId, ':', e instanceof Error ? e : String(e));
         nextState.recovering = false;
         if (recovered.changed) {
           await input.syncState(nextState, input.createPersistMeta('refresh'));
@@ -247,7 +248,7 @@ export const createTuiRuntimeRefresh = (
 
       await input.syncState(nextState, input.createPersistMeta('refresh'));
     } catch (e) {
-      console.warn('[agent-monitor] Refresh failed:', e instanceof Error ? e.message : String(e));
+      console.warn('[agent-monitor] Refresh failed:', e);
     }
   });
 
@@ -272,7 +273,7 @@ export const createTuiRuntimeRefresh = (
 
       await input.syncState(nextState, input.createPersistMeta('refresh'));
     } catch (e) {
-      console.warn('[agent-monitor] Token backfill failed:', e instanceof Error ? e.message : String(e));
+      console.warn('[agent-monitor] Token backfill failed:', e);
     }
   });
 
@@ -290,7 +291,9 @@ export const createTuiRuntimeRefresh = (
     );
     if (isInactiveSessionToken(sessionToken)) return;
 
-    void tokenBackfillRunner({ sessionId, sessionToken });
+    tokenBackfillRunner({ sessionId, sessionToken }).catch((e) => {
+      console.warn('[agent-monitor] Token backfill failed (fire-and-forget):', e);
+    });
   };
 
   return {

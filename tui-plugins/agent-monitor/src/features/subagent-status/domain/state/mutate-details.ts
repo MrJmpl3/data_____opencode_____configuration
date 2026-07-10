@@ -78,15 +78,4 @@ export const upsertChildDetails = (
   return true;
 };
 
-export const mergeChildDetails = (
-  state: SubagentState,
-  childID: string,
-  input: {
-    title?: string;
-    summary?: string;
-    agentName?: string;
-    tokens?: SubagentTokens;
-    targetSessionID?: string;
-    updatedAt?: string;
-  },
-): boolean => upsertChildDetails(state, childID, input);
+
