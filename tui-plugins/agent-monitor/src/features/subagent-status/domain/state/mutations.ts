@@ -66,8 +66,7 @@ const shouldPreserveSameTerminalTiming = (
 const resolveSourceForUpsert = (
   input: Pick<SubagentChild, 'id' | 'source'>,
   existing: SubagentChild | undefined,
-): SubagentChild['source'] =>
-  input.source ?? existing?.source ?? (input.id.startsWith('ses_') ? 'session' : undefined);
+): SubagentChild['source'] => input.source ?? existing?.source ?? (input.id.startsWith('ses_') ? 'session' : undefined);
 
 const isKnownStatus = (status: SubagentChild['status'] | undefined): status is SubagentChild['status'] =>
   status === 'done' || status === 'error' || status === 'stale' || status === 'running';
@@ -92,10 +91,10 @@ const shouldReopenTerminal = (
 ): boolean =>
   Boolean(
     existing &&
-      isTerminalStatus(existing.status) &&
-      incomingStatus === 'running' &&
-      allowTerminalReopen === true &&
-      incomingEvidenceMs > childEvidenceTimestampMs(existing),
+    isTerminalStatus(existing.status) &&
+    incomingStatus === 'running' &&
+    allowTerminalReopen === true &&
+    incomingEvidenceMs > childEvidenceTimestampMs(existing),
   );
 
 interface TimingPreservation {
@@ -115,9 +114,9 @@ const computeTimingPreservation = (
   const staleEvidence = isStaleEvidence(existing, incomingEvidenceMs);
   const preserveExistingTiming = Boolean(
     existing &&
-      (preserveSameTerminalTiming ||
-        staleEvidence ||
-        (isTerminalStatus(existing.status) && incomingStatus === 'running' && !reopenTerminal)),
+    (preserveSameTerminalTiming ||
+      staleEvidence ||
+      (isTerminalStatus(existing.status) && incomingStatus === 'running' && !reopenTerminal)),
   );
   return { preserveExistingTiming, preserveSameTerminalTiming, reopenTerminal };
 };
