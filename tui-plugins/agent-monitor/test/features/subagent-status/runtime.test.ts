@@ -608,17 +608,21 @@ describe('refresh runtime', () => {
       },
     } as unknown as TuiPluginApi;
 
-    const runtime = createTuiRuntime(api, {
-      getState: () => state,
-      setState: (nextState) => {
-        state = nextState;
+    const runtime = createTuiRuntime(
+      api,
+      {
+        getState: () => state,
+        setState: (nextState) => {
+          state = nextState;
+        },
+        getSessionId: () => sessionID,
+        setSessionId: (nextSessionID) => {
+          sessionID = nextSessionID;
+        },
+        setNowMs: vi.fn(),
       },
-      getSessionId: () => sessionID,
-      setSessionId: (nextSessionID) => {
-        sessionID = nextSessionID;
-      },
-      setNowMs: vi.fn(),
-    });
+      { debug: false, recovery: { sqliteDatabasePath: ':mock:' }, staleRunningProbePolicy: { hardStaleAfterMs: 0, baseBackoffMs: 60_000, maxBackoffMs: 300_000, maxAttempts: 4, refreshIntervalMs: 60_000 }, visibility: { doneRetentionMs: 600_000, staleRetentionMs: 1_200_000 }, persistence: { statePath: '', preserveStateOnStartup: false } } as Parameters<typeof createTuiRuntime>[2],
+    );
 
     await runtime.bootstrap();
     runtime.refreshFromSlot({ session_id: 'ses_parent' });

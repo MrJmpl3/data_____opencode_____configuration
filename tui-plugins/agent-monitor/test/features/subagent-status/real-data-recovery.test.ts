@@ -36,7 +36,7 @@ describe('real-data SQLite recovery end-to-end', () => {
       return;
     }
 
-    const source = createSQLiteRecoverySource({ hardStaleAfterMs: 5 * 60 * 60 * 1000 });
+    const source = createSQLiteRecoverySource({ databasePath: REAL_DATABASE_PATH, hardStaleAfterMs: 5 * 60 * 60 * 1000 });
     const state = createEmptyState();
 
     const result = await source.hydrateState(state, {

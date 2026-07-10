@@ -33,11 +33,6 @@ const toISOString = (timestampMs: number): string => {
   return new Date(timestampMs).toISOString();
 };
 
-const resolveOpenCodeDatabasePath = (): string => {
-  const baseDir = process.env.XDG_DATA_HOME ?? join(os.homedir(), '.local', 'share');
-  return join(baseDir, 'opencode', 'opencode.db');
-};
-
 const resolvePartTerminalTimestamp = (part: Record<string, unknown>): string | undefined => {
   const state = isRecord(part.state) ? part.state : undefined;
   const time = isRecord(part.time) ? part.time : undefined;
@@ -367,9 +362,9 @@ const mapRecoveredChild = (row: SQLiteRecoveryRow, hardStaleAfterMs: number): Ma
 export type ReadSQLiteRecoveryRows = (databasePath: string, parentSessionID: string) => Promise<SQLiteRecoveryRow[]>;
 
 export const createSQLiteRecoverySource = (
-  input: { databasePath?: string; hardStaleAfterMs?: number; readRows?: ReadSQLiteRecoveryRows } = {},
+  input: { databasePath: string; hardStaleAfterMs?: number; readRows?: ReadSQLiteRecoveryRows },
 ): RecoverySource => {
-  const databasePath = input.databasePath ?? resolveOpenCodeDatabasePath();
+  const databasePath = input.databasePath;
   const hardStaleAfterMs = Math.max(
     0,
     Math.floor(input.hardStaleAfterMs ?? DEFAULT_STALE_RUNNING_PROBE_POLICY.hardStaleAfterMs),

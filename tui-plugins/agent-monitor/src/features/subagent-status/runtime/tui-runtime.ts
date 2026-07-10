@@ -64,12 +64,14 @@ export const createTuiRuntime = (
   const persistQueuedSnapshot = createPersistQueue(statePath, textPath, (state, meta: PersistSnapshotMeta) =>
     formatPersistedSnapshot(state, meta, visibilityPolicy),
   );
-  const recoverySources = [
-    createSQLiteRecoverySource({
-      databasePath: options.recovery.sqliteDatabasePath,
-      hardStaleAfterMs: options.staleRunningProbePolicy.hardStaleAfterMs,
-    }),
-  ];
+  const recoverySources = options.recovery.sqliteDatabasePath
+    ? [
+        createSQLiteRecoverySource({
+          databasePath: options.recovery.sqliteDatabasePath,
+          hardStaleAfterMs: options.staleRunningProbePolicy.hardStaleAfterMs,
+        }),
+      ]
+    : [];
   const staleRunningProbePolicy = options.staleRunningProbePolicy;
   const bufferedEvents = createBufferedTaskQueue(async (event: unknown) => {
     await mergeEventState(event);
