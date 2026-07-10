@@ -49,6 +49,15 @@ const handleSessionIdle = (state: SubagentState, event: EventLike): boolean => {
   const sessionId = extractSessionId(event);
   if (!sessionId) return false;
 
+  // ponytail: An idle event may carry a terminal status (cancelled, aborted,
+  // done) when the sub-agent was interrupted. Check for it — if present,
+  // route through handleSessionStatus instead of just updating details so
+  // the child is properly marked as terminal and won't stay "running" forever.
+  const terminalStatus = extractOpenCodeEventSessionStatus(event);
+  if (terminalStatus === 'error' || terminalStatus === 'done') {
+    return handleSessionStatus(state, event);
+  }
+
   return upsertChildDetails(state, sessionId, extractChildDetails(event));
 };
 
