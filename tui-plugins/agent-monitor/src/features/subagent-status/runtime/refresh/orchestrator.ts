@@ -16,7 +16,8 @@ import { reconcileNormalizedChildrenState } from '../../domain/reconcile/reconci
 import { applySubagentEvent } from '../events/handle.ts';
 import { extractSessionId } from '../events/parse.ts';
 import { createCoalescedTaskRunner } from '../queue.ts';
-import { createSessionClientBoundary, normalizeEventPayload } from '../boundaries.ts';
+import { normalizeEventPayload } from '../events/event-payload.ts';
+import { createSessionClientBoundary } from '../session/session-client.ts';
 import type { PersistSnapshotMeta } from '../snapshot.ts';
 import type { ResolvedSubagentStatusPluginOptions } from '../options.ts';
 import type { createRuntimeSessionScopeHelpers } from '../session/scope.ts';

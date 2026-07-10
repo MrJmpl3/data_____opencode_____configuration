@@ -9,7 +9,7 @@ import { markChildRunning, markChildStatus } from '../../domain/state/mutations.
 import type { SubagentState } from '../../domain/types.ts';
 import { debugLog } from '../../shared/display.ts';
 
-import { createSessionClientBoundary } from '../boundaries.ts';
+import { createSessionClientBoundary } from '../session/session-client.ts';
 
 import {
   analyzeMessages,

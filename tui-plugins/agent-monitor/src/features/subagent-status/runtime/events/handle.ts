@@ -2,7 +2,8 @@ import { markChildRunning, markChildStatus, upsertRunningChild } from '../../dom
 import { upsertChildDetails } from '../../domain/state/mutate-details.ts';
 import type { SubagentState } from '../../domain/types.ts';
 import { asString } from '../../../../kit/coercion.ts';
-import { normalizeEventPayload, type EventLike } from '../boundaries.ts';
+import { normalizeEventPayload } from '../events/event-payload.ts';
+import type { EventLike } from '../events/event-payload.ts';
 import {
   extractChildDetails,
   extractCreatedChild,

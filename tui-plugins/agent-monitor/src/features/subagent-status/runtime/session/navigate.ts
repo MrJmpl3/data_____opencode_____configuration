@@ -1,6 +1,6 @@
 import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
 import type { SubagentChild } from '../../domain/types.ts';
-import { resolveSlotSessionId } from '../boundaries.ts';
+import { resolveSlotSessionId } from './slot-payload.ts';
 
 type SessionTargetLike = Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'targetSessionID'>>;
 

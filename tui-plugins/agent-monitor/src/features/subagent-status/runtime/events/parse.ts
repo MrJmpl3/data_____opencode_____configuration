@@ -2,7 +2,7 @@ import type { SubagentState } from '../../domain/types.ts';
 import { deriveSessionStatus as deriveOpenCodeSessionStatus } from '../../domain/session-status.ts';
 import { conciseText, sameDisplayText } from '../../shared/display.ts';
 import { asString, isRecord, timestampFromUnknown } from '../../../../kit/coercion.ts';
-import { type EventLike } from '../boundaries.ts';
+import type { EventLike } from '../events/event-payload.ts';
 
 // ─── parsing: extract structured data from raw events ───────────────────────
 

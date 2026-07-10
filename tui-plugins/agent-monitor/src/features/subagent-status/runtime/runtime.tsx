@@ -21,7 +21,7 @@ import { buildTuiStructuralView, buildTimedSnapshot } from './snapshot.ts';
 import { HomeBottomView, SidebarView } from '../ui/view.tsx';
 import { normalizeSubagentStatusPluginOptions } from './options.ts';
 import { createTuiRuntime } from './tui-runtime.ts';
-import { resolveRouteSessionId } from './boundaries.ts';
+import { resolveRouteSessionId } from './session/route-params.ts';
 import { readSubagentStatusOptions } from '../infrastructure/config.ts';
 
 export const registerSubagentStatusTui = async (api: TuiPluginApi, options: unknown): Promise<void> => {
