@@ -67,7 +67,7 @@ export const byPriority = (left: SubagentChild, right: SubagentChild): number =>
 
 export const formatAggregateNumber = (value: number): string => Math.max(0, Math.round(value)).toLocaleString('en-US');
 
-export const collapseSubagentWorkItems = (children: SubagentChild[]): SubagentChild[] => {
+const groupSyntheticByParent = (children: SubagentChild[]) => {
   const syntheticChildren: SubagentChild[] = [];
   const syntheticByParentID = new Map<string, SubagentChild[]>();
   const sessionCandidatesByParentID = new Map<string, SubagentChild[]>();
@@ -87,9 +87,15 @@ export const collapseSubagentWorkItems = (children: SubagentChild[]): SubagentCh
     }
   }
 
+  return { syntheticChildren, syntheticByParentID, sessionCandidatesByParentID };
+};
+
+const matchSyntheticToSession = (
+  syntheticChildren: SubagentChild[],
+  sessionCandidatesByParentID: Map<string, SubagentChild[]>,
+) => {
   const sessionBySyntheticID = new Map<string, SubagentChild>();
   const hiddenMatchedSessionIDs = new Set<string>();
-  const hiddenSyntheticToolIDs = new Set<string>();
 
   for (const synthetic of syntheticChildren) {
     let bestSession: SubagentChild | undefined;
@@ -104,6 +110,11 @@ export const collapseSubagentWorkItems = (children: SubagentChild[]): SubagentCh
     }
   }
 
+  return { sessionBySyntheticID, hiddenMatchedSessionIDs };
+};
+
+const deduplicateSyntheticTools = (syntheticByParentID: Map<string, SubagentChild[]>): Set<string> => {
+  const hiddenSyntheticToolIDs = new Set<string>();
   for (const siblings of syntheticByParentID.values()) {
     for (const child of siblings) {
       if (child.source !== 'tool') continue;
@@ -120,6 +131,17 @@ export const collapseSubagentWorkItems = (children: SubagentChild[]): SubagentCh
       }
     }
   }
+
+  return hiddenSyntheticToolIDs;
+};
+
+export const collapseSubagentWorkItems = (children: SubagentChild[]): SubagentChild[] => {
+  const { syntheticChildren, syntheticByParentID, sessionCandidatesByParentID } = groupSyntheticByParent(children);
+  const { sessionBySyntheticID, hiddenMatchedSessionIDs } = matchSyntheticToSession(
+    syntheticChildren,
+    sessionCandidatesByParentID,
+  );
+  const hiddenSyntheticToolIDs = deduplicateSyntheticTools(syntheticByParentID);
 
   return children
     .filter((child) => {

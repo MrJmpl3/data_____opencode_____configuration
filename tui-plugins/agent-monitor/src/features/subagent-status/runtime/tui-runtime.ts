@@ -3,7 +3,6 @@ import type { Accessor } from 'solid-js';
 
 import { useClockTicker } from '../../../kit/use-clock-ticker.ts';
 import { installEventBridge } from './events/bridge.ts';
-import { createBufferedTaskQueue } from './queue.ts';
 import { normalizeSubagentStatusPluginOptions, type ResolvedSubagentStatusPluginOptions } from './options.ts';
 import { debugLog, setDebugEnabled } from '../shared/display.ts';
 import { resolveSessionSlotTransition } from './session/navigate.ts';
@@ -11,17 +10,11 @@ import { createRuntimeSessionScopeHelpers } from './session/scope.ts';
 import { markHardStaleRunningChildren } from '../domain/state/maintenance.ts';
 import { createEmptyState } from '../domain/state/core.ts';
 import type { SubagentState } from '../domain/types.ts';
-import {
-  createPersistQueue,
-  loadState,
-  resolveStatePath,
-  resolveTextPath,
-  shouldPreserveStateOnStartup,
-} from '../infrastructure/persistence.ts';
-import { createSQLiteRecoverySource } from '../infrastructure/sqlite/hydrate.ts';
-import { formatPersistedSnapshot, type PersistSnapshotMeta } from './snapshot.ts';
+import { loadState, shouldPreserveStateOnStartup } from '../infrastructure/persistence.ts';
 import { createTuiRuntimeRefresh } from './refresh/orchestrator.ts';
 import { isRecord } from '../../../kit/coercion.ts';
+import { buildTuiRuntimeConfig } from './tui-runtime-config.ts';
+import type { PersistSnapshotMeta } from './snapshot.ts';
 
 export type TuiRuntime = {
   bootstrap: () => Promise<void>;
@@ -55,32 +48,25 @@ export const createTuiRuntime = (
 ): TuiRuntime => {
   setDebugEnabled(options.debug);
 
-  const statePath = resolveStatePath({
-    workspaceDirectory: api.state.path.directory,
-    statePath: options.persistence.statePath,
+  // Configuration bundles (paths, recovery sources, stale probe policy) are
+  // built up-front because they do not depend on the orchestrator. The
+  // buffered event queue and refresh orchestrator form a small circular
+  // dependency (queue calls back into `mergeEventState`, refresh owns
+  // `mergeEventState`), so we wire them after the rest of the config lands.
+  // The queue is created with a forward-reference handler that the refresh
+  // bundle below resolves to the real `mergeEventState`.
+  let mergeEventStateFn: ((event: unknown) => Promise<void>) | undefined;
+
+  const config = buildTuiRuntimeConfig(api, options, async (event) => {
+    if (mergeEventStateFn) await mergeEventStateFn(event);
   });
-  const textPath = resolveTextPath(statePath);
-  const visibilityPolicy = options.visibility;
-  const persistQueuedSnapshot = createPersistQueue(statePath, textPath, (state, meta: PersistSnapshotMeta) =>
-    formatPersistedSnapshot(state, meta, visibilityPolicy),
-  );
-  const recoverySources = options.recovery.sqliteDatabasePath
-    ? [
-        createSQLiteRecoverySource({
-          databasePath: options.recovery.sqliteDatabasePath,
-          hardStaleAfterMs: options.staleRunningProbePolicy.hardStaleAfterMs,
-        }),
-      ]
-    : [];
-  const staleRunningProbePolicy = options.staleRunningProbePolicy;
-  const bufferedEvents = createBufferedTaskQueue(async (event: unknown) => {
-    await mergeEventState(event);
-  });
+  const { statePath, persistQueuedSnapshot, recoverySources, staleRunningProbePolicy, bufferedEvents } = config;
 
   let disposed = false;
+  let lastEventType: string | undefined;
   let reconcileTimer: ReturnType<typeof setInterval> | undefined;
   let clockTickerDispose: (() => void) | undefined;
-  let lastEventType: string | undefined;
+
   // Slot-visibility gate: useSlotVisibility's Accessor takes priority when
   // provided; otherwise fall back to an internal boolean (tests/compat).
   let internalSlotVisible = false;
@@ -89,6 +75,8 @@ export const createTuiRuntime = (
     internalSlotVisible = visible;
   };
   const hasVisibleContent = input.hasVisibleContent ?? (() => true);
+
+  let sessionScope: ReturnType<typeof createRuntimeSessionScopeHelpers> | undefined;
 
   const createPersistMeta = (source: PersistSnapshotMeta['source']): PersistSnapshotMeta => ({
     source,
@@ -102,14 +90,14 @@ export const createTuiRuntime = (
     await persistQueuedSnapshot(nextState, meta);
   };
 
-  const sessionScope = createRuntimeSessionScopeHelpers({
+  sessionScope = createRuntimeSessionScopeHelpers({
     getSessionId: input.getSessionId,
     setSessionId: input.setSessionId,
     syncState,
     createRefreshMeta: () => createPersistMeta('refresh'),
   });
 
-  const { mergeEventState, refresh } = createTuiRuntimeRefresh(api, {
+  const refreshBundle = createTuiRuntimeRefresh(api, {
     state: {
       getState: input.getState,
       getSessionId: input.getSessionId,
@@ -122,6 +110,12 @@ export const createTuiRuntime = (
     syncState,
     isDisposed: () => disposed,
   });
+  mergeEventStateFn = refreshBundle.mergeEventState;
+  const refreshFn = refreshBundle.refresh;
+
+  const refresh = async (sessionId: string = input.getSessionId()): Promise<void> => {
+    await refreshFn(sessionId);
+  };
 
   const refreshFromSlot = (slotInput: unknown): void => {
     const transition = resolveSessionSlotTransition(
@@ -132,13 +126,13 @@ export const createTuiRuntime = (
 
     if (!transition.nextSessionId) {
       if (transition.resetState) {
-        sessionScope.resetSessionScope();
+        sessionScope!.resetSessionScope();
       }
       return;
     }
 
     if (transition.resetState) {
-      sessionScope.beginSessionScope(transition.nextSessionId);
+      sessionScope!.beginSessionScope(transition.nextSessionId);
       void refresh(transition.nextSessionId);
       return;
     }
@@ -186,9 +180,19 @@ export const createTuiRuntime = (
 
       debugLog(`[subagent-status] bootstrap: calling refresh with sessionId=${input.getSessionId()}`);
       await refresh(input.getSessionId());
+    } catch (e) {
+      // Format: "[agent-monitor] <message> — sessionId=<id>: <error>" so a
+      // single grep on `sessionId=` correlates every bootstrap failure to
+      // its session — bootstrap is the most important lifecycle event.
+      console.warn(
+        '[agent-monitor] Bootstrap failed — sessionId=',
+        input.getSessionId(),
+        ':',
+        e instanceof Error ? e : String(e),
+      );
     } finally {
       await bufferedEvents.markReady();
-      sessionScope.finishStartupScopedEventBuffering();
+      sessionScope!.finishStartupScopedEventBuffering();
       if (bufferedEvents.wasTruncated()) {
         void refresh();
       }

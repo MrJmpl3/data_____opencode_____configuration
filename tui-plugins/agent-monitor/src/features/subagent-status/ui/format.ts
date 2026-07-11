@@ -56,15 +56,13 @@ export const truncateLabel = (value: string, maxChars: number): string => {
   return `${normalized.slice(0, maxChars - 1).trimEnd()}${ELLIPSIS}`;
 };
 
-const formatTokenCount = (total: number, suffix = ''): string => {
-  const value = Math.max(0, total);
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M${suffix}`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k${suffix}`;
-  return `${Math.round(value)}${suffix}`;
+const formatTokenCount = (value: number, options: { unit?: string } = {}): string => {
+  const safeValue = Math.max(0, value);
+  const unit = options.unit ?? '';
+  if (safeValue >= 1_000_000) return `${(safeValue / 1_000_000).toFixed(1)}M${unit}`;
+  if (safeValue >= 1_000) return `${(safeValue / 1_000).toFixed(1)}k${unit}`;
+  return `${Math.round(safeValue)}${unit}`;
 };
-
-const formatCompactTokenCount = (total: number): string => formatTokenCount(total, ' tok');
-const formatSidebarTokenCount = (total: number): string => formatTokenCount(total);
 
 const formatCompactPercentUsed = (percent: number): string => {
   return `${Math.max(0, Math.round(percent))}%`;
@@ -101,7 +99,7 @@ const joinCompactParts = (parts: readonly string[], maxChars: number): string =>
 export const formatTokenCompact = (child: SubagentChild): string => {
   const total = resolveTokenTotal(child.tokens);
   if (typeof total === 'number' && Number.isFinite(total)) {
-    return formatCompactTokenCount(total);
+    return formatTokenCount(total, { unit: ' tok' });
   }
 
   return '';
@@ -122,7 +120,7 @@ export const formatUsageCompact = (child: SubagentChild): string => {
 const formatSidebarTokenCompact = (child: SubagentChild): string => {
   const total = resolveTokenTotal(child.tokens);
   if (typeof total === 'number' && Number.isFinite(total)) {
-    return formatSidebarTokenCount(total);
+    return formatTokenCount(total);
   }
 
   return '';

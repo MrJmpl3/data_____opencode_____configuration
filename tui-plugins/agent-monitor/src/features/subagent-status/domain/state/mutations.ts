@@ -3,8 +3,6 @@ import type { SubagentChild, SubagentState, SubagentTokens } from '../types.ts';
 import { safeTimestamp, timestampMs, toNonNegativeInteger } from '../../../../kit/coercion.ts';
 import {
   clearPurgedSession,
-  createEmptyState,
-  isSubtaskFallback,
   mergeTokens,
   resolveSessionIdentity,
   resolveStatusColor,
@@ -18,11 +16,11 @@ import {
   pruneTerminalChildren,
   rekeyCountedExecution,
   resolveExecutionCountIdentity,
-  syncExecutionState,
 } from './maintenance.ts';
+import { resolveChildTiming, resolveIncomingStatus, resolveSourceForUpsert } from './timing-policy.ts';
 
 // ─── Mutaciones de estado ──────────────────────────────────────────────────
-// Son las UNICAS 5 formas de modificar SubagentState. Cada mutation devuelve
+// Son las UNICAS formas de modificar SubagentState. Cada mutation devuelve
 // boolean indicando si algo cambio realmente (para saber si hay que persistir).
 
 const countChildExecution = (
@@ -49,76 +47,45 @@ const reconcileSubtaskTargetCount = (
   state: SubagentState,
   child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'source' | 'targetSessionID'>>,
 ): boolean => {
-  if (!isSubtaskFallback(child) || !child.targetSessionID) return false;
+  if (child.source !== 'subtask' || !child.targetSessionID) return false;
   return rekeyCountedExecution(state, child.id, child.targetSessionID);
 };
 
-const shouldPreserveSameTerminalTiming = (
-  existing: SubagentChild | undefined,
-  nextStatus: SubagentChild['status'],
-): boolean => {
-  return Boolean(existing && isTerminalStatus(existing.status) && existing.status === nextStatus);
+type ChildBuildInputs = {
+  input: Parameters<typeof upsertRunningChild>[1];
+  existing: SubagentChild | undefined;
+  observedStartedAt: string;
+  status: SubagentChild['status'];
+  nextUpdatedAt: string;
+  nextEndedAt: string | undefined;
+  source: SubagentChild['source'];
+  targetSessionID: string | undefined;
+  tokens: SubagentTokens | undefined;
 };
 
-// Source resolution prefers the incoming value, falls back to the
-// stored one, and as a last resort infers 'session' from a ses_-prefixed id.
-// Keeping the chain isolated makes the precedence readable in one place.
-const resolveSourceForUpsert = (
-  input: Pick<SubagentChild, 'id' | 'source'>,
-  existing: SubagentChild | undefined,
-): SubagentChild['source'] => input.source ?? existing?.source ?? (input.id.startsWith('ses_') ? 'session' : undefined);
-
-const isKnownStatus = (status: SubagentChild['status'] | undefined): status is SubagentChild['status'] =>
-  status === 'done' || status === 'error' || status === 'stale' || status === 'running';
-
-const resolveIncomingStatus = (
-  input: Partial<Pick<SubagentChild, 'status'>>,
-  existing: SubagentChild | undefined,
-): SubagentChild['status'] => (isKnownStatus(input.status) ? input.status : (existing?.status ?? 'running'));
-
-const isStaleEvidence = (existing: SubagentChild | undefined, incomingEvidenceMs: number): boolean =>
-  Boolean(existing && incomingEvidenceMs < childEvidenceTimestampMs(existing));
-
-// A terminal child transitions back to running only when (a) the
-// caller explicitly opts in, (b) the new evidence is strictly newer, and (c)
-// the incoming status is running. Otherwise we'd silently rewrite history
-// and break the terminal contract.
-const shouldReopenTerminal = (
-  existing: SubagentChild | undefined,
-  incomingStatus: SubagentChild['status'],
-  incomingEvidenceMs: number,
-  allowTerminalReopen: boolean | undefined,
-): boolean =>
-  Boolean(
-    existing &&
-    isTerminalStatus(existing.status) &&
-    incomingStatus === 'running' &&
-    allowTerminalReopen === true &&
-    incomingEvidenceMs > childEvidenceTimestampMs(existing),
-  );
-
-interface TimingPreservation {
-  preserveExistingTiming: boolean;
-  preserveSameTerminalTiming: boolean;
-  reopenTerminal: boolean;
-}
-
-const computeTimingPreservation = (
-  existing: SubagentChild | undefined,
-  incomingStatus: SubagentChild['status'],
-  incomingEvidenceMs: number,
-  allowTerminalReopen: boolean | undefined,
-): TimingPreservation => {
-  const reopenTerminal = shouldReopenTerminal(existing, incomingStatus, incomingEvidenceMs, allowTerminalReopen);
-  const preserveSameTerminalTiming = shouldPreserveSameTerminalTiming(existing, incomingStatus);
-  const staleEvidence = isStaleEvidence(existing, incomingEvidenceMs);
-  const preserveExistingTiming = Boolean(
-    existing &&
-    (preserveSameTerminalTiming ||
-      staleEvidence ||
-      (isTerminalStatus(existing.status) && incomingStatus === 'running' && !reopenTerminal)),
-  );
-  return { preserveExistingTiming, preserveSameTerminalTiming, reopenTerminal };
+// Builds the normalized child snapshot that gets committed to state. Keeping
+// the field-by-field merge out of the orchestrator makes the "what counts as a
+// change" decision sit next to the actual construction.
+const buildChildState = (params: ChildBuildInputs): SubagentChild => {
+  const { input, existing, observedStartedAt, status, nextUpdatedAt, nextEndedAt, source, targetSessionID, tokens } =
+    params;
+  return normalizeChild({
+    id: input.id,
+    title: input.title,
+    summary: input.summary ?? existing?.summary,
+    agentName: input.agentName ?? existing?.agentName,
+    parentID: input.parentID,
+    messageID: input.messageID ?? existing?.messageID,
+    source,
+    targetSessionID,
+    status,
+    startedAt: observedStartedAt,
+    updatedAt: nextUpdatedAt,
+    endedAt: nextEndedAt,
+    color: existing?.color,
+    elapsedMs: existing?.elapsedMs,
+    tokens,
+  });
 };
 
 // Field-by-field equality on 12 normalized properties avoids a
@@ -179,20 +146,19 @@ export const upsertRunningChild = (
     clearPurgedSession(state, sessionIdentity);
   }
 
-  const incomingEvidenceMs = timestampMs(input.endedAt ?? observedUpdatedAt ?? observedStartedAt);
-  const { preserveExistingTiming, preserveSameTerminalTiming } = computeTimingPreservation(
+  const {
+    status,
+    updatedAt: nextUpdatedAt,
+    endedAt: nextEndedAt,
+    preserveSameTerminalTiming,
+  } = resolveChildTiming(
     existing,
+    observedUpdatedAt,
+    observedStartedAt,
     incomingStatus,
-    incomingEvidenceMs,
+    input.endedAt,
     options.allowTerminalReopen,
   );
-  const status = preserveExistingTiming ? existing!.status : incomingStatus;
-  const nextUpdatedAt = preserveExistingTiming ? existing!.updatedAt : observedUpdatedAt;
-  const nextEndedAt = preserveExistingTiming
-    ? existing!.endedAt
-    : status === 'running'
-      ? undefined
-      : (input.endedAt ?? existing?.endedAt ?? observedUpdatedAt);
 
   const counted = existing
     ? false
@@ -205,21 +171,15 @@ export const upsertRunningChild = (
         targetSessionID,
       });
 
-  const next = normalizeChild({
-    id: input.id,
-    title: input.title,
-    summary: input.summary ?? existing?.summary,
-    agentName: input.agentName ?? existing?.agentName,
-    parentID: input.parentID,
-    messageID: input.messageID ?? existing?.messageID,
+  const next = buildChildState({
+    input,
+    existing,
+    observedStartedAt,
+    status,
+    nextUpdatedAt,
+    nextEndedAt,
     source,
     targetSessionID,
-    status,
-    startedAt: observedStartedAt,
-    updatedAt: nextUpdatedAt,
-    endedAt: nextEndedAt,
-    color: existing?.color,
-    elapsedMs: existing?.elapsedMs,
     tokens: mergeTokens(existing?.tokens, input.tokens),
   });
 
@@ -231,33 +191,6 @@ export const upsertRunningChild = (
   reconcileSubtaskTargetCount(state, next);
   state.updatedAt = preserveSameTerminalTiming ? observedUpdatedAt : next.updatedAt;
   return true;
-};
-
-/** Reemplaza todos los hijos del estado. Se usa en refresh completo. */
-export const replaceChildren = (state: SubagentState, nextChildren: SubagentChild[]): boolean => {
-  const nextState = createEmptyState();
-  nextState.countedChildIDs = { ...state.countedChildIDs };
-  nextState.totalExecuted = state.totalExecuted;
-  nextState.updatedAt = state.updatedAt;
-
-  for (const child of nextChildren) {
-    upsertRunningChild(nextState, child);
-    if (isTerminalStatus(child.status)) {
-      markChildStatus(nextState, child.id, child.status, child.endedAt ?? child.updatedAt);
-    }
-  }
-
-  syncExecutionState(nextState);
-
-  const childrenCountChanged = Object.keys(state.children).length !== Object.keys(nextState.children).length;
-  const countedIDsChanged = Object.keys(state.countedChildIDs).length !== Object.keys(nextState.countedChildIDs).length;
-  const changed = childrenCountChanged || countedIDsChanged || state.totalExecuted !== nextState.totalExecuted;
-
-  state.children = nextState.children;
-  state.countedChildIDs = nextState.countedChildIDs;
-  state.totalExecuted = nextState.totalExecuted;
-  state.updatedAt = changed ? new Date().toISOString() : state.updatedAt;
-  return changed;
 };
 
 /** Marca un child como running (vuelve del estado terminal). */

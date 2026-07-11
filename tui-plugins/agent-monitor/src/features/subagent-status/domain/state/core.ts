@@ -62,8 +62,6 @@ export const resolveElapsedMs = (
   return Math.max(0, endMs - startedMs);
 };
 
-export { safeTimestamp, timestampMs, toFiniteNumber, toNonNegativeInteger };
-
 // ─── core ───────────────────────────────────────────────────────────────────
 
 export const createEmptyState = (): SubagentState => ({

@@ -6,15 +6,12 @@ import { normalizeEventPayload } from '../events/event-payload.ts';
 import type { EventLike } from '../events/event-payload.ts';
 import {
   extractChildDetails,
-  extractCreatedChild,
   extractEventTimestamp,
   extractOpenCodeEventSessionStatus,
   extractSessionId,
-  extractSubtaskChild,
-  extractToolChild,
-  mapTaskToolToSubtaskID,
-  resolveSyntheticTargetSessionID,
-} from './parse.ts';
+} from './extract.ts';
+import { extractCreatedChild, extractSubtaskChild, extractToolChild } from './extract-child.ts';
+import { mapTaskToolToSubtaskID, resolveSyntheticTargetSessionID } from './resolve.ts';
 
 // Event types that can actually mutate SubagentState. Used by mergeEventState
 // to avoid cloning the entire state tree for irrelevant events (e.g.

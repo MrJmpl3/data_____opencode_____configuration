@@ -1,6 +1,6 @@
 import type { SubagentChild, SubagentState } from '../types.ts';
 
-import { timestampMs, toNonNegativeInteger } from '../../../../kit/coercion.ts';
+import { safeTimestamp, timestampMs, toNonNegativeInteger } from '../../../../kit/coercion.ts';
 
 import {
   isDelegationLikeChild,
@@ -10,7 +10,6 @@ import {
   resolveElapsedMs,
   resolveSessionIdentity,
   resolveStatusColor,
-  safeTimestamp,
   sanitizeAgentName,
   sanitizeSummary,
   sanitizeTargetSessionID,

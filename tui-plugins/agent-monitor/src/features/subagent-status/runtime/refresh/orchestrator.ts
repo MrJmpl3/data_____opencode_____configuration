@@ -1,6 +1,9 @@
 // Refresh orchestration — the main createTuiRuntimeRefresh.
 //
-// Originally part of refresh.ts; extracted here to reduce file sprawl.
+// The merge-event-state loop lives in `events/merge.ts` and the token backfill
+// runner lives in `refresh/token-backfill.ts` so this module can focus on the
+// refresh path itself: probe recovery, status hydration, stale-running
+// reconciliation, and persistence.
 
 import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
 
@@ -13,10 +16,8 @@ import type { RecoveryResult, RecoverySource } from '../../infrastructure/recove
 import { normalizeChildrenResponse } from '../../domain/reconcile/normalize.ts';
 import { reconcileNormalizedChildrenState } from '../../domain/reconcile/reconcile.ts';
 
-import { applySubagentEvent } from '../events/handle.ts';
-import { extractSessionId } from '../events/parse.ts';
+import { createMergeEventState } from '../events/merge.ts';
 import { createCoalescedTaskRunner } from '../queue.ts';
-import { normalizeEventPayload } from '../events/event-payload.ts';
 import { createSessionClientBoundary } from '../session/session-client.ts';
 import type { PersistSnapshotMeta } from '../snapshot.ts';
 import type { ResolvedSubagentStatusPluginOptions } from '../options.ts';
@@ -24,12 +25,13 @@ import type { createRuntimeSessionScopeHelpers } from '../session/scope.ts';
 import { resolveChildSessionId as resolveSessionRowSessionId } from '../session/navigate.ts';
 
 import { hydrateChildStatusesFromClient, hydrateChildStatusesFromTuiState } from './hydrate-client.ts';
-import { hydrateChildTokensFromLogs, type StatusHydrationOptions } from './hydrate.ts';
+import type { StatusHydrationOptions } from './hydrate.ts';
 import {
   resolveStaleRunningProbeTargets,
   settleStaleRunningProbeTargets,
   type StaleRunningProbeState,
 } from './stale.ts';
+import { createTokenBackfillRunner } from './token-backfill.ts';
 import type { StaleRunningProbePolicy } from '../options.ts';
 
 type RuntimeSessionScopeHelpers = ReturnType<typeof createRuntimeSessionScopeHelpers>;
@@ -82,7 +84,14 @@ const hydrateRecoverySourcesSafely = async (input: {
       input.recoverySources,
     );
   } catch (e) {
-    console.warn('[agent-monitor] Recovery hydration failed:', e);
+    // Logged in the format: "[agent-monitor] <message> — sessionId=<id>: <error>"
+    // so a single grep on `sessionId=` correlates every failure to its session.
+    console.warn(
+      '[agent-monitor] Recovery hydration failed — sessionId=',
+      input.parentSessionID,
+      ':',
+      e instanceof Error ? e : String(e),
+    );
     return createEmptyRecoveryResult();
   }
 };
@@ -125,46 +134,28 @@ export const createTuiRuntimeRefresh = (
   const isInactiveSessionToken = (sessionToken: number): boolean =>
     input.isDisposed() || sessionToken !== input.sessionScope.currentSessionToken();
 
-  const mergeEventState = async (event: unknown): Promise<void> => {
-    if (input.isDisposed()) return;
-
-    const normalizedEvent = normalizeEventPayload(event);
-    if (!normalizedEvent) return;
-
-    const eventSessionId = extractSessionId(normalizedEvent);
-    if (input.state.getSessionId() && eventSessionId && eventSessionId !== input.state.getSessionId()) return;
-    if (!input.state.getSessionId() && eventSessionId) {
-      if (input.sessionScope.isBufferingStartupScopedEvents()) {
-        input.sessionScope.bufferStartupScopedEvent(eventSessionId, normalizedEvent);
-      }
-      return;
-    }
-
-    let nextState: SubagentState;
-    try {
-      nextState = cloneState(input.state.getState());
-    } catch (e) {
-      console.warn(
-        '[agent-monitor] Failed to clone state for event processing:',
-        e instanceof Error ? e.message : String(e),
-      );
-      return;
-    }
-    const changed = applySubagentEvent(nextState, normalizedEvent);
-    if (!changed) return;
-
-    pruneTerminalChildren(nextState);
-    await input.syncState(nextState, input.createPersistMeta('event'));
-  };
+  const mergeEventState = createMergeEventState({
+    isDisposed: input.isDisposed,
+    getCurrentState: input.state.getState,
+    getCurrentSessionId: input.state.getSessionId,
+    isBufferingStartupScopedEvents: input.sessionScope.isBufferingStartupScopedEvents,
+    bufferStartupScopedEvent: input.sessionScope.bufferStartupScopedEvent,
+    syncState: input.syncState,
+    createPersistMeta: input.createPersistMeta,
+  });
 
   const refreshRunner = createCoalescedTaskRunner(async (request: RefreshRequest): Promise<void> => {
     const { sessionId, sessionToken } = request;
     if (isInactiveSessionToken(sessionToken)) return;
+    if (!sessionId) return;
+
+    // nextState is hoisted so the finally block can clear `recovering` even
+    // when the inner try block throws — keeping the flag consistent with the
+    // actual sync state on disk.
+    let nextState: SubagentState | undefined;
 
     try {
-      if (!sessionId) return;
-
-      let nextState = cloneState(input.state.getState());
+      nextState = cloneState(input.state.getState());
       nextState.recovering = true;
       const directory = api.state.path.directory;
       const recovered = await hydrateRecoverySourcesSafely({
@@ -184,9 +175,15 @@ export const createTuiRuntimeRefresh = (
       try {
         response = await sessionClient.listChildren(sessionId);
       } catch (e) {
-        console.warn('[agent-monitor] listChildren failed for', sessionId, ':', e instanceof Error ? e : String(e));
-        nextState.recovering = false;
-        if (recovered.changed) {
+        // Format: "[agent-monitor] <message> — sessionId=<id>: <error>" so a
+        // single grep on `sessionId=` correlates every failure to its session.
+        console.warn(
+          '[agent-monitor] listChildren failed — sessionId=',
+          sessionId,
+          ':',
+          e instanceof Error ? e : String(e),
+        );
+        if (nextState && recovered.changed) {
           await input.syncState(nextState, input.createPersistMeta('refresh'));
         }
         return;
@@ -234,7 +231,6 @@ export const createTuiRuntimeRefresh = (
         },
       );
       const pruned = pruneTerminalChildren(nextState);
-      nextState.recovering = false;
       if (isInactiveSessionToken(sessionToken)) return;
       if (
         !recovered.changed &&
@@ -249,33 +245,21 @@ export const createTuiRuntimeRefresh = (
 
       await input.syncState(nextState, input.createPersistMeta('refresh'));
     } catch (e) {
-      console.warn('[agent-monitor] Refresh failed:', e);
+      console.warn('[agent-monitor] Refresh failed — sessionId=', sessionId, ':', e instanceof Error ? e : String(e));
+    } finally {
+      // Clear `recovering` only when we actually allocated nextState so the
+      // flag never ends up out of sync with what the persistence layer wrote.
+      if (nextState) {
+        nextState.recovering = false;
+      }
     }
   });
 
-  const tokenBackfillRunner = createCoalescedTaskRunner(async (request: RefreshRequest): Promise<void> => {
-    const { sessionId, sessionToken } = request;
-    if (isInactiveSessionToken(sessionToken)) return;
-
-    try {
-      if (!sessionId) return;
-
-      // Skip clone if no done children exist — nothing to backfill.
-      const currentState = input.state.getState();
-      if (!Object.values(currentState.children).some((c) => c.status === 'done')) return;
-
-      const nextState = cloneState(currentState);
-      const hydrated = await hydrateChildTokensFromLogs(nextState);
-      const pruned = pruneTerminalChildren(nextState);
-      if (isInactiveSessionToken(sessionToken)) return;
-      if (!hydrated && !pruned) {
-        return;
-      }
-
-      await input.syncState(nextState, input.createPersistMeta('refresh'));
-    } catch (e) {
-      console.warn('[agent-monitor] Token backfill failed:', e);
-    }
+  const tokenBackfill = createTokenBackfillRunner({
+    getState: input.state.getState,
+    isInactiveSessionToken,
+    syncState: input.syncState,
+    createPersistMeta: input.createPersistMeta,
   });
 
   const refresh = async (
@@ -292,9 +276,7 @@ export const createTuiRuntimeRefresh = (
     );
     if (isInactiveSessionToken(sessionToken)) return;
 
-    tokenBackfillRunner({ sessionId, sessionToken }).catch((e) => {
-      console.warn('[agent-monitor] Token backfill failed (fire-and-forget):', e);
-    });
+    tokenBackfill.fireAndForget({ sessionId, sessionToken });
   };
 
   return {

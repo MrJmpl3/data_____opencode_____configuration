@@ -1059,9 +1059,9 @@ describe('debug gating for sqlite recovery console.log replacements', () => {
 });
 
 describe('mergeTokens cleanup', () => {
-  it('sqlite.ts uses mergeSubagentTokens from domain/tokens instead of a local mergeTokens', async () => {
+  it('recovery-classifier.ts uses mergeSubagentTokens from domain/tokens instead of a local mergeTokens', async () => {
     const source = await readFile(
-      new URL('../../../src/features/subagent-status/infrastructure/sqlite/hydrate.ts', import.meta.url),
+      new URL('../../../src/features/subagent-status/infrastructure/sqlite/recovery-classifier.ts', import.meta.url),
       'utf8',
     );
 

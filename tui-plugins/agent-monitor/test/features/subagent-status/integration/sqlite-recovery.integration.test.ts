@@ -1,211 +1,115 @@
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
-import { rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
-
-const hasPython = ((): boolean => {
-  try {
-    execFileSync('python3', ['--version'], { stdio: 'ignore', timeout: 5000 });
-    return true;
-  } catch {
-    return false;
-  }
-})();
-
-const itOrSkip = hasPython ? it : it.skip;
-const describeOrSkip = hasPython ? describe : describe.skip;
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  createSQLiteRecoveryRowsReader,
   readSQLiteRecoveryRows,
-  type SQLiteRecoveryRow,
 } from '../../../../src/features/subagent-status/infrastructure/sqlite/script.ts';
 
-const SEED_DB_SCRIPT = `
-import sqlite3, sys, json
+type Database = { close(): void; exec(sql: string): void };
+type SQLiteTestModule = { DatabaseSync: new (path: string) => Database };
+const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as SQLiteTestModule;
 
-path = sys.argv[1]
-parent_id = sys.argv[2]
+const seedDatabase = (path: string, parentID: string): void => {
+  const database = new DatabaseSync(path);
+  const quote = (value: string): string => `'${value.replaceAll("'", "''")}'`;
+  database.exec(`
+    CREATE TABLE session (id TEXT PRIMARY KEY, parent_id TEXT, title TEXT, agent TEXT, time_created INTEGER,
+      time_updated INTEGER, tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER,
+      tokens_cache_read INTEGER, tokens_cache_write INTEGER);
+    CREATE TABLE part (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT, data TEXT,
+      time_created INTEGER, time_updated INTEGER);
+    INSERT INTO session VALUES ('ses_done', ${quote(parentID)}, 'Completed Analysis', 'agent-alpha', 1700000000000, 1700000100000, NULL, NULL, NULL, NULL, NULL);
+    INSERT INTO part (session_id, data, time_created, time_updated) VALUES ('ses_done', '{"type":"session.completed","status":"done"}', 1700000100000, 1700000100000);
+    INSERT INTO session VALUES ('ses_running', ${quote(parentID)}, 'In Progress Task', 'agent-beta', 1700000200000, 1700000250000, NULL, NULL, NULL, NULL, NULL);
+    INSERT INTO part (session_id, data, time_created, time_updated) VALUES ('ses_running', '{"type":"step-start"}', 1700000250000, 1700000250000);
+    INSERT INTO session VALUES ('ses_error', ${quote(parentID)}, 'Failed Operation', 'agent-gamma', 1700000300000, 1700000350000, NULL, NULL, NULL, NULL, NULL);
+    INSERT INTO part (session_id, data, time_created, time_updated) VALUES ('ses_error', '{"type":"session.error"}', 1700000350000, 1700000350000);
+    INSERT INTO session VALUES ('ses_ambiguous_done', ${quote(parentID)}, 'Ambiguous Done', 'agent-delta', 1700000400000, 1700000450000, NULL, NULL, NULL, NULL, NULL);
+    INSERT INTO part (session_id, data, time_created, time_updated) VALUES ('ses_ambiguous_done', '{"type":"step-start"}', 1700000400000, 1700000400000);
+    INSERT INTO part (session_id, data, time_created, time_updated) VALUES ('ses_ambiguous_done', '{"type":"step-finish","reason":"stop"}', 1700000450000, 1700000450000);
+  `);
+  database.close();
+};
 
-conn = sqlite3.connect(path)
-cur = conn.cursor()
+describe('SQLite recovery integration', () => {
+  const tempDirectories: string[] = [];
+  afterEach(() => tempDirectories.splice(0).forEach((path) => rmSync(path, { recursive: true, force: true })));
 
-cur.execute("""
-    CREATE TABLE session (
-        id TEXT PRIMARY KEY,
-        parent_id TEXT,
-        title TEXT,
-        agent TEXT,
-        time_created INTEGER,
-        time_updated INTEGER,
-        tokens_input INTEGER,
-        tokens_output INTEGER,
-        tokens_reasoning INTEGER,
-        tokens_cache_read INTEGER,
-        tokens_cache_write INTEGER
-    )
-""")
+  it('reads and classifies rows without an external interpreter', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'agent-monitor-sqlite-'));
+    const path = join(directory, 'test.db');
+    tempDirectories.push(directory);
+    seedDatabase(path, 'ses_parent_test');
 
-cur.execute("""
-    CREATE TABLE part (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        session_id TEXT REFERENCES session(id),
-        data TEXT,
-        time_created INTEGER,
-        time_updated INTEGER
-    )
-""")
-
-# Session 1: completed session with explicit "done" status.
-cur.execute(
-    "INSERT INTO session (id, parent_id, title, agent, time_created, time_updated) VALUES (?, ?, ?, ?, ?, ?)",
-    ("ses_done", parent_id, "Completed Analysis", "agent-alpha", 1_700_000_000_000, 1_700_000_100_000),
-)
-
-cur.execute(
-    "INSERT INTO part (session_id, data, time_created, time_updated) VALUES (?, ?, ?, ?)",
-    ("ses_done", json.dumps({"type": "session.completed", "status": "done"}), 1_700_000_100_000, 1_700_000_100_000),
-)
-
-# Session 2: running session (no terminal part).
-cur.execute(
-    "INSERT INTO session (id, parent_id, title, agent, time_created, time_updated) VALUES (?, ?, ?, ?, ?, ?)",
-    ("ses_running", parent_id, "In Progress Task", "agent-beta", 1_700_000_200_000, 1_700_000_250_000),
-)
-
-cur.execute(
-    "INSERT INTO part (session_id, data, time_created, time_updated) VALUES (?, ?, ?, ?)",
-    ("ses_running", json.dumps({"type": "step-start"}), 1_700_000_250_000, 1_700_000_250_000),
-)
-
-# Session 3: error session via explicit session.error type.
-cur.execute(
-    "INSERT INTO session (id, parent_id, title, agent, time_created, time_updated) VALUES (?, ?, ?, ?, ?, ?)",
-    ("ses_error", parent_id, "Failed Operation", "agent-gamma", 1_700_000_300_000, 1_700_000_350_000),
-)
-
-cur.execute(
-    "INSERT INTO part (session_id, data, time_created, time_updated) VALUES (?, ?, ?, ?)",
-    ("ses_error", json.dumps({"type": "session.error"}), 1_700_000_350_000, 1_700_000_350_000),
-)
-
-# Session 4: completed via ambiguous step-finish with reason "stop".
-cur.execute(
-    "INSERT INTO session (id, parent_id, title, agent, time_created, time_updated) VALUES (?, ?, ?, ?, ?, ?)",
-    ("ses_ambiguous_done", parent_id, "Ambiguous Done", "agent-delta", 1_700_000_400_000, 1_700_000_450_000),
-)
-
-cur.execute(
-    "INSERT INTO part (session_id, data, time_created, time_updated) VALUES (?, ?, ?, ?)",
-    ("ses_ambiguous_done", json.dumps({"type": "step-start"}), 1_700_000_400_000, 1_700_000_400_000),
-)
-
-cur.execute(
-    "INSERT INTO part (session_id, data, time_created, time_updated) VALUES (?, ?, ?, ?)",
-    ("ses_ambiguous_done", json.dumps({"type": "step-finish", "reason": "stop"}), 1_700_000_450_000, 1_700_000_450_000),
-)
-
-conn.commit()
-conn.close()
-
-print("seeded")
-`;
-
-describeOrSkip('SQLite recovery integration', () => {
-  const tempFiles: string[] = [];
-
-  afterEach(() => {
-    for (const file of tempFiles) {
-      rmSync(file, { recursive: true, force: true });
-    }
+    const rows = await readSQLiteRecoveryRows(path, 'ses_parent_test');
+    expect(rows.map(({ id, status, evidence }) => ({ id, status, evidence }))).toEqual([
+      { id: 'ses_ambiguous_done', status: 'done', evidence: 'ambiguous' },
+      { id: 'ses_error', status: 'error', evidence: 'explicit' },
+      { id: 'ses_running', status: 'running', evidence: null },
+      { id: 'ses_done', status: 'done', evidence: 'explicit' },
+    ]);
   });
 
-  it('reads and classifies seeded SQLite recovery rows correctly', async () => {
-    // Create temp database.
-    const tempDir = mkdtempSync(join(tmpdir(), 'agent-monitor-sqlite-'));
-    const dbPath = join(tempDir, 'test.db');
-    const parentSessionID = 'ses_parent_test';
-    tempFiles.push(tempDir);
+  it('returns an empty array for missing databases and parents', async () => {
+    expect(await readSQLiteRecoveryRows('/tmp/nonexistent-db-12345.db', 'ses_parent')).toEqual([]);
+    const directory = mkdtempSync(join(tmpdir(), 'agent-monitor-sqlite-'));
+    const path = join(directory, 'test.db');
+    tempDirectories.push(directory);
+    seedDatabase(path, 'ses_real_parent');
+    expect(await readSQLiteRecoveryRows(path, 'ses_other_parent')).toEqual([]);
+  });
 
-    // Seed the database.
-    writeFileSync(join(tempDir, 'seed.py'), SEED_DB_SCRIPT);
-    execFileSync('python3', [join(tempDir, 'seed.py'), dbPath, parentSessionID], {
-      encoding: 'utf8',
-      timeout: 5_000,
+  it('degrades SQLite recovery when SQLite is unavailable without affecting plugin module loading', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'agent-monitor-sqlite-'));
+    const path = join(directory, 'test.db');
+    tempDirectories.push(directory);
+    writeFileSync(path, 'placeholder');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const reader = createSQLiteRecoveryRowsReader(() => {
+      throw new Error('node:sqlite unavailable');
     });
 
-    // Read back via the recovery function.
-    const rows = await readSQLiteRecoveryRows(dbPath, parentSessionID);
-
-    // We should get 4 rows.
-    expect(rows).toHaveLength(4);
-
-    // Check the "done" session.
-    const doneRow = rows.find((r) => r.id === 'ses_done');
-    expect(doneRow).toBeDefined();
-    expect(doneRow!.parentID).toBe(parentSessionID);
-    expect(doneRow!.title).toBe('Completed Analysis');
-    expect(doneRow!.status).toBe('done');
-    expect(doneRow!.evidence).toBe('explicit');
-
-    // Check the "running" session.
-    const runningRow = rows.find((r) => r.id === 'ses_running');
-    expect(runningRow).toBeDefined();
-    expect(runningRow!.parentID).toBe(parentSessionID);
-    expect(runningRow!.title).toBe('In Progress Task');
-    expect(runningRow!.status).toBe('running');
-
-    // Check the "error" session.
-    const errorRow = rows.find((r) => r.id === 'ses_error');
-    expect(errorRow).toBeDefined();
-    expect(errorRow!.parentID).toBe(parentSessionID);
-    expect(errorRow!.title).toBe('Failed Operation');
-    expect(errorRow!.status).toBe('error');
-    expect(errorRow!.evidence).toBe('explicit');
-
-    // Check the ambiguous "done" session (step-finish stop).
-    const ambiguousDoneRow = rows.find((r) => r.id === 'ses_ambiguous_done');
-    expect(ambiguousDoneRow).toBeDefined();
-    expect(ambiguousDoneRow!.parentID).toBe(parentSessionID);
-    expect(ambiguousDoneRow!.title).toBe('Ambiguous Done');
-    expect(ambiguousDoneRow!.status).toBe('done');
-    expect(ambiguousDoneRow!.evidence).toBe('ambiguous');
-
-    // Verify all rows have id, parentID, title, status values.
-    for (const row of rows) {
-      expect(typeof row.id).toBe('string');
-      expect(row.id.length).toBeGreaterThan(0);
-      expect(typeof row.parentID).toBe('string');
-      expect(row.parentID.length).toBeGreaterThan(0);
-      expect(typeof row.title).toBe('string');
-      expect(row.title.length).toBeGreaterThan(0);
-      expect(['done', 'running', 'error'].includes(row.status)).toBe(true);
-      expect(typeof row.startedAtMs).toBe('number');
-      expect(typeof row.updatedAtMs).toBe('number');
-    }
+    await expect(reader(path, 'ses_parent')).resolves.toEqual([]);
+    expect(warn).toHaveBeenCalledWith('[agent-monitor] SQLite recovery failed:', expect.any(Error));
   });
 
-  it('returns an empty array for a non-existent parent session ID', async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), 'agent-monitor-sqlite-'));
-    const dbPath = join(tempDir, 'test.db');
-    tempFiles.push(tempDir);
+  it('returns recovered rows when closing the database fails', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'agent-monitor-sqlite-'));
+    const path = join(directory, 'test.db');
+    tempDirectories.push(directory);
+    writeFileSync(path, 'placeholder');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const reader = createSQLiteRecoveryRowsReader(() => ({
+      DatabaseSync: class {
+        prepare(sql: string) {
+          return {
+            all: () =>
+              sql.includes('FROM session')
+                ? [
+                    {
+                      id: 'ses_child',
+                      parent_id: 'ses_parent',
+                      title: 'Recovered child',
+                      time_created: 1700000000000,
+                      time_updated: 1700000100000,
+                    },
+                  ]
+                : [],
+          };
+        }
 
-    // Seed with one session.
-    writeFileSync(join(tempDir, 'seed.py'), SEED_DB_SCRIPT);
-    execFileSync('python3', [join(tempDir, 'seed.py'), dbPath, 'ses_real_parent'], {
-      encoding: 'utf8',
-      timeout: 5_000,
-    });
+        close() {
+          throw new Error('close failed');
+        }
+      },
+    }));
 
-    // Query with a different parent — should return empty.
-    const rows = await readSQLiteRecoveryRows(dbPath, 'ses_nonexistent_parent');
-    expect(rows).toHaveLength(0);
-  });
-
-  it('returns an empty array when the database does not exist', async () => {
-    const rows = await readSQLiteRecoveryRows('/tmp/nonexistent-db-12345.db', 'ses_parent');
-    expect(rows).toHaveLength(0);
+    await expect(reader(path, 'ses_parent')).resolves.toMatchObject([{ id: 'ses_child', status: 'running' }]);
+    expect(warn).toHaveBeenCalledWith('[agent-monitor] Failed to close SQLite recovery database:', expect.any(Error));
   });
 });

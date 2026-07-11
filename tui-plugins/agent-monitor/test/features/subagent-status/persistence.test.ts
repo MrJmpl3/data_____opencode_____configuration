@@ -199,6 +199,71 @@ describe('persistence recovery', () => {
     expect(loaded.totalExecuted).toBe(2);
   });
 
+  it('keeps a valid persisted snapshot when recovery fails', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'agent-monitor-'));
+    tempDirs.push(dir);
+    const statePath = join(dir, 'state.json');
+
+    await saveState(statePath, {
+      children: {
+        ses_child: {
+          id: 'ses_child',
+          title: 'Persisted child',
+          parentID: 'ses_parent',
+          source: 'session',
+          status: 'running',
+          startedAt: '2026-06-04T11:55:00.000Z',
+          updatedAt: '2026-06-04T11:59:00.000Z',
+        },
+      },
+      countedChildIDs: { ses_child: true },
+      purgedSessionIDs: {},
+      totalExecuted: 1,
+      updatedAt: '2026-06-04T11:59:00.000Z',
+    } as SubagentState);
+
+    const loaded = await loadState(statePath, {
+      recoverySources: [
+        {
+          hydrateState: (state) => {
+            state.children.ses_child = { ...state.children.ses_child, status: 'done' };
+            throw new Error('recovery unavailable');
+          },
+        },
+      ],
+    });
+
+    expect(loaded.children.ses_child).toMatchObject({ status: 'running', title: 'Persisted child' });
+  });
+
+  it('attempts recovery when the persisted snapshot is missing', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'agent-monitor-'));
+    tempDirs.push(dir);
+    const recoverySource = {
+      hydrateState: vi.fn((state: SubagentState) => {
+        state.children.ses_recovered = {
+          id: 'ses_recovered',
+          title: 'Recovered child',
+          parentID: 'ses_parent',
+          source: 'session',
+          status: 'done',
+          startedAt: '2026-06-04T11:55:00.000Z',
+          updatedAt: '2026-06-04T12:00:00.000Z',
+          endedAt: '2026-06-04T12:00:00.000Z',
+        };
+        return { changed: true, authoritativeSessionIDs: ['ses_recovered'] };
+      }),
+    } satisfies RecoverySource;
+
+    const loaded = await loadState(join(dir, 'missing-state.json'), {
+      recoveryContext: { directory: dir, parentSessionID: 'ses_parent' },
+      recoverySources: [recoverySource],
+    });
+
+    expect(recoverySource.hydrateState).toHaveBeenCalledOnce();
+    expect(loaded.children.ses_recovered).toMatchObject({ status: 'done' });
+  });
+
   it('clones state snapshots at enqueue time before later mutations', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'agent-monitor-'));
     tempDirs.push(dir);

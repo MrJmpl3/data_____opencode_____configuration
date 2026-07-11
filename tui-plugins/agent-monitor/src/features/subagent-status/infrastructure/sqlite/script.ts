@@ -1,11 +1,10 @@
-import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 
 import type { SubagentChild, SubagentTokens } from '../../domain/types.ts';
-import { normalizeSubagentTokens } from '../../domain/tokens.ts';
-import { debugLog } from '../../shared/display.ts';
+import { mergeSubagentTokens, normalizeSubagentTokens } from '../../domain/tokens.ts';
 import { asString, isRecord, toFiniteNumber } from '../../../../kit/coercion.ts';
+import { resolveRecoveredStatus } from './recovery-classifier.ts';
 
 export type SQLiteRecoveryRow = {
   id: string;
@@ -22,77 +21,119 @@ export type SQLiteRecoveryRow = {
   tokens?: SubagentTokens;
 };
 
-const SQLITE_RECOVERY_TIMEOUT_MS = 2_000;
-
-// Resolve the recovery script path next to this module. Kept as a separate `.py` file
-// (not a template literal) so it gets real Python syntax highlighting, linting, and
-// static analysis in the editor.
-const RECOVERY_SCRIPT_PATH = fileURLToPath(new URL('./recovery.py', import.meta.url));
-
-const runSQLiteRecoveryScript = async (databasePath: string, parentSessionID: string): Promise<string | undefined> => {
-  debugLog(`[subagent-status] runSQLiteRecoveryScript called: db=${databasePath} parent=${parentSessionID}`);
-  const result = spawnSync('python3', [RECOVERY_SCRIPT_PATH, databasePath, parentSessionID], {
-    encoding: 'utf8',
-    maxBuffer: 16 * 1024 * 1024,
-    timeout: SQLITE_RECOVERY_TIMEOUT_MS,
-  });
-
-  debugLog(
-    `[subagent-status] python result: status=${result.status} stdout_len=${result.stdout?.length ?? 0} stderr=${result.stderr?.slice(0, 200) ?? ''}`,
-  );
-  return result.status === 0 && result.stdout.trim() ? result.stdout : undefined;
+type SQLiteValue = string | number | bigint | Uint8Array | null;
+type SQLiteRow = Record<string, SQLiteValue>;
+type SQLiteDatabase = {
+  close(): void;
+  prepare(sql: string): { all(...parameters: SQLiteValue[]): SQLiteRow[] };
 };
+type SQLiteModule = { DatabaseSync: new (path: string, options?: { readOnly?: boolean }) => SQLiteDatabase };
 
-const normalizeSQLiteRecoveryRow = (input: unknown): SQLiteRecoveryRow | undefined => {
-  if (!isRecord(input)) return undefined;
+type LoadSQLiteModule = () => SQLiteModule;
 
-  const id = asString(input.id);
-  const parentID = asString(input.parentID);
-  const title = asString(input.title);
-  const startedAtMs = toFiniteNumber(input.startedAtMs);
-  const updatedAtMs = toFiniteNumber(input.updatedAtMs);
-  if (!id || !parentID || !title || startedAtMs === undefined || updatedAtMs === undefined) {
+const loadSQLiteModule: LoadSQLiteModule = () => createRequire(import.meta.url)('node:sqlite') as SQLiteModule;
+
+const numericValue = (value: SQLiteValue | undefined): number => toFiniteNumber(value) ?? 0;
+
+const parsePart = (row: SQLiteRow): unknown => {
+  if (typeof row.data !== 'string') return undefined;
+  try {
+    const parsed: unknown = JSON.parse(row.data);
+    if (!isRecord(parsed)) return parsed;
+    const time = isRecord(parsed.time) ? parsed.time : {};
+    return {
+      ...parsed,
+      time: { updated: numericValue(row.time_updated), created: numericValue(row.time_created), ...time },
+    };
+  } catch (error) {
+    console.warn(
+      '[agent-monitor] Failed to parse SQLite recovery part:',
+      error instanceof Error ? error : String(error),
+    );
     return undefined;
   }
+};
 
-  const endedAtMs = toFiniteNumber(input.endedAtMs) ?? 0;
-  const rawStatus = asString(input.status);
-  const status: SubagentChild['status'] =
-    rawStatus === 'done' || rawStatus === 'error' || rawStatus === 'running' ? rawStatus : 'running';
-  const rawEvidence = asString(input.evidence);
-  const evidence: SQLiteRecoveryRow['evidence'] =
-    rawEvidence === 'explicit' || rawEvidence === 'ambiguous' ? rawEvidence : null;
+const rowTokens = (row: SQLiteRow): SubagentTokens | undefined =>
+  normalizeSubagentTokens({
+    input: row.tokens_input,
+    output: row.tokens_output,
+    reasoning: row.tokens_reasoning,
+    cache_read: row.tokens_cache_read,
+    cache_write: row.tokens_cache_write,
+  });
 
-  return {
-    id,
-    parentID,
-    title,
-    agentName: asString(input.agentName),
-    startedAtMs,
-    updatedAtMs,
-    endedAtMs,
-    partCount: Math.max(0, Math.floor(toFiniteNumber(input.partCount) ?? 0)),
-    stepStartCount: Math.max(0, Math.floor(toFiniteNumber(input.stepStartCount) ?? 0)),
-    status,
-    evidence,
-    tokens: normalizeSubagentTokens(input.tokens),
+export const createSQLiteRecoveryRowsReader =
+  (loadSQLite: LoadSQLiteModule = loadSQLiteModule) =>
+  async (databasePath: string, parentSessionID: string): Promise<SQLiteRecoveryRow[]> => {
+    if (!existsSync(databasePath)) return [];
+
+    let database: SQLiteDatabase | undefined;
+    try {
+      const { DatabaseSync } = loadSQLite();
+      database = new DatabaseSync(databasePath, { readOnly: true });
+      const sessions = database
+        .prepare(
+          `SELECT id, parent_id, title, agent, time_created, time_updated,
+                tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write
+           FROM session WHERE parent_id = ? ORDER BY time_updated DESC, id DESC`,
+        )
+        .all(parentSessionID);
+      const partRows = database
+        .prepare(
+          `SELECT p.session_id, p.data, p.time_created, p.time_updated
+           FROM part p INNER JOIN session s ON s.id = p.session_id
+          WHERE s.parent_id = ?
+          ORDER BY p.session_id ASC, p.time_updated ASC, p.time_created ASC, p.id ASC`,
+        )
+        .all(parentSessionID);
+      const partsBySession = new Map<string, SQLiteRow[]>();
+      for (const partRow of partRows) {
+        const sessionID = asString(partRow.session_id);
+        if (!sessionID) continue;
+        const parts = partsBySession.get(sessionID);
+        if (parts) parts.push(partRow);
+        else partsBySession.set(sessionID, [partRow]);
+      }
+
+      return sessions.flatMap((session): SQLiteRecoveryRow[] => {
+        const id = asString(session.id);
+        const parentID = asString(session.parent_id);
+        const title = asString(session.title);
+        if (!id || !parentID || !title) return [];
+        const partRowsForSession = partsBySession.get(id) ?? [];
+        const parts = partRowsForSession.map(parsePart);
+        const recovered = resolveRecoveredStatus(parts);
+        return [
+          {
+            id,
+            parentID,
+            title,
+            agentName: asString(session.agent),
+            startedAtMs: numericValue(session.time_created),
+            updatedAtMs: numericValue(session.time_updated),
+            endedAtMs: recovered.endedAt ? Date.parse(recovered.endedAt) : 0,
+            partCount: partRowsForSession.length,
+            stepStartCount: parts.filter((part) => isRecord(part) && part.type === 'step-start').length,
+            status: recovered.status,
+            evidence: recovered.evidence ?? null,
+            tokens: mergeSubagentTokens(rowTokens(session), recovered.tokens),
+          },
+        ];
+      });
+    } catch (error) {
+      console.warn('[agent-monitor] SQLite recovery failed:', error instanceof Error ? error : String(error));
+      return [];
+    } finally {
+      try {
+        database?.close();
+      } catch (error) {
+        console.warn(
+          '[agent-monitor] Failed to close SQLite recovery database:',
+          error instanceof Error ? error : String(error),
+        );
+      }
+    }
   };
-};
 
-export const readSQLiteRecoveryRows = async (
-  databasePath: string,
-  parentSessionID: string,
-): Promise<SQLiteRecoveryRow[]> => {
-  if (!existsSync(databasePath)) return [];
-
-  const stdout = await runSQLiteRecoveryScript(databasePath, parentSessionID);
-  if (!stdout) return [];
-
-  try {
-    const parsed = JSON.parse(stdout);
-    return Array.isArray(parsed) ? parsed.map(normalizeSQLiteRecoveryRow).filter((row) => row !== undefined) : [];
-  } catch (e) {
-    console.warn('[agent-monitor] Failed to parse SQLite recovery output:', e instanceof Error ? e : String(e));
-    return [];
-  }
-};
+export const readSQLiteRecoveryRows = createSQLiteRecoveryRowsReader();

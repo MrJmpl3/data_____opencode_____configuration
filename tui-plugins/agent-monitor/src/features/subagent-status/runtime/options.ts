@@ -144,6 +144,22 @@ const integerOption = (value: unknown): number | undefined => {
   return parsed === undefined ? undefined : Math.floor(parsed);
 };
 
+// Clamp a user-supplied numeric option to a safe range, falling back when
+// the value is missing or not a finite number. `floor: true` truncates to an
+// integer; `max` is an optional upper bound used for `maxAttempts`.
+const clampOption = (
+  value: unknown,
+  fallback: number,
+  minimum: number,
+  options: { floor?: boolean; max?: number } = {},
+): number => {
+  const parsed = options.floor ? integerOption(value) : numberOption(value);
+  const resolved = parsed ?? fallback;
+  const floored = options.floor ? Math.floor(resolved) : resolved;
+  const lower = Math.max(minimum, floored);
+  return options.max === undefined ? lower : Math.min(options.max, lower);
+};
+
 /**
  * Normalizes the raw payload received from `plugin: [[spec, options]]`.
  * Keeping this conversion in one place prevents the runtime from guessing at
@@ -158,28 +174,34 @@ export const normalizeSubagentStatusPluginOptions = (options: unknown): Resolved
   const persistence = isRecord(pluginOptions.persistence) ? pluginOptions.persistence : {};
   const recovery = isRecord(pluginOptions.recovery) ? pluginOptions.recovery : {};
 
-  const baseBackoffMs = Math.max(
+  const baseBackoffMs = clampOption(
+    staleRunningProbePolicy.baseBackoffMs,
+    DEFAULT_STALE_RUNNING_PROBE_POLICY.baseBackoffMs,
     MIN_BACKOFF_MS,
-    numberOption(staleRunningProbePolicy.baseBackoffMs) ?? DEFAULT_STALE_RUNNING_PROBE_POLICY.baseBackoffMs,
   );
   const maxBackoffMs = Math.max(
     baseBackoffMs,
-    numberOption(staleRunningProbePolicy.maxBackoffMs) ?? DEFAULT_STALE_RUNNING_PROBE_POLICY.maxBackoffMs,
+    clampOption(staleRunningProbePolicy.maxBackoffMs, DEFAULT_STALE_RUNNING_PROBE_POLICY.maxBackoffMs, baseBackoffMs),
   );
-  const maxAttempts = Math.min(
-    MAX_MAX_ATTEMPTS,
-    Math.max(0, integerOption(staleRunningProbePolicy.maxAttempts) ?? DEFAULT_STALE_RUNNING_PROBE_POLICY.maxAttempts),
-  );
-  const hardStaleAfterMs = Math.max(
+  const maxAttempts = clampOption(
+    staleRunningProbePolicy.maxAttempts,
+    DEFAULT_STALE_RUNNING_PROBE_POLICY.maxAttempts,
     0,
-    integerOption(staleRunningProbePolicy.hardStaleAfterMs) ?? DEFAULT_STALE_RUNNING_PROBE_POLICY.hardStaleAfterMs,
+    { floor: true, max: MAX_MAX_ATTEMPTS },
   );
-  const refreshIntervalMs = Math.max(
+  const hardStaleAfterMs = clampOption(
+    staleRunningProbePolicy.hardStaleAfterMs,
+    DEFAULT_STALE_RUNNING_PROBE_POLICY.hardStaleAfterMs,
+    0,
+    { floor: true },
+  );
+  const refreshIntervalMs = clampOption(
+    staleRunningProbePolicy.refreshIntervalMs,
+    DEFAULT_STALE_RUNNING_PROBE_POLICY.refreshIntervalMs,
     MIN_REFRESH_INTERVAL_MS,
-    numberOption(staleRunningProbePolicy.refreshIntervalMs) ?? DEFAULT_STALE_RUNNING_PROBE_POLICY.refreshIntervalMs,
   );
-  const staleRetentionMs = Math.max(0, integerOption(visibility.staleRetentionMs) ?? DEFAULT_STALE_RETENTION_MS);
-  const doneRetentionMs = Math.max(0, integerOption(visibility.doneRetentionMs) ?? DEFAULT_DONE_RETENTION_MS);
+  const staleRetentionMs = clampOption(visibility.staleRetentionMs, DEFAULT_STALE_RETENTION_MS, 0, { floor: true });
+  const doneRetentionMs = clampOption(visibility.doneRetentionMs, DEFAULT_DONE_RETENTION_MS, 0, { floor: true });
 
   return {
     staleRunningProbePolicy: {

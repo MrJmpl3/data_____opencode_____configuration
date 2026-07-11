@@ -21,8 +21,16 @@ export const createRuntimeSessionScopeHelpers = (input: {
   };
 
   const persistEmptyScopedState = (): void => {
+    const sessionId = input.getSessionId();
     input.syncState(createEmptyState(), input.createRefreshMeta()).catch((e) => {
-      console.warn('[agent-monitor] Failed to persist empty scoped state:', e instanceof Error ? e : String(e));
+      // Format: "[agent-monitor] <message> — sessionId=<id>: <error>" so a
+      // single grep on `sessionId=` correlates every failure to its session.
+      console.warn(
+        '[agent-monitor] Failed to persist empty scoped state — sessionId=',
+        sessionId,
+        ':',
+        e instanceof Error ? e : String(e),
+      );
     });
   };
 

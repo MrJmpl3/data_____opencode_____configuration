@@ -12,9 +12,9 @@ import {
 import {
   markChildRunning,
   markChildStatus,
-  replaceChildren,
   upsertRunningChild,
 } from '../../../src/features/subagent-status/domain/state/mutations.ts';
+import { replaceChildren } from '../../../src/features/subagent-status/domain/state/replace.ts';
 import { upsertChildDetails } from '../../../src/features/subagent-status/domain/state/mutate-details.ts';
 import {
   loadState,
