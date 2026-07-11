@@ -105,18 +105,18 @@ The [`skills/`](./skills) directory is the reusable instruction layer — focuse
 loaded when a task needs specific behavior. It includes a [`_shared/`](./skills/_shared) layer with
 cross-cutting conventions (SDD phase contracts, Engram protocol, skill resolution).
 
-| Category               | Examples                                                                 |
-| ---------------------- | ------------------------------------------------------------------------ |
-| SDD workflow           | `sdd-apply`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `_shared/` ...    |
-| Code review            | `code-review-excellence`, `judgment-day` (dual blind review)             |
-| PRs & commits          | `branch-pr`, `chained-pr`, `work-unit-commits`, `issue-creation`         |
-| Languages & frameworks | Laravel, Vue, React, Next.js, Nuxt, Python, TypeScript, Go, Rust, .NET   |
-| Testing                | TDD patterns for Laravel (Pest), Python (pytest), JS (Vitest), Go        |
-| Security               | API security, attack trees, threat mitigation, anti-reversing            |
-| Architecture           | Clean/Hexagonal architecture, ADRs, API design, design systems           |
-| Infrastructure         | Docker, Docker Compose, database migration, cost optimization            |
-| Skills management      | `skill-creator`, `skill-improver`, `skill-registry`                      |
-| Browser automation     | `agent-browser` for web interaction and testing                          |
+| Category               | Examples                                                               |
+| ---------------------- | ---------------------------------------------------------------------- |
+| SDD workflow           | `sdd-apply`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `_shared/` ...   |
+| Code review            | `code-review-excellence`, `judgment-day` (dual blind review)           |
+| PRs & commits          | `branch-pr`, `chained-pr`, `work-unit-commits`, `issue-creation`       |
+| Languages & frameworks | Laravel, Vue, React, Next.js, Nuxt, Python, TypeScript, Go, Rust, .NET |
+| Testing                | TDD patterns for Laravel (Pest), Python (pytest), JS (Vitest), Go      |
+| Security               | API security, attack trees, threat mitigation, anti-reversing          |
+| Architecture           | Clean/Hexagonal architecture, ADRs, API design, design systems         |
+| Infrastructure         | Docker, Docker Compose, database migration, cost optimization          |
+| Skills management      | `skill-creator`, `skill-improver`, `skill-registry`                    |
+| Browser automation     | `agent-browser` for web interaction and testing                        |
 
 This keeps `AGENTS.md` smaller while injecting task-specific behavior only when it is useful.
 
@@ -125,29 +125,30 @@ This keeps `AGENTS.md` smaller while injecting task-specific behavior only when 
 The [`commands/`](./commands) directory defines user-facing workflow commands — SDD lifecycle,
 utilities, and code analysis.
 
-| Command file                                      | Purpose                                        |
-| ------------------------------------------------- | ---------------------------------------------- |
-| [`sdd-new.md`](./commands/sdd-new.md)             | Start a new SDD change.                        |
-| [`sdd-explore.md`](./commands/sdd-explore.md)     | Explore an idea before committing to a change. |
-| [`sdd-ff.md`](./commands/sdd-ff.md)               | Fast-forward planning phases.                  |
-| [`sdd-continue.md`](./commands/sdd-continue.md)   | Continue the next dependency-ready phase.      |
-| [`sdd-status.md`](./commands/sdd-status.md)       | Show structured status of an active change.    |
-| [`sdd-init.md`](./commands/sdd-init.md)           | Bootstrap SDD context and testing config.      |
-| [`sdd-onboard.md`](./commands/sdd-onboard.md)     | Guided walkthrough of the full SDD cycle.      |
-| [`sdd-apply.md`](./commands/sdd-apply.md)         | Apply implementation tasks.                    |
-| [`sdd-verify.md`](./commands/sdd-verify.md)       | Verify implementation against specs and tasks. |
-| [`sdd-archive.md`](./commands/sdd-archive.md)     | Archive completed change artifacts.            |
+| Command file                                    | Purpose                                        |
+| ----------------------------------------------- | ---------------------------------------------- |
+| [`sdd-new.md`](./commands/sdd-new.md)           | Start a new SDD change.                        |
+| [`sdd-explore.md`](./commands/sdd-explore.md)   | Explore an idea before committing to a change. |
+| [`sdd-ff.md`](./commands/sdd-ff.md)             | Fast-forward planning phases.                  |
+| [`sdd-continue.md`](./commands/sdd-continue.md) | Continue the next dependency-ready phase.      |
+| [`sdd-status.md`](./commands/sdd-status.md)     | Show structured status of an active change.    |
+| [`sdd-init.md`](./commands/sdd-init.md)         | Bootstrap SDD context and testing config.      |
+| [`sdd-onboard.md`](./commands/sdd-onboard.md)   | Guided walkthrough of the full SDD cycle.      |
+| [`sdd-apply.md`](./commands/sdd-apply.md)       | Apply implementation tasks.                    |
+| [`sdd-verify.md`](./commands/sdd-verify.md)     | Verify implementation against specs and tasks. |
+| [`sdd-archive.md`](./commands/sdd-archive.md)   | Archive completed change artifacts.            |
 
-Other available commands: [`code-audit.md`](./commands/code-audit.md) (source-to-target code analysis),
-[`skill-creator.md`](./commands/skill-creator.md) and [`skill-registry.md`](./commands/skill-registry.md)
-(skill authoring and indexing).
+Other available commands: [`code-audit.md`](./commands/code-audit.md) (source-to-target code
+analysis), [`skill-creator.md`](./commands/skill-creator.md) and
+[`skill-registry.md`](./commands/skill-registry.md) (skill authoring and indexing).
 
 > 💡 SDD artifacts are stored in **Engram memory** by default, not in file artifacts. The
 > `openspec/` convention exists for teams that prefer file-based artifact sharing.
 
 ### 🧪 Development notes
 
-This repo has both root-level configuration and package-local TUI plugin projects. Available scripts:
+This repo has both root-level configuration and package-local TUI plugin projects. Available
+scripts:
 
 ```bash
 npm install
@@ -176,8 +177,8 @@ See [`SECURITY.md`](./SECURITY.md) for reporting vulnerabilities.
 
 ### 🤝 Contributing
 
-PRs and issues are welcome. This is a living config — if you spot a bug, see an improvement, or
-want to add a skill, open an issue first to discuss the approach.
+PRs and issues are welcome. This is a living config — if you spot a bug, see an improvement, or want
+to add a skill, open an issue first to discuss the approach.
 
 1. Check [open issues](https://github.com/MrJmpl3/opencode_____data_____configuration/issues)
 2. Fork and branch from `main`
