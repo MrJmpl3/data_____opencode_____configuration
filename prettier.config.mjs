@@ -49,13 +49,6 @@ const config = {
       },
     },
   ],
-
-  // Plugins — descomentar según stack del proyecto.
-  // plugins: [
-  //   'prettier-plugin-tailwindcss',       // Ordena clases de Tailwind.
-  //   'prettier-plugin-organize-imports',  // Ordena imports automáticamente.
-  //   'prettier-plugin-pkg',               // Ordena package.json.
-  // ],
 };
 
 export default config;
