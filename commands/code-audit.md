@@ -248,104 +248,104 @@ surface that leaks implementation types — consumers couple to internals.
 2. **Map the scope**: run `codegraph_explore` on the target path to get a structural overview —
    files, symbols, call relations. Use this as the baseline for dead-code and over-engineering
    checks.
- 3. **Delegate first-pass analysis to 4R review sub-agents**:
-    - Map enabled checks to the appropriate review sub-agent and launch one per group:
-      - `review-readability`: dead-code, over-engineering, yagni, clean-code, simplification,
-        consistency, comments, readability, solid, production-readiness
-      - `review-reliability`: error-handling, performance, testing, integrity, concurrency,
-        config-hygiene
-      - `review-resilience`: observability
-      - `review-risk`: security, dependencies, architecture
-    - Each review sub-agent receives:
-      - The check's rules (from the definition above)
-      - The target scope (path + file list from CodeGraph)
-      - The minimum severity to report
-      - The user's extra instructions (if any), passed verbatim
-      - Explicit instruction to return findings with file:line evidence
-    - Run independent review sub-agents in parallel where possible.
-    - Do NOT use `sdd-explore`, `sdd-propose`, or other SDD sub-agents for analysis.
- 4. **Corroborate severe findings with review-refuter**: forward every CRITICAL and HIGH
-    finding from the 4R lens reviews to `review-refuter`. Each finding includes the claim,
-    the lens that raised it, and its file:line evidence. The refuter returns
-    `corroborated | refuted | inconclusive` per finding.
-    - Include corroborated findings in the final report as-is.
-    - Drop refuted findings entirely — do not include them.
-    - Flag inconclusive findings as `⚠️ needs manual review` in the report.
-    - Run this step only when CRITICAL or HIGH findings exist.
- 5. **Aggregate & persist results**: merge corroborated findings, deduplicate, and sort
-   by severity. The orchestrator then writes all findings to `{scope}/TODO.md` as a markdown
-   checklist with `- [ ]` checkboxes for progress tracking. Each finding includes severity,
-   category, file:line, description, and suggested fix. Example:
+3. **Delegate first-pass analysis to 4R review sub-agents**:
+   - Map enabled checks to the appropriate review sub-agent and launch one per group:
+     - `review-readability`: dead-code, over-engineering, yagni, clean-code, simplification,
+       consistency, comments, readability, solid, production-readiness
+     - `review-reliability`: error-handling, performance, testing, integrity, concurrency,
+       config-hygiene
+     - `review-resilience`: observability
+     - `review-risk`: security, dependencies, architecture
+   - Each review sub-agent receives:
+     - The check's rules (from the definition above)
+     - The target scope (path + file list from CodeGraph)
+     - The minimum severity to report
+     - The user's extra instructions (if any), passed verbatim
+     - Explicit instruction to return findings with file:line evidence
+   - Run independent review sub-agents in parallel where possible.
+   - Do NOT use `sdd-explore`, `sdd-propose`, or other SDD sub-agents for analysis.
+4. **Corroborate severe findings with review-refuter**: forward every CRITICAL and HIGH finding from
+   the 4R lens reviews to `review-refuter`. Each finding includes the claim, the lens that raised
+   it, and its file:line evidence. The refuter returns `corroborated | refuted | inconclusive` per
+   finding.
+   - Include corroborated findings in the final report as-is.
+   - Drop refuted findings entirely — do not include them.
+   - Flag inconclusive findings as `⚠️ needs manual review` in the report.
+   - Run this step only when CRITICAL or HIGH findings exist.
+5. **Aggregate & persist results**: merge corroborated findings, deduplicate, and sort by severity.
+   The orchestrator then writes all findings to `{scope}/TODO.md` as a markdown checklist with
+   `- [ ]` checkboxes for progress tracking. Each finding includes severity, category, file:line,
+   description, and suggested fix. Example:
 
-   Se asigna un ID único por hallazgo con prefijo según categoría (CC, DC, SM, SC, etc.) y
-   correlativo. El TODO.md incluye: generación con fecha y subagentes, configuración del análisis,
-   tabla resumen, task list por severity con checkboxes y subcategorías, progress counters, y
-   recomendaciones. Formato completo:
+Se asigna un ID único por hallazgo con prefijo según categoría (CC, DC, SM, SC, etc.) y correlativo.
+El TODO.md incluye: generación con fecha y subagentes, configuración del análisis, tabla resumen,
+task list por severity con checkboxes y subcategorías, progress counters, y recomendaciones. Formato
+completo:
 
-   ```markdown
-   # Code Audit Results — {scope}
+```markdown
+# Code Audit Results — {scope}
 
-    > Generado el {date} por `gentle-orchestrator` con subagentes `review-readability`,
-    > `review-risk`, `review-reliability`, `review-resilience`, y `review-refuter` (solo CRITICAL/HIGH)
+> Generado el {date} por `gentle-orchestrator` con subagentes `review-readability`, `review-risk`,
+> `review-reliability`, `review-resilience`, y `review-refuter` (solo CRITICAL/HIGH)
 
-   ## Configuration
+## Configuration
 
-   - **Path**: {resolved path}
-   - **Scope**: {scope directories}
-   - **Checks**: {selected checks}
-   - **Severity threshold**: {minimum severity}
-   - **Extra instructions**: {user's extra rules, or "—"}
-   - **Files analyzed**: {count} archivos
+- **Path**: {resolved path}
+- **Scope**: {scope directories}
+- **Checks**: {selected checks}
+- **Severity threshold**: {minimum severity}
+- **Extra instructions**: {user's extra rules, or "—"}
+- **Files analyzed**: {count} archivos
 
-   ---
+---
 
-   ## Summary
+## Summary
 
-   | Category   | CRITICAL | HIGH    | MEDIUM  | LOW     | Total   |
-   | ---------- | -------- | ------- | ------- | ------- | ------- |
-   | {category} | {n}      | {n}     | {n}     | {n}     | {n}     |
-   | **Total**  | **{n}**  | **{n}** | **{n}** | **{n}** | **{n}** |
+| Category   | CRITICAL | HIGH    | MEDIUM  | LOW     | Total   |
+| ---------- | -------- | ------- | ------- | ------- | ------- |
+| {category} | {n}      | {n}     | {n}     | {n}     | {n}     |
+| **Total**  | **{n}**  | **{n}** | **{n}** | **{n}** | **{n}** |
 
-   ---
+---
 
-   ## Task List
+## Task List
 
-   ### 🔴 CRITICAL
+### 🔴 CRITICAL
 
-   - [ ] **{ID}** — `{file}:{line}` — {description}
+- [ ] **{ID}** — `{file}:{line}` — {description}
 
-   ### 🟠 HIGH
+### 🟠 HIGH
 
-   #### {Category Name}
+#### {Category Name}
 
-   - [ ] **{ID}** — `{file}:{line}` — {description}
+- [ ] **{ID}** — `{file}:{line}` — {description}
 
-   ### 🟡 MEDIUM
+### 🟡 MEDIUM
 
-   ...
+...
 
-   ### 🟢 LOW
+### 🟢 LOW
 
-   ...
+...
 
-   ---
+---
 
-   ## Progress
+## Progress
 
-   - **CRITICAL**: `0 / {n}`
-   - **HIGH**: `0 / {n}`
-   - **MEDIUM**: `0 / {n}`
-   - **LOW**: `0 / {n}`
-   - **Total**: `0 / {total}`
+- **CRITICAL**: `0 / {n}`
+- **HIGH**: `0 / {n}`
+- **MEDIUM**: `0 / {n}`
+- **LOW**: `0 / {n}`
+- **Total**: `0 / {total}`
 
-   ---
+---
 
-   ## Recommendations
+## Recommendations
 
-   1. **{priority}** — {recommendation}
-   ```
+1. **{priority}** — {recommendation}
+```
 
-   El TODO.md es un archivo vivo: el equipo puede ticar casillas conforme resuelve hallazgos.
+El TODO.md es un archivo vivo: el equipo puede ticar casillas conforme resuelve hallazgos.
 
 6. **Report**: return the structured audit report (see Output Contract).
 

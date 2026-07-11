@@ -377,30 +377,30 @@ you write:
 - **Correctness & safety**: validate at every trust boundary — never trust the client. No hardcoded
   secrets (API keys, tokens, passwords, connection strings). No SQL string concatenation — use
   parameterized queries or an ORM. No XSS — escape user input before it reaches HTML/VDOM sinks. No
-  frontend-only authorization — the backend must verify every request. Every async path has a
-  catch or try/except. Errors carry context plus a stack trace, never just a message.
-  Multi-write operations (DB + file system + external API) use a transaction or compensation
-  rollback. Idempotency keys on mutation endpoints so client retries don't create duplicates.
+  frontend-only authorization — the backend must verify every request. Every async path has a catch
+  or try/except. Errors carry context plus a stack trace, never just a message. Multi-write
+  operations (DB + file system + external API) use a transaction or compensation rollback.
+  Idempotency keys on mutation endpoints so client retries don't create duplicates.
 - **Performance & profiling**: no N+1 — never call a database or external API inside a loop. Never
-  import an entire library when you need one function (`import * from 'lodash'` → `import { get }
-  from 'lodash/es'`). Memoize expensive computations and re-renders. Lazy-load or cache large
-  static assets. No sync I/O in hot paths.
+  import an entire library when you need one function (`import * from 'lodash'` →
+  `import { get } from 'lodash/es'`). Memoize expensive computations and re-renders. Lazy-load or
+  cache large static assets. No sync I/O in hot paths.
 - **Professional habits**: no `console.log`/`debugger`/`var_dump`/`dd()` in production code. No
   `eslint-disable` or `# noqa` without an inline justification. No eval or exec. Environment
   variables must be validated with a type and a clear error message on missing values — never crash
   cryptically. No unused, duplicate, or production-bundled devDependencies. Match the project's
-  existing conventions for case style, import style, and formatting. Comments explain **why**,
-  never **what** — if the code is clear, no comment needed. Every TODO/FIXME references a tracking
-  ticket or an owner.
+  existing conventions for case style, import style, and formatting. Comments explain **why**, never
+  **what** — if the code is clear, no comment needed. Every TODO/FIXME references a tracking ticket
+  or an owner.
 - **Testing & observability**: non-trivial logic (a branch, a loop, a parser, anything involving
   money or security) leaves exactly one verification behind — either a minimal `test_*.py` or a
   self-contained assert near the code. No always-passing tests, no `test.only`. Every failure path
-  logs with context and a correlation ID (`request_id`, `session_id`). No `except: pass`. Hot
-  paths must not log inside the loop — log at call boundaries instead. Health-check endpoints and
+  logs with context and a correlation ID (`request_id`, `session_id`). No `except: pass`. Hot paths
+  must not log inside the loop — log at call boundaries instead. Health-check endpoints and
   readiness probes for every service.
 
-The code you generate must be indistinguishable from what would survive a full `/code-audit` scan
-at any severity threshold.
+The code you generate must be indistinguishable from what would survive a full `/code-audit` scan at
+any severity threshold.
 
 ### Craft — how to write it
 
