@@ -30,8 +30,7 @@ export const isTerminalStatus = (
 export const childEvidenceTimestampMs = (child: Pick<SubagentChild, 'startedAt' | 'updatedAt' | 'endedAt'>): number =>
   timestampMs(child.endedAt ?? child.updatedAt ?? child.startedAt);
 
-export const terminalChildTimestamp = (child: SubagentChild): number =>
-  childEvidenceTimestampMs(child) ?? 0;
+export const terminalChildTimestamp = (child: SubagentChild): number => childEvidenceTimestampMs(child) ?? 0;
 
 const rememberPurgedSession = (
   state: SubagentState,
@@ -229,10 +228,7 @@ export const pruneTerminalChildren = (state: SubagentState, now = Date.now()): b
 
 /** Marks running children whose evidence is older than hardStaleAfterMs as error.
  *  Extracted from tui-runtime.ts to keep domain logic with the domain. */
-export const markHardStaleRunningChildren = (
-  state: SubagentState,
-  hardStaleAfterMs: number,
-): void => {
+export const markHardStaleRunningChildren = (state: SubagentState, hardStaleAfterMs: number): void => {
   if (hardStaleAfterMs <= 0) return;
 
   const nowMs = Date.now();

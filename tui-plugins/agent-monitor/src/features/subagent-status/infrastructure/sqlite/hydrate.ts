@@ -267,13 +267,21 @@ const decideRecoveredStatus = (acc: RecoveryAccumulator): RecoveredStatus => {
 
   // 2. Explicit done evidence.
   if (acc.completedAtMs > 0) {
-    return terminalStatus('done', toISOString(acc.completedAtMs), mergeSubagentTokens(acc.latestTokens, acc.completedTokens));
+    return terminalStatus(
+      'done',
+      toISOString(acc.completedAtMs),
+      mergeSubagentTokens(acc.latestTokens, acc.completedTokens),
+    );
   }
 
   // 3. Status-only fallback when the event stream stopped but the parent
   //    recorded a terminal status (no precise timestamp).
   if (acc.fallbackTerminalStatus) {
-    return terminalStatus(acc.fallbackTerminalStatus, undefined, mergeSubagentTokens(acc.latestTokens, acc.fallbackTerminalTokens));
+    return terminalStatus(
+      acc.fallbackTerminalStatus,
+      undefined,
+      mergeSubagentTokens(acc.latestTokens, acc.fallbackTerminalTokens),
+    );
   }
 
   // 4. Ambiguous evidence: step-finish was seen but no explicit terminal
@@ -361,9 +369,11 @@ const mapRecoveredChild = (row: SQLiteRecoveryRow, hardStaleAfterMs: number): Ma
 // pass a stub never touch `node:fs` or the `python3` binary.
 export type ReadSQLiteRecoveryRows = (databasePath: string, parentSessionID: string) => Promise<SQLiteRecoveryRow[]>;
 
-export const createSQLiteRecoverySource = (
-  input: { databasePath: string; hardStaleAfterMs?: number; readRows?: ReadSQLiteRecoveryRows },
-): RecoverySource => {
+export const createSQLiteRecoverySource = (input: {
+  databasePath: string;
+  hardStaleAfterMs?: number;
+  readRows?: ReadSQLiteRecoveryRows;
+}): RecoverySource => {
   const databasePath = input.databasePath;
   const hardStaleAfterMs = Math.max(
     0,

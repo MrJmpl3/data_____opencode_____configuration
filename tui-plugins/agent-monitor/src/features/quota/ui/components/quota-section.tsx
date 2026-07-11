@@ -71,7 +71,10 @@ const fetchOpencodeGoLines = async (
   const settledWorkspaces = await Promise.all(
     opencodeGoConfig.workspaces.map(async (workspace) => {
       try {
-        return { workspace, result: await fetchOpencodeGoDashboard(workspace.workspaceId, opencodeGoConfig.authCookie) };
+        return {
+          workspace,
+          result: await fetchOpencodeGoDashboard(workspace.workspaceId, opencodeGoConfig.authCookie),
+        };
       } catch (error: unknown) {
         return { workspace, result: { error: error instanceof Error ? error.message : String(error) } };
       }

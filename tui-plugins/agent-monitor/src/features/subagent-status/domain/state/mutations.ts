@@ -249,10 +249,8 @@ export const replaceChildren = (state: SubagentState, nextChildren: SubagentChil
 
   syncExecutionState(nextState);
 
-  const childrenCountChanged =
-    Object.keys(state.children).length !== Object.keys(nextState.children).length;
-  const countedIDsChanged =
-    Object.keys(state.countedChildIDs).length !== Object.keys(nextState.countedChildIDs).length;
+  const childrenCountChanged = Object.keys(state.children).length !== Object.keys(nextState.children).length;
+  const countedIDsChanged = Object.keys(state.countedChildIDs).length !== Object.keys(nextState.countedChildIDs).length;
   const changed = childrenCountChanged || countedIDsChanged || state.totalExecuted !== nextState.totalExecuted;
 
   state.children = nextState.children;

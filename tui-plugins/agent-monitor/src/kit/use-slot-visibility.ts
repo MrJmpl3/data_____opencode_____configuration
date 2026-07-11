@@ -22,7 +22,7 @@ export function useSlotVisibility(_api: TuiPluginApi): {
     onCleanup(() => setVisible(false));
     // SlotProvider is never actually rendered — it's a side-effect-only
     // render function that sets visibility on mount and cleans up on unmount.
-    return (null as unknown) as JSX.Element;
+    return null as unknown as JSX.Element;
   };
 
   return { isVisible, SlotProvider };

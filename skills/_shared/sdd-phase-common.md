@@ -113,6 +113,9 @@ rollback plan. **Artifacts**: Engram `sdd/{change-name}/proposal` |
 SDD must protect reviewer cognitive load, not only generate tasks.
 
 - The default PR review budget is **400 changed lines** (`additions + deletions`).
+- Count authored text additions plus deletions only for this threshold. Generated goldens are
+  excluded from authored risk count but remain included in complete snapshot identity and receipt
+  validation.
 - The orchestrator MUST cache a delivery strategy at session start: `ask-on-risk` (default),
   `auto-chain`, `single-pr`, or `exception-ok`.
 - The orchestrator MUST pass `delivery_strategy` to `sdd-tasks` and the resolved decision to

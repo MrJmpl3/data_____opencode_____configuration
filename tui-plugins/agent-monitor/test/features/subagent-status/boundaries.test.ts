@@ -2,9 +2,18 @@ import type { TuiRouteCurrent } from '@opencode-ai/plugin/tui';
 import { describe, expect, it, vi } from 'vitest';
 
 import { normalizeEventPayload } from '../../../src/features/subagent-status/runtime/events/event-payload.ts';
-import { createSessionClientBoundary, type SessionClientBoundaryApi } from '../../../src/features/subagent-status/runtime/session/session-client.ts';
-import { normalizeSessionRouteParams, resolveRouteSessionId } from '../../../src/features/subagent-status/runtime/session/route-params.ts';
-import { normalizeSessionSlotPayload, resolveSlotSessionId } from '../../../src/features/subagent-status/runtime/session/slot-payload.ts';
+import {
+  createSessionClientBoundary,
+  type SessionClientBoundaryApi,
+} from '../../../src/features/subagent-status/runtime/session/session-client.ts';
+import {
+  normalizeSessionRouteParams,
+  resolveRouteSessionId,
+} from '../../../src/features/subagent-status/runtime/session/route-params.ts';
+import {
+  normalizeSessionSlotPayload,
+  resolveSlotSessionId,
+} from '../../../src/features/subagent-status/runtime/session/slot-payload.ts';
 
 describe('runtime boundary normalizers', () => {
   it('normalizes route params across known and generic route shapes', () => {

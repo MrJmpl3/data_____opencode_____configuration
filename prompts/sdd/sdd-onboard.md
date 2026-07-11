@@ -263,8 +263,8 @@ Required order for structural/codebase questions:
    folders.
 3. Check for `<project-root>/.codegraph/` before any broad Read/Glob/Grep filesystem exploration.
 4. If `.codegraph/` is missing and CodeGraph is enabled/available, immediately run
-   `codegraph init <project-root>` once, then use the `codegraph_explore` MCP tool or
-   `codegraph explore "..."`.
+   `gentle-ai codegraph init --cwd <project-root>` once, then use the `codegraph_explore` MCP tool
+   or `codegraph explore "..."`.
 5. Missing .codegraph/ is the trigger to initialize, not a reason to skip CodeGraph. Do not fall
    back just because `.codegraph/` is missing; a missing index is the trigger to lazy-initialize,
    not a reason to skip CodeGraph.

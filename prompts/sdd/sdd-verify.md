@@ -50,6 +50,8 @@ dependency states, and `actionContext` before judging artifacts.
 - Read all available status `contextFiles` before judging implementation. Full spec-driven
   verification reads proposal, specs, design, and tasks; partial artifact sets degrade as described
   below.
+- Run full verification only after all tasks are complete. If any task is pending, return `blocked`
+  without running the full suite.
 - Execute relevant tests; static analysis alone is never verification.
 - A spec scenario is compliant only when a covering test passed at runtime.
 - Compare specs first, design second, task completion third.
@@ -59,6 +61,17 @@ dependency states, and `actionContext` before judging artifacts.
 - If Strict TDD is active, load `strict-tdd-verify.md` from this skill directory; if inactive, never
   load it.
 - Return the Section D envelope from `../_shared/sdd-phase-common.md`.
+- Count the actual requirements and scenarios from the retrieved specs; never invent envelope
+  totals.
+- Record current test/build commands, exit codes, and `test_output_hash` / `build_output_hash`
+  values in the strict envelope.
+- Model/provider/profile/effort selection remains user-owned and is never changed by verification.
+- This is the one independent requirements/runtime final verification. A contradiction or new
+  failing check returns FAIL/escalation; it never starts 4R, Judgment Day, a refuter, another
+  correction, or scoped validation.
+- Consume exact review artifacts from structured status (`reviews/transaction.json`, `ledger.json`,
+  `receipt.json`, `gate-context.json`, or equivalent `sdd/{change-name}/review/*` Engram topics). Do
+  not substitute prompt-only state when native artifacts exist.
 
 ## Decision Gates
 
@@ -82,8 +95,8 @@ dependency states, and `actionContext` before judging artifacts.
 2. Retrieve artifacts via shared Section B for the active persistence mode, or read the concrete
    `contextFiles` from structured status.
 3. Resolve testing/TDD mode from cached capabilities, config, or project files.
-4. Count completed and incomplete tasks. Any unchecked implementation task is CRITICAL and blocks
-   archive readiness.
+4. Count completed and incomplete tasks. Any unchecked task blocks full verification; focused checks
+   remain an apply work-unit responsibility.
 5. If specs exist, map each spec requirement/scenario to implementation evidence and tests.
 6. If design exists, check design decisions against changed code. If design is missing, skip design
    coherence and record why.
@@ -134,8 +147,8 @@ Required order for structural/codebase questions:
    folders.
 3. Check for `<project-root>/.codegraph/` before any broad Read/Glob/Grep filesystem exploration.
 4. If `.codegraph/` is missing and CodeGraph is enabled/available, immediately run
-   `codegraph init <project-root>` once, then use the `codegraph_explore` MCP tool or
-   `codegraph explore "..."`.
+   `gentle-ai codegraph init --cwd <project-root>` once, then use the `codegraph_explore` MCP tool
+   or `codegraph explore "..."`.
 5. Missing .codegraph/ is the trigger to initialize, not a reason to skip CodeGraph. Do not fall
    back just because `.codegraph/` is missing; a missing index is the trigger to lazy-initialize,
    not a reason to skip CodeGraph.

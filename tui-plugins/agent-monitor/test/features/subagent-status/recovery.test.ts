@@ -93,7 +93,7 @@ describe('sqlite recovery source', () => {
       updatedAt: '2026-06-04T05:19:00.000Z',
     };
 
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows });
+    const source = createSQLiteRecoverySource({ databasePath: ':memory:', readRows: async () => rows });
     await source.hydrateState(state, {
       directory: '/tmp/workspace',
       parentSessionID: 'ses_parent',
@@ -148,7 +148,7 @@ describe('sqlite recovery source', () => {
       updatedAt: '2026-06-04T05:24:30.000Z',
     };
 
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows });
+    const source = createSQLiteRecoverySource({ databasePath: ':memory:', readRows: async () => rows });
     await source.hydrateState(state, {
       directory: '/tmp/workspace',
       parentSessionID: 'ses_parent',
@@ -287,7 +287,7 @@ describe('sqlite recovery source', () => {
       updatedAt: '2026-06-04T05:20:00.101Z',
     };
 
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows });
+    const source = createSQLiteRecoverySource({ databasePath: ':memory:', readRows: async () => rows });
     await source.hydrateState(state, {
       directory: '/tmp/workspace',
       parentSessionID: 'ses_parent',
@@ -327,7 +327,7 @@ describe('sqlite recovery source', () => {
     ]);
 
     const state = createEmptyState();
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows });
+    const source = createSQLiteRecoverySource({ databasePath: ':memory:', readRows: async () => rows });
 
     await source.hydrateState(state, {
       directory: '/tmp/workspace',
@@ -405,7 +405,7 @@ describe('sqlite recovery source', () => {
     ]);
 
     const state = createEmptyState();
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows });
+    const source = createSQLiteRecoverySource({ databasePath: ':memory:', readRows: async () => rows });
 
     await source.hydrateState(state, {
       directory: '/tmp/workspace',
@@ -490,7 +490,7 @@ describe('sqlite recovery source', () => {
     ]);
 
     const state = createEmptyState();
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows });
+    const source = createSQLiteRecoverySource({ databasePath: ':memory:', readRows: async () => rows });
     await source.hydrateState(state, {
       directory: '/tmp/workspace',
       parentSessionID: 'ses_parent',
@@ -555,7 +555,7 @@ describe('sqlite recovery source', () => {
       updatedAt: '2026-06-04T05:19:00.000Z',
     };
 
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows });
+    const source = createSQLiteRecoverySource({ databasePath: ':memory:', readRows: async () => rows });
     const result = await source.hydrateState(state, {
       directory: '/tmp/workspace',
       parentSessionID: 'ses_parent',
@@ -613,7 +613,7 @@ describe('sqlite recovery source', () => {
       updatedAt: '2026-06-04T05:19:00.000Z',
     };
 
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows });
+    const source = createSQLiteRecoverySource({ databasePath: ':memory:', readRows: async () => rows });
     await source.hydrateState(state, {
       directory: '/tmp/workspace',
       parentSessionID: 'ses_parent',
@@ -660,7 +660,7 @@ describe('sqlite recovery source', () => {
     ]);
 
     const state = createEmptyState();
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows });
+    const source = createSQLiteRecoverySource({ databasePath: ':memory:', readRows: async () => rows });
 
     await source.hydrateState(state, {
       directory: '/tmp/workspace',
@@ -690,7 +690,7 @@ describe('sqlite recovery source', () => {
     ]);
 
     const state = createEmptyState();
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows });
+    const source = createSQLiteRecoverySource({ databasePath: ':memory:', readRows: async () => rows });
 
     await source.hydrateState(state, {
       directory: '/tmp/workspace',
@@ -722,7 +722,11 @@ describe('sqlite recovery source', () => {
     ]);
 
     const state = createEmptyState();
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows, hardStaleAfterMs: 4 * 60_000 });
+    const source = createSQLiteRecoverySource({
+      databasePath: ':memory:',
+      readRows: async () => rows,
+      hardStaleAfterMs: 4 * 60_000,
+    });
 
     await source.hydrateState(state, {
       directory: '/tmp/workspace',
@@ -752,7 +756,11 @@ describe('sqlite recovery source', () => {
     ]);
 
     const state = createEmptyState();
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows, hardStaleAfterMs: 0 });
+    const source = createSQLiteRecoverySource({
+      databasePath: ':memory:',
+      readRows: async () => rows,
+      hardStaleAfterMs: 0,
+    });
 
     await source.hydrateState(state, {
       directory: '/tmp/workspace',
@@ -803,7 +811,7 @@ describe('sqlite recovery source', () => {
       updatedAt: '2026-06-04T05:19:00.000Z',
     };
 
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows });
+    const source = createSQLiteRecoverySource({ databasePath: ':memory:', readRows: async () => rows });
     await source.hydrateState(state, {
       directory: '/tmp/workspace',
       parentSessionID: 'ses_parent',
@@ -844,7 +852,7 @@ describe('sqlite recovery source', () => {
       endedAt: '2026-06-04T05:05:00.000Z',
     };
 
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows });
+    const source = createSQLiteRecoverySource({ databasePath: ':memory:', readRows: async () => rows });
     await source.hydrateState(state, {
       directory: '/tmp/workspace',
       parentSessionID: 'ses_parent',
@@ -960,7 +968,7 @@ describe('sqlite recovery source', () => {
     ]);
 
     const state = createEmptyState();
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows });
+    const source = createSQLiteRecoverySource({ databasePath: ':memory:', readRows: async () => rows });
 
     const result = await source.hydrateState(state, {
       directory: '/tmp/workspace',
@@ -1002,7 +1010,7 @@ describe('sqlite recovery source', () => {
     ]);
 
     const state = createEmptyState();
-    const source = createSQLiteRecoverySource({ databasePath: ":memory:", readRows: async () => rows });
+    const source = createSQLiteRecoverySource({ databasePath: ':memory:', readRows: async () => rows });
 
     await source.hydrateState(state, {
       directory: '/tmp/workspace',

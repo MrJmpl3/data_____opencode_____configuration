@@ -26,8 +26,7 @@ export const createSessionClientBoundary = (api: SessionClientBoundaryApi) => {
   const sessionClient = api.client.session;
 
   return {
-    listChildren: async (sessionID: string): Promise<unknown> =>
-      sessionClient?.children?.({ sessionID, directory }),
+    listChildren: async (sessionID: string): Promise<unknown> => sessionClient?.children?.({ sessionID, directory }),
     readStatusMap: async (): Promise<SessionStatusMap> =>
       normalizeStatusMap((await sessionClient?.status?.({ directory }))?.data),
     readMessages: async (sessionID: string): Promise<readonly unknown[]> =>

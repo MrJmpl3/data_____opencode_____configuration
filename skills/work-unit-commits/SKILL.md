@@ -41,6 +41,10 @@ Before committing, confirm:
 - [ ] The repo still makes sense after applying only this commit.
 - [ ] Tests or docs for this unit are included when relevant.
 - [ ] Rollback is reasonable without reverting unrelated work.
+- [ ] Focused test command and exact result are recorded.
+- [ ] Runtime harness command/scenario and exact result are recorded, or explicit `N/A` explains why
+      no runtime boundary exists.
+- [ ] Rollback boundary names the exact files/behavior removable without unrelated work.
 - [ ] The commit message explains the outcome, not the file list.
 
 ## Split Examples
@@ -70,6 +74,9 @@ When `sdd-tasks` produces a Review Workload Forecast:
 - High risk: follow SDD `delivery_strategy` — ask on `ask-on-risk`, auto-slice on `auto-chain`,
   require `size:exception` on over-budget `single-pr`, or record accepted `size:exception` on
   `exception-ok`.
+- Count authored additions plus deletions for the `>400` threshold. Exclude generated goldens from
+  that authored count, but include every generated file in complete snapshot identity and receipt
+  validation.
 
 Each SDD work unit should map cleanly to a commit or PR with:
 
@@ -77,6 +84,15 @@ Each SDD work unit should map cleanly to a commit or PR with:
 - clear finished state,
 - verification in the same unit,
 - rollback that does not remove unrelated work.
+
+Its implementation evidence MUST include:
+
+- Focused test command and exact result.
+- Runtime harness command/scenario and exact result, or explicit `N/A` with reason.
+- Rollback boundary stated independently of commit creation; uncommitted work units still require
+  it.
+- When fixing a bounded review ledger, group atomic work units inside the single correction
+  transaction; work-unit count never creates another fix budget.
 
 ## Commands
 

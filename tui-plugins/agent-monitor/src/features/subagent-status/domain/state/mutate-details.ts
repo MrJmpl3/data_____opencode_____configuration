@@ -77,5 +77,3 @@ export const upsertChildDetails = (
   state.updatedAt = candidateUpdatedAt;
   return true;
 };
-
-
