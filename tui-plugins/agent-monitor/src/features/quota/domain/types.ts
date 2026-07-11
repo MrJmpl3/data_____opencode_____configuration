@@ -25,6 +25,7 @@ export interface QuotaPluginOptions {
   minRefreshIntervalMs?: number;
   providerCacheTtlMs?: number;
   providerErrorBackoffMs?: number;
+  fetchTimeoutMs?: number;
   /**
    * EXPERIMENTAL — OFF by default.
    * Enables fetching OpenAI reset-credits from an undocumented private ChatGPT endpoint.
@@ -132,6 +133,7 @@ export interface FetchProviderLinesArgs {
   opencodeGoConfig: OpencodeGoConfig;
   displayMode: QuotaDisplayMode;
   setNowMs: (nowMs: number) => void;
+  fetchTimeoutMs?: number;
 }
 
 export type ProviderFetchResult = QuotaLine[] | string | undefined;

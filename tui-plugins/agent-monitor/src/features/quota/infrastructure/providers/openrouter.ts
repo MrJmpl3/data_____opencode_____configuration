@@ -16,6 +16,7 @@ export const formatOpenRouterLines = (data: OpenRouterResult, displayMode: Quota
 
 export const fetchOpenRouterQuota = async (
   signal?: AbortSignal,
+  timeoutMs?: number,
 ): Promise<OpenRouterResult | null | { error: string }> => {
   const key = readOpenRouterKey();
   if (!key) return null;
@@ -25,7 +26,7 @@ export const fetchOpenRouterQuota = async (
     {
       headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
     },
-    undefined,
+    timeoutMs,
     signal,
   );
   if (!response.ok) {

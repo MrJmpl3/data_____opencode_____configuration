@@ -121,6 +121,7 @@ export const fetchOpencodeGoDashboard = async (
   workspaceId: string,
   authCookie: string,
   signal?: AbortSignal,
+  timeoutMs?: number,
 ): Promise<
   | {
       data: {
@@ -140,7 +141,7 @@ export const fetchOpencodeGoDashboard = async (
         Cookie: `auth=${authCookie}`,
       },
     },
-    undefined,
+    timeoutMs,
     signal,
   );
   if (!response.ok) {

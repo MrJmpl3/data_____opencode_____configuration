@@ -10,14 +10,7 @@ import type {
   OpenAIResetCreditsResult,
 } from './types.ts';
 import { MONTH_SECONDS, WEEK_SECONDS } from './types.ts';
-import {
-  detailTextLine,
-  headingLine,
-  windowLine,
-  paceLine,
-  remainingSeconds,
-  formatUsedPercentQuota,
-} from './lines.ts';
+import { detailTextLine, headingLine, windowLine, paceLine, formatUsedPercentQuota } from './lines.ts';
 import {
   parseWindowFromAliases,
   parseResetCreditsPayload,
@@ -85,11 +78,11 @@ export const renderQuotaLine = (line: QuotaLine, nowMs: number): string => {
     case 'detail':
       return indent(line.text);
     case 'window': {
-      const resetSec = remainingSeconds(line.resetAtMs, nowMs);
+      const resetSec = Math.max(0, Math.ceil((line.resetAtMs - nowMs) / 1000));
       return indent(`${line.label} ${line.value} · ${fmtDuration(resetSec)}`);
     }
     case 'pace': {
-      const resetSec = remainingSeconds(line.resetAtMs, nowMs);
+      const resetSec = Math.max(0, Math.ceil((line.resetAtMs - nowMs) / 1000));
       const { paceText, recoverySeconds } = formatPaceLineText({ usedPct: line.usedPct, resetSec }, line.windowSeconds);
       const projection = recoverySeconds !== undefined ? ` · ~${fmtDuration(recoverySeconds)}` : '';
       return indentPace(`${paceText}${projection}`);

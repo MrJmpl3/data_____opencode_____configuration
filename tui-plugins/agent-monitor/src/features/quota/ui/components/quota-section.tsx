@@ -45,6 +45,7 @@ interface ProviderFetchContext {
   opencodeGoConfig: OpencodeGoConfig;
   displayMode: QuotaDisplayMode;
   setNowMs: (ms: number) => void;
+  fetchTimeoutMs: number;
 }
 
 type CachedProviderFetcher = (
@@ -60,10 +61,91 @@ const REFRESH_TRIGGER_EVENTS = ['tui.session.select', 'session.idle', 'session.e
 const isProviderError = (result: unknown): result is { error: string } =>
   typeof result === 'object' && result !== null && 'error' in result;
 
+type QuotaLines = QuotaLine[];
+type Formatter<T> = (result: T, displayMode: QuotaDisplayMode, fetchedAtMs: number) => QuotaLines;
+type NoTickFormatter<T> = (result: T, displayMode: QuotaDisplayMode) => QuotaLines;
+
+// Shapes returned by the per-provider fetch helpers — `T` for the success
+// variant, with `null` and `{ error: string }` for the documented failure
+// variants. The helpers below narrow to `T` once null/error are filtered.
+type FetcherResult<T> = T | null | { error: string };
+
+// Standard fetch+format flow for the providers that expose a `fetchXxxQuota()`
+// entry point. Centralizes the null/error short-circuits and the fetchedAtMs
+// bookkeeping so the per-provider helpers only own the parts that actually
+// differ (which fetcher to call, which formatter to apply).
+const fetchAndFormatStandard = async <T,>(
+  fetcher: () => Promise<FetcherResult<T>>,
+  formatter: Formatter<T>,
+  displayMode: QuotaDisplayMode,
+  setNowMs: (ms: number) => void,
+): Promise<ProviderFetchResult> => {
+  const result = await fetcher();
+  if (result === null) return undefined;
+  if (isProviderError(result)) return result.error;
+  const fetchedAtMs = Date.now();
+  setNowMs(fetchedAtMs);
+  return formatter(result, displayMode, fetchedAtMs);
+};
+
+// Variant for providers that do not need a fetchedAtMs (currently
+// openrouter + deepseek). Keeping the no-tick branch separate avoids paying
+// for the Date.now / setNowMs plumbing on those call paths.
+const fetchAndFormatStandardNoTick = async <T,>(
+  fetcher: () => Promise<FetcherResult<T>>,
+  formatter: NoTickFormatter<T>,
+  displayMode: QuotaDisplayMode,
+): Promise<ProviderFetchResult> => {
+  const result = await fetcher();
+  if (result === null) return undefined;
+  if (isProviderError(result)) return result.error;
+  return formatter(result, displayMode);
+};
+
+const fetchAndFormatCopilot = (
+  displayMode: QuotaDisplayMode,
+  setNowMs: (ms: number) => void,
+  timeoutMs: number,
+): Promise<ProviderFetchResult> =>
+  fetchAndFormatStandard(() => fetchCopilotQuota(undefined, timeoutMs), formatCopilotLines, displayMode, setNowMs);
+
+const fetchAndFormatOpenRouter = (displayMode: QuotaDisplayMode, timeoutMs: number): Promise<ProviderFetchResult> =>
+  fetchAndFormatStandardNoTick(() => fetchOpenRouterQuota(undefined, timeoutMs), formatOpenRouterLines, displayMode);
+
+const fetchAndFormatOpenAI = (
+  displayMode: QuotaDisplayMode,
+  setNowMs: (ms: number) => void,
+  timeoutMs: number,
+): Promise<ProviderFetchResult> => {
+  const experimentalResetCredits = readQuotaConfig()?.options?.experimentalOpenAIResetCredits === true;
+  return fetchAndFormatStandard(
+    () => fetchOpenAIQuota({ experimentalResetCredits, timeoutMs }),
+    formatOpenAILines,
+    displayMode,
+    setNowMs,
+  );
+};
+
+const fetchAndFormatDeepSeek = (displayMode: QuotaDisplayMode, timeoutMs: number): Promise<ProviderFetchResult> =>
+  fetchAndFormatStandardNoTick(() => fetchDeepSeekQuota(undefined, timeoutMs), formatDeepSeekLines, displayMode);
+
+const fetchAndFormatOllamaCloud = (
+  displayMode: QuotaDisplayMode,
+  setNowMs: (ms: number) => void,
+  timeoutMs: number,
+): Promise<ProviderFetchResult> =>
+  fetchAndFormatStandard(
+    () => fetchOllamaCloudQuota(undefined, timeoutMs),
+    formatOllamaCloudLines,
+    displayMode,
+    setNowMs,
+  );
+
 const fetchOpencodeGoLines = async (
   opencodeGoConfig: OpencodeGoConfig,
   displayMode: QuotaDisplayMode,
   setNowMs: (ms: number) => void,
+  timeoutMs: number,
 ): Promise<QuotaLine[]> => {
   if (!opencodeGoConfig || opencodeGoConfig.workspaces.length === 0) return [];
 
@@ -73,7 +155,12 @@ const fetchOpencodeGoLines = async (
       try {
         return {
           workspace,
-          result: await fetchOpencodeGoDashboard(workspace.workspaceId, opencodeGoConfig.authCookie),
+          result: await fetchOpencodeGoDashboard(
+            workspace.workspaceId,
+            opencodeGoConfig.authCookie,
+            undefined,
+            timeoutMs,
+          ),
         };
       } catch (error: unknown) {
         return { workspace, result: { error: error instanceof Error ? error.message : String(error) } };
@@ -91,53 +178,21 @@ const fetchOpencodeGoLines = async (
 };
 
 export const fetchProviderLines = async (args: FetchProviderLinesArgs): Promise<ProviderFetchResult> => {
-  const { providerId, opencodeGoConfig, displayMode, setNowMs } = args;
+  const { providerId, opencodeGoConfig, displayMode, setNowMs, fetchTimeoutMs = 10_000 } = args;
 
   switch (providerId) {
     case 'opencode-go':
-      return fetchOpencodeGoLines(opencodeGoConfig, displayMode, setNowMs);
-
-    case 'github-copilot': {
-      const result = await fetchCopilotQuota();
-      if (result === null) return undefined;
-      if (isProviderError(result)) return result.error;
-      const fetchedAtMs = Date.now();
-      setNowMs(fetchedAtMs);
-      return formatCopilotLines(result, displayMode, fetchedAtMs);
-    }
-
-    case 'openrouter': {
-      const result = await fetchOpenRouterQuota();
-      if (result === null) return undefined;
-      if (isProviderError(result)) return result.error;
-      return formatOpenRouterLines(result, displayMode);
-    }
-
-    case 'openai': {
-      const experimentalResetCredits = readQuotaConfig()?.options?.experimentalOpenAIResetCredits === true;
-      const result = await fetchOpenAIQuota({ experimentalResetCredits });
-      if (result === null) return undefined;
-      if (isProviderError(result)) return result.error;
-      const fetchedAtMs = Date.now();
-      setNowMs(fetchedAtMs);
-      return formatOpenAILines(result, displayMode, fetchedAtMs);
-    }
-
-    case 'deepseek': {
-      const result = await fetchDeepSeekQuota();
-      if (result === null) return undefined;
-      if (isProviderError(result)) return result.error;
-      return formatDeepSeekLines(result, displayMode);
-    }
-
-    case 'ollama-cloud': {
-      const result = await fetchOllamaCloudQuota();
-      if (result === null) return undefined;
-      if (isProviderError(result)) return result.error;
-      const fetchedAtMs = Date.now();
-      setNowMs(fetchedAtMs);
-      return formatOllamaCloudLines(result, displayMode, fetchedAtMs);
-    }
+      return fetchOpencodeGoLines(opencodeGoConfig, displayMode, setNowMs, fetchTimeoutMs);
+    case 'github-copilot':
+      return fetchAndFormatCopilot(displayMode, setNowMs, fetchTimeoutMs);
+    case 'openrouter':
+      return fetchAndFormatOpenRouter(displayMode, fetchTimeoutMs);
+    case 'openai':
+      return fetchAndFormatOpenAI(displayMode, setNowMs, fetchTimeoutMs);
+    case 'deepseek':
+      return fetchAndFormatDeepSeek(displayMode, fetchTimeoutMs);
+    case 'ollama-cloud':
+      return fetchAndFormatOllamaCloud(displayMode, setNowMs, fetchTimeoutMs);
   }
 };
 
@@ -160,8 +215,9 @@ export const collectProviderLines = async (
   displayMode: QuotaDisplayMode,
   setNowMs: (ms: number) => void,
   fetcher: CachedProviderFetcher = (providerId, ctx) => fetchProviderLines({ providerId, ...ctx }),
+  fetchTimeoutMs = 10_000,
 ): Promise<QuotaLine[]> => {
-  const ctx: ProviderFetchContext = { opencodeGoConfig, displayMode, setNowMs };
+  const ctx: ProviderFetchContext = { opencodeGoConfig, displayMode, setNowMs, fetchTimeoutMs };
   const settled = await Promise.all(
     visibleIds.map(async (providerId) => {
       try {
@@ -215,7 +271,19 @@ export const QuotaSection = (props: QuotaSectionProps): JSX.Element => {
     fetchProviderLines: (providerId, ctx) => fetchProviderLines({ providerId, ...ctx }),
   });
 
-  const doFetch = async (): Promise<void> => {
+  // fetch generation counter — incremented before each doFetch so that
+  // stale results from in-flight requests that complete after a newer
+  // fetch are discarded instead of overwriting the view lines.
+  let fetchGen = 0;
+
+  // last wall-clock time a doFetch completed. Used to debounce refresh
+  // events by minRefreshIntervalMs.
+  const [lastRefreshAtMs, setLastRefreshAtMs] = createSignal(0);
+
+  let deferredRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const doFetch = async ({ fromTrigger }: { fromTrigger?: boolean } = {}): Promise<void> => {
+    const gen = ++fetchGen;
     const displayMode: QuotaDisplayMode = props.options.displayMode ?? 'remaining';
     const collected = await collectProviderLines(
       readOpencodeGoConfig(),
@@ -223,8 +291,15 @@ export const QuotaSection = (props: QuotaSectionProps): JSX.Element => {
       displayMode,
       (ms) => setNowMs(ms),
       (providerId, ctx) => cacheAndFetcher.getCachedProviderLines(providerId, ctx),
+      resolved.fetchTimeoutMs,
     );
+    // generation guard: discard if a newer fetch started while we were in-flight
+    if (gen !== fetchGen) return;
     setLines(collected);
+    // only update the debounce anchor on non-deferred completions so the
+    // next event-gap is measured from the actual fetch — not from a
+    // deferred-timer fire that was itself clamped.
+    if (!fromTrigger) setLastRefreshAtMs(Date.now());
   };
 
   onMount(() => {
@@ -256,21 +331,45 @@ export const QuotaSection = (props: QuotaSectionProps): JSX.Element => {
     }),
   );
 
-  // Event-driven cache invalidation. The provider cache may hold stale
-  // values when the session changes or a turn completes with errors;
-  // busting the cache here means the next `usePolling` tick (or the
-  // slot's re-render on session change) re-fetches fresh data.
+  // Event-driven cache invalidation + refresh. minRefreshIntervalMs
+  // debounces bus events so rapid-fire triggers don't cause back-to-back
+  // fetches. When pollInterval is 0 (disabled) this is the ONLY refresh
+  // mechanism, so the fetcher path respects the debounce contract.
   subscribeRefreshTriggers({
     events: props.api.event,
     lifecycle: props.api.lifecycle,
     eventNames: REFRESH_TRIGGER_EVENTS,
     onTrigger: () => {
-      // only invalidate — re-fetch is owned by the next poll
-      // tick. An immediate refetch would race the in-flight request
-      // and double the network load. The first event after a long
-      // quiet stretch will hit an empty cache and re-fetch naturally.
-      cacheAndFetcher.invalidateVisibleData();
+      if (deferredRefreshTimer !== undefined) {
+        clearTimeout(deferredRefreshTimer);
+        deferredRefreshTimer = undefined;
+      }
+
+      const elapsed = Date.now() - lastRefreshAtMs();
+      if (elapsed >= resolved.minRefreshIntervalMs) {
+        cacheAndFetcher.invalidateVisibleData();
+        doFetch({ fromTrigger: true }).catch((err: unknown) => {
+          console.warn('[agent-monitor] event-triggered fetch failed:', err);
+        });
+      } else {
+        // Defer until minRefreshIntervalMs from the last anchor point
+        deferredRefreshTimer = setTimeout(() => {
+          deferredRefreshTimer = undefined;
+          cacheAndFetcher.invalidateVisibleData();
+          doFetch({ fromTrigger: true }).catch((err: unknown) => {
+            console.warn('[agent-monitor] deferred event-triggered fetch failed:', err);
+          });
+        }, resolved.minRefreshIntervalMs - elapsed);
+      }
     },
+  });
+
+  // Clean up any pending deferred refresh timer on unmount
+  onCleanup(() => {
+    if (deferredRefreshTimer !== undefined) {
+      clearTimeout(deferredRefreshTimer);
+      deferredRefreshTimer = undefined;
+    }
   });
 
   const theme = () => props.api.theme.current;

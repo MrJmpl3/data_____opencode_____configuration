@@ -29,6 +29,7 @@ const buildOpenAIHeaders = (token: string): Record<string, string> => {
 const fetchOpenAIResetCredits = async (
   headers: Record<string, string>,
   signal?: AbortSignal,
+  timeoutMs?: number,
 ): Promise<OpenAIResetCreditsResult> => {
   try {
     const resetHeaders: Record<string, string> = {
@@ -37,7 +38,7 @@ const fetchOpenAIResetCredits = async (
       originator: 'Codex Desktop',
     };
 
-    const response = await fetchWithTimeout(OPENAI_RESET_CREDITS_URL, { headers: resetHeaders }, undefined, signal);
+    const response = await fetchWithTimeout(OPENAI_RESET_CREDITS_URL, { headers: resetHeaders }, timeoutMs, signal);
     if (!response.ok) {
       const text = await response.text().catch(() => '');
       return {
@@ -71,46 +72,90 @@ const fetchOpenAIResetCredits = async (
 
 export interface FetchOpenAIQuotaOptions {
   experimentalResetCredits?: boolean;
+  timeoutMs?: number;
 }
+
+type OpenAIUsageFields = {
+  planType: string | undefined;
+  hourly: ReturnType<typeof parseWindowFromAliases>;
+  weekly: ReturnType<typeof parseWindowFromAliases>;
+  codeReview: ReturnType<typeof parseWindowFromAliases>;
+  additionalRateLimits: ReturnType<typeof parseAdditionalRateLimits>;
+  credits: Record<string, unknown> | undefined;
+};
+
+// Pure helper: pull the relevant typed fields out of an unknown body without
+// computing derived values. Keeping the field extraction separate from the
+// credits-decision logic makes each step auditable in isolation.
+const extractOpenAIUsageFields = (body: Record<string, unknown>): OpenAIUsageFields => ({
+  planType: readStringField(body, 'plan_type') || readStringField(body, 'planType'),
+  hourly: parseWindowFromAliases(isRecord(body.rate_limit) ? body.rate_limit : undefined, [
+    'primary_window',
+    'primary',
+    'window',
+    'window_primary',
+    'hourly',
+  ]),
+  weekly: parseWindowFromAliases(isRecord(body.rate_limit) ? body.rate_limit : undefined, [
+    'secondary_window',
+    'secondary',
+    'window_secondary',
+    'weekly',
+  ]),
+  codeReview: parseWindowFromAliases(isRecord(body.code_review_rate_limit) ? body.code_review_rate_limit : undefined, [
+    'primary_window',
+    'primary',
+    'window',
+    'window_primary',
+  ]),
+  additionalRateLimits: parseAdditionalRateLimits(body.additional_rate_limits),
+  credits: isRecord(body.credits) ? body.credits : undefined,
+});
+
+// Pure helper: turn the raw `credits` blob into a display label, or
+// undefined when there is nothing to show.
+const resolveOpenAICreditsLabel = (credits: Record<string, unknown> | undefined): string | undefined => {
+  if (!credits) return undefined;
+
+  const unlimited = credits.unlimited === true;
+  const hasCredits = credits.has_credits === true || unlimited;
+  if (unlimited) return 'Unlimited';
+
+  if (!hasCredits) return undefined;
+  if (typeof credits.balance !== 'number' || !Number.isFinite(credits.balance)) return undefined;
+  return `$${credits.balance.toFixed(2)}`;
+};
+
+// Pure helper: tell whether a populated result actually carries any data
+// the UI can render. If not, callers should surface an error instead.
+const hasOpenAIUsagePayload = (result: OpenAIResult): boolean =>
+  Boolean(
+    result.hourly ||
+    result.weekly ||
+    result.codeReview ||
+    result.credits ||
+    result.planType ||
+    (result.additionalRateLimits && result.additionalRateLimits.length > 0),
+  );
 
 const parseOpenAIUsageResponse = (body: unknown): OpenAIResult | { error: string } => {
   if (!isRecord(body)) {
     return { error: 'OpenAI did not return a valid usage payload' };
   }
 
-  const rateLimit = isRecord(body.rate_limit) ? body.rate_limit : undefined;
-  const additionalRateLimits = parseAdditionalRateLimits(body.additional_rate_limits);
-  const codeReviewRateLimit = isRecord(body.code_review_rate_limit) ? body.code_review_rate_limit : undefined;
-  const credits = isRecord(body.credits) ? body.credits : undefined;
-
+  const fields = extractOpenAIUsageFields(body);
   const result: OpenAIResult = {
-    planType: readStringField(body, 'plan_type') || readStringField(body, 'planType'),
-    hourly: parseWindowFromAliases(rateLimit, ['primary_window', 'primary', 'window', 'window_primary', 'hourly']),
-    weekly: parseWindowFromAliases(rateLimit, ['secondary_window', 'secondary', 'window_secondary', 'weekly']),
-    codeReview: parseWindowFromAliases(codeReviewRateLimit, ['primary_window', 'primary', 'window', 'window_primary']),
-    additionalRateLimits,
+    planType: fields.planType,
+    hourly: fields.hourly,
+    weekly: fields.weekly,
+    codeReview: fields.codeReview,
+    additionalRateLimits: fields.additionalRateLimits,
   };
 
-  if (credits) {
-    const unlimited = credits.unlimited === true;
-    const hasCredits = credits.has_credits === true || unlimited;
-    const balance =
-      typeof credits.balance === 'number' && Number.isFinite(credits.balance) ? credits.balance : undefined;
-    if (unlimited) {
-      result.credits = 'Unlimited';
-    } else if (hasCredits && balance !== undefined) {
-      result.credits = `$${balance.toFixed(2)}`;
-    }
-  }
+  const creditsLabel = resolveOpenAICreditsLabel(fields.credits);
+  if (creditsLabel) result.credits = creditsLabel;
 
-  if (
-    !result.hourly &&
-    !result.weekly &&
-    !result.codeReview &&
-    !result.credits &&
-    !result.planType &&
-    !(result.additionalRateLimits && result.additionalRateLimits.length > 0)
-  ) {
+  if (!hasOpenAIUsagePayload(result)) {
     return { error: 'OpenAI did not return expected quota data' };
   }
 
@@ -120,8 +165,9 @@ const parseOpenAIUsageResponse = (body: unknown): OpenAIResult | { error: string
 const fetchOpenAIUsage = async (
   headers: Record<string, string>,
   signal?: AbortSignal,
+  timeoutMs?: number,
 ): Promise<OpenAIResult | { error: string }> => {
-  const response = await fetchWithTimeout(OPENAI_USAGE_URL, { headers }, undefined, signal).catch(
+  const response = await fetchWithTimeout(OPENAI_USAGE_URL, { headers }, timeoutMs, signal).catch(
     (error: unknown) => undefined, // will be caught below
   );
   if (!response) {
@@ -152,11 +198,11 @@ export const fetchOpenAIQuota = async (
   const headers = buildOpenAIHeaders(token);
 
   const [usageResult, resetCreditsResult] = await Promise.all([
-    fetchOpenAIUsage(headers, signal).catch((error: unknown) => ({
+    fetchOpenAIUsage(headers, signal, options.timeoutMs).catch((error: unknown) => ({
       error: error instanceof Error ? error.message : String(error),
     })),
     options.experimentalResetCredits
-      ? fetchOpenAIResetCredits(headers, signal)
+      ? fetchOpenAIResetCredits(headers, signal, options.timeoutMs)
       : Promise.resolve<OpenAIResetCreditsResult>({
           state: 'unavailable',
           availableCount: 0,
@@ -176,7 +222,5 @@ export const fetchOpenAIQuota = async (
   return result;
 };
 
-// Re-export formatOpenAILines so the cross-provider switch in quota-section.tsx
-// can keep importing from the provider file. Everything else is imported directly
-// from domain modules.
+// Re-exported for quota-section.tsx switch.
 export { formatOpenAILines };

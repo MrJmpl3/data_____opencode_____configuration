@@ -124,6 +124,7 @@ export const formatOllamaCloudLines = (
 
 export const fetchOllamaCloudQuota = async (
   signal?: AbortSignal,
+  timeoutMs?: number,
 ): Promise<OllamaCloudResult | null | { error: string }> => {
   const cookie = readOllamaCloudCookie();
   if (!cookie) return null;
@@ -141,7 +142,7 @@ export const fetchOllamaCloudQuota = async (
       // a 200-page that has no usage data.
       redirect: 'manual',
     },
-    undefined,
+    timeoutMs,
     signal,
   );
 

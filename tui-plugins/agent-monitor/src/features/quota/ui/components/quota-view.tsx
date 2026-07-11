@@ -4,22 +4,8 @@ import { createMemo, For, Show } from 'solid-js';
 import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
 
 import { renderQuotaLine, formatPaceLineText } from '../../domain/format.ts';
-import { remainingSeconds, usageColor } from '../../domain/lines.ts';
-import type { QuotaLine, QuotaLineTone } from '../../domain/types.ts';
-
-const toneColor = (tone: QuotaLineTone | undefined): string => {
-  switch (tone) {
-    case 'success':
-      return 'green';
-    case 'warning':
-      return 'yellow';
-    case 'error':
-      return 'red';
-    case 'neutral':
-    default:
-      return 'gray';
-  }
-};
+import { quotaColor } from '../../domain/lines.ts';
+import type { QuotaLine } from '../../domain/types.ts';
 
 const computeExhausted = (lines: readonly QuotaLine[]): readonly boolean[] => {
   const flags = new Array<boolean>(lines.length).fill(false);
@@ -46,14 +32,14 @@ const lineFg = (line: QuotaLine, nowMs: number, groupExhausted: boolean): string
     case 'heading':
       return 'white';
     case 'window':
-      return line.usedPct !== undefined ? usageColor(line.usedPct) : toneColor(line.tone);
+      return quotaColor(line.usedPct, line.tone);
     case 'pace': {
-      const resetSec = remainingSeconds(line.resetAtMs, nowMs);
+      const resetSec = Math.max(0, Math.ceil((line.resetAtMs - nowMs) / 1000));
       const { paceText } = formatPaceLineText({ usedPct: line.usedPct, resetSec }, line.windowSeconds);
       return paceText.startsWith('⚠') ? 'red' : 'green';
     }
     case 'detail':
-      return toneColor(line.tone);
+      return quotaColor(undefined, line.tone);
   }
 };
 

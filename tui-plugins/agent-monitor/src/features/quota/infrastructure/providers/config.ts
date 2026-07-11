@@ -24,6 +24,7 @@ export interface QuotaFileConfig {
     minRefreshIntervalMs?: QuotaPluginOptions['minRefreshIntervalMs'];
     providerCacheTtlMs?: QuotaPluginOptions['providerCacheTtlMs'];
     providerErrorBackoffMs?: QuotaPluginOptions['providerErrorBackoffMs'];
+    fetchTimeoutMs?: QuotaPluginOptions['fetchTimeoutMs'];
     experimentalOpenAIResetCredits?: QuotaPluginOptions['experimentalOpenAIResetCredits'];
   };
 }
@@ -117,6 +118,9 @@ export const readQuotaConfig = (): QuotaFileConfig | null => {
     if (typeof opts.providerErrorBackoffMs === 'number' && Number.isFinite(opts.providerErrorBackoffMs)) {
       options.providerErrorBackoffMs = opts.providerErrorBackoffMs;
     }
+    if (typeof opts.fetchTimeoutMs === 'number' && Number.isFinite(opts.fetchTimeoutMs)) {
+      options.fetchTimeoutMs = opts.fetchTimeoutMs;
+    }
 
     if (Object.keys(options).length > 0) {
       config.options = options;
@@ -124,7 +128,7 @@ export const readQuotaConfig = (): QuotaFileConfig | null => {
 
     return config;
   } catch (e) {
-    console.warn('[agent-monitor] Failed to parse agent-monitor.json:', e instanceof Error ? e.message : String(e));
+    console.warn('[agent-monitor] Failed to parse agent-monitor.json:', e instanceof Error ? e : String(e));
     return null;
   }
 };

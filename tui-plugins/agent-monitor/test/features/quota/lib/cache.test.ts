@@ -109,6 +109,38 @@ describe('createQuotaProviderCache', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it('discards an in-flight fetch result when invalidateVisibleData runs before it resolves', async () => {
+    let resolveFirst: ((value: ProviderFetchResult) => void) | undefined;
+    const slowFetcher = vi.fn(
+      () =>
+        new Promise<ProviderFetchResult>((resolve) => {
+          resolveFirst = resolve;
+        }),
+    );
+    const { getCachedProviderLines, invalidateVisibleData } = createQuotaProviderCache<string>({
+      providerCacheTtlMilliseconds: 60_000,
+      providerErrorBackoffMilliseconds: 60_000,
+      fetchProviderLines: slowFetcher,
+    });
+
+    // Start an in-flight fetch
+    const firstPromise = getCachedProviderLines('github-copilot', 'ctx');
+
+    // Invalidate while that fetch is still in-flight
+    invalidateVisibleData();
+
+    // Resolve the stale in-flight fetch with outdated data
+    resolveFirst?.([{ kind: 'detail', text: 'stale' }]);
+    await firstPromise;
+
+    // After invalidation a new fetch should re-call the fetcher
+    slowFetcher.mockResolvedValue([{ kind: 'detail', text: 'fresh' }]);
+    const result = await getCachedProviderLines('github-copilot', 'ctx');
+
+    expect(result).toEqual([{ kind: 'detail', text: 'fresh' }]);
+    expect(slowFetcher).toHaveBeenCalledTimes(2);
+  });
+
   it('invalidateVisibleData resets every entry so the next call re-fetches', async () => {
     const fetcher = makeFetcher([[{ kind: 'detail', text: 'first' }], [{ kind: 'detail', text: 'second' }]]);
     const { getCachedProviderLines, invalidateVisibleData } = createQuotaProviderCache<string>({

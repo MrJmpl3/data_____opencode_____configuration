@@ -7,6 +7,7 @@ export const MIN_SAFE_REFRESH_INTERVAL_MS = 60_000;
 export const DEFAULT_PROVIDER_CACHE_TTL_MS = 5 * 60_000;
 export const DEFAULT_PROVIDER_ERROR_BACKOFF_MS = 15 * 60_000;
 export const DEFAULT_MIN_REFRESH_INTERVAL_MS = 2 * 60_000;
+export const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
 
 export interface QuotaSectionOptions {
   visible: boolean;
@@ -21,6 +22,7 @@ export interface QuotaSectionOptions {
   providerCacheTtlMs?: number;
   /** Provider error backoff in ms. */
   providerErrorBackoffMs?: number;
+  fetchTimeoutMs?: number;
   visibleProviders?: readonly string[];
   displayMode?: 'remaining' | 'used';
 }
@@ -32,6 +34,7 @@ export const defaultQuotaSectionOptions: QuotaSectionOptions = {
   minRefreshIntervalMs: DEFAULT_MIN_REFRESH_INTERVAL_MS,
   providerCacheTtlMs: DEFAULT_PROVIDER_CACHE_TTL_MS,
   providerErrorBackoffMs: DEFAULT_PROVIDER_ERROR_BACKOFF_MS,
+  fetchTimeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
 };
 
 // Default visible providers list. `readonly` prevents callers from mutating
@@ -131,6 +134,7 @@ interface ResolvedQuotaSectionOptions {
   minRefreshIntervalMs: number;
   providerCacheTtlMs: number;
   providerErrorBackoffMs: number;
+  fetchTimeoutMs: number;
 }
 
 /**
@@ -141,7 +145,7 @@ interface ResolvedQuotaSectionOptions {
 export const resolveNumericOptions = (
   options: Pick<
     Partial<QuotaSectionOptions>,
-    'pollIntervalMs' | 'minRefreshIntervalMs' | 'providerCacheTtlMs' | 'providerErrorBackoffMs'
+    'pollIntervalMs' | 'minRefreshIntervalMs' | 'providerCacheTtlMs' | 'providerErrorBackoffMs' | 'fetchTimeoutMs'
   >,
 ): ResolvedQuotaSectionOptions => {
   return {
@@ -165,6 +169,11 @@ export const resolveNumericOptions = (
       value: options.providerErrorBackoffMs,
       fallback: DEFAULT_PROVIDER_ERROR_BACKOFF_MS,
       minimum: MIN_SAFE_REFRESH_INTERVAL_MS,
+    }),
+    fetchTimeoutMs: clampNumberOption({
+      value: options.fetchTimeoutMs,
+      fallback: DEFAULT_FETCH_TIMEOUT_MS,
+      minimum: 1,
     }),
   };
 };

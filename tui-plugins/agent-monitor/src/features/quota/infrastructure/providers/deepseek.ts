@@ -73,7 +73,10 @@ const parseDeepSeekPayload = (body: unknown): DeepSeekResult | { error: string }
   return { isAvailable, balances };
 };
 
-export const fetchDeepSeekQuota = async (signal?: AbortSignal): Promise<DeepSeekResult | null | { error: string }> => {
+export const fetchDeepSeekQuota = async (
+  signal?: AbortSignal,
+  timeoutMs?: number,
+): Promise<DeepSeekResult | null | { error: string }> => {
   const token = readDeepSeekToken();
   if (!token) return null;
 
@@ -82,7 +85,7 @@ export const fetchDeepSeekQuota = async (signal?: AbortSignal): Promise<DeepSeek
     {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     },
-    undefined,
+    timeoutMs,
     signal,
   );
 

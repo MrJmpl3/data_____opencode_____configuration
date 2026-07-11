@@ -124,7 +124,10 @@ export const formatCopilotLines = (
   return lines;
 };
 
-export const fetchCopilotQuota = async (signal?: AbortSignal): Promise<CopilotResult | null | { error: string }> => {
+export const fetchCopilotQuota = async (
+  signal?: AbortSignal,
+  timeoutMs?: number,
+): Promise<CopilotResult | null | { error: string }> => {
   const token = readCopilotToken();
   if (!token) return null;
 
@@ -138,7 +141,7 @@ export const fetchCopilotQuota = async (signal?: AbortSignal): Promise<CopilotRe
         'User-Agent': USER_AGENT,
       },
     },
-    undefined,
+    timeoutMs,
     signal,
   );
   if (!response.ok) {
