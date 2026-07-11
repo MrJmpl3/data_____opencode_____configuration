@@ -38,7 +38,7 @@
 | Production Readiness | 0        | 0      | 1      | 4      | 5      |
 | Consistency          | 0        | 0      | 0      | 5      | 5      |
 | Comments             | 0        | 1      | 0      | 2      | 3      |
-| **Total**            | **7**    | **22** | **21** | **38** | **88** |
+| **Total**            | **7**    | **22** | **22** | **38** | **89** |
 
 ---
 
@@ -46,30 +46,36 @@
 
 ### 🔴 CRITICAL
 
-- [ ] **CC-001** — `src/features/quota/infrastructure/providers/openai.ts:76` — `fetchOpenAIQuota`
+- [x] **CC-001** — `src/features/quota/infrastructure/providers/openai.ts:76` — `fetchOpenAIQuota`
       tiene 94 líneas con callbacks anidados (Promise.then), manejo de errores duplicado, y lógica
       de parseo inline. Extraer parseOpenAIResponse, fetchOpenAIUsage, y mantener solo el
-      orquestador.
-- [ ] **CC-002** — `src/features/subagent-status/domain/state/mutations.ts:143` —
+      orquestador. ✅ Fixed in this pass — extracted extractOpenAIUsageFields,
+      resolveOpenAICreditsLabel, hasOpenAIUsagePayload; trimmed re-export comment (CM-002 too).
+- [x] **CC-002** — `src/features/subagent-status/domain/state/mutations.ts:143` —
       `upsertRunningChild` tiene 92 líneas con 7 helpers internos, 3 niveles de nesting, y lógica de
-      estado, timestamps, tokens y purgado mezclado. Extraer resolveChildTiming, buildChildState.
-- [ ] **CC-003** — `src/features/quota/ui/components/quota-section.tsx:60` — `fetchProviderLines`
+      estado, timestamps, tokens y purgado mezclado. Extraer resolveChildTiming, buildChildState. ✅
+      Fixed in this pass — extracted resolveChildTiming and buildChildState.
+- [x] **CC-003** — `src/features/quota/ui/components/quota-section.tsx:60` — `fetchProviderLines`
       tiene 79 líneas con un switch de 6 cases, cada uno con fetch + parseo + formateo + errores
-      replicados. Extraer fetchAndFormatXxx por provider.
-- [ ] **CC-004** — `src/features/subagent-status/runtime/tui-runtime.ts:1` — Archivo de 228 líneas
+      replicados. Extraer fetchAndFormatXxx por provider. ✅ Fixed in this pass — extracted
+      fetchAndFormatStandard/NoTick + 5 per-provider fetchAndFormatXxx helpers.
+- [x] **CC-004** — `src/features/subagent-status/runtime/tui-runtime.ts:1` — Archivo de 228 líneas
       con 8 responsabilidades: clock, event bridge, persist queue, recovery, stale probes, session
       scope, bootstrap, dispose. Separar en TuiRuntimeConfig, TuiRuntimeOrchestrator,
-      ClockAndTimers.
-- [ ] **CC-005** — `src/features/subagent-status/infrastructure/sqlite/hydrate.ts:258` —
+      ClockAndTimers. ✅ Fixed in this pass — split into tui-runtime-config.ts (config builder with
+      persist queue + recovery sources + policy) and tui-runtime.ts (orchestrator).
+- [x] **CC-005** — `src/features/subagent-status/infrastructure/sqlite/hydrate.ts:258` —
       `decideRecoveredStatus` tiene 58 líneas con 6 ramas de decisión anidadas, comparaciones de
-      timestamps y merge de tokens. Refactorizar a guard clauses con early return.
-- [ ] **EH-001** — `src/features/subagent-status/runtime/events/bridge.ts:43` — Catch block vacío
+      timestamps y merge de tokens. Refactorizar a guard clauses con early return. ✅ Fixed in this
+      pass — extracted decideAmbiguousStatus helper, all branches now early-return guards.
+- [x] **EH-001** — `src/features/subagent-status/runtime/events/bridge.ts:43` — Catch block vacío
       que traga errores al hacer unsubscribe de eventos. Agregar
-      `console.warn('[agent-monitor] Failed to unsubscribe event:', ...)`.
-- [ ] **OB-001** — `src/features/subagent-status/runtime/refresh/orchestrator.ts:183` — Error de
+      `console.warn('[agent-monitor] Failed to unsubscribe event:', ...)`. ✅ Already fixed before
+      this pass
+- [x] **OB-001** — `src/features/subagent-status/runtime/refresh/orchestrator.ts:183` — Error de
       fetch silenciado en el path principal de refresco de subagentes. Si
       `sessionClient.listChildren()` falla, el catch vacío traga el error sin log. Agregar
-      `console.warn('[agent-monitor] listChildren failed:', ...)`.
+      `console.warn('[agent-monitor] listChildren failed:', ...)`. ✅ Already fixed before this pass
 
 ---
 
@@ -77,189 +83,162 @@
 
 #### Clean Code
 
-- [ ] **CC-006** — `src/features/quota/domain/options.ts:37` — Comentario "ponytail:" en spanglish
-      que no explica nada. Reemplazar por descripción clara.
-- [ ] **CC-007** — `src/features/subagent-status/infrastructure/persistence.ts:326` — Archivo de 326
-      líneas con 10+ funciones exportadas que deberían ser privadas. Reducir exports públicos.
+- [x] **CC-006** — `src/features/quota/domain/options.ts:37` — Comentario "ponytail:" en spanglish
+      que no explica nada. Reemplazar por descripción clara. ✅ Already fixed before this pass
+- [x] **CC-007** — `src/features/subagent-status/infrastructure/persistence.ts:326` — Archivo de 326
+      líneas con 10+ funciones exportadas que deberían ser privadas. Reducir exports públicos. ✅
+      Already fixed before this pass — file split into persistence/{io,load,recovery,queue}.ts and
+      the remaining public surface is 7 actively-used exports.
 
 #### Over-engineering
 
-- [ ] **OE-001** — `src/features/quota/domain/options.ts:149` — Interfaz `NumericQuotaOptions` (Pick
-      de Partial) que solo se usa una vez. Inline el tipo directamente.
-- [ ] **OE-002** — `src/features/quota/ui/components/tui-panel.tsx:11` — Componente `TuiPanel` es un
+- [x] **OE-001** — `src/features/quota/domain/options.ts:149` — Interfaz `NumericQuotaOptions` (Pick
+      de Partial) que solo se usa una vez. Inline el tipo directamente. ✅ Already fixed before this
+      pass
+- [x] **OE-002** — `src/features/quota/ui/components/tui-panel.tsx:11` — Componente `TuiPanel` es un
       wrapper de 7 líneas con un solo llamador. Inline el contenido en QuotaSection y eliminar
-      archivo.
+      archivo. ✅ Already fixed before this pass
 - [ ] **OE-003** — `src/features/subagent-status/runtime/events/bridge.ts:39` — try/catch en dispose
-      para funciones que nunca lanzan. Eliminar el try/catch innecesario.
-- [ ] **OE-004** — `src/kit/use-clock-ticker.ts:1` — Import desde `solid-js/dist/solid.js` forzando
+      para funciones que nunca lanzan. Eliminar el try/catch innecesario. ✅ N/A — audit shows the
+      try/catch is defensible: we cannot guarantee every OpenCode `subscribe` implementation never
+      throws, and the existing `[agent-monitor] Failed to unsubscribe event:` log added by the
+      CRITICAL pass makes the catch useful when an unsubscribe does fail. Kept intentionally.
+- [x] **OE-004** — `src/kit/use-clock-ticker.ts:1` — Import desde `solid-js/dist/solid.js` forzando
       declaration module extra. Cambiar a `solid-js` y eliminar `solid-reactive.d.ts` (además es
-      frágil — release minor de solid-js podría romperlo).
-- [ ] **OE-005** — `src/features/subagent-status/runtime/options.ts:152` —
+      frágil — release minor de solid-js podría romperlo). ✅ Already fixed before this pass
+- [x] **OE-005** — `src/features/subagent-status/runtime/options.ts:152` —
       `normalizeSubagentStatusPluginOptions` tiene 55 líneas de clamping repetitivo. Extraer helper
-      `clampOption(value, fallback, min, max?)`.
+      `clampOption(value, fallback, min, max?)`. ✅ Already fixed before this pass
 
 #### Comments
 
-- [ ] **CM-001** — `src/features/quota/infrastructure/providers/constants.ts:9` — Comentario sobre
-      User-Agent de browser impersonation sin referencia a ticket. Agregar TODO con issue number.
+- [x] **CM-001** — `src/features/quota/infrastructure/providers/constants.ts:9` — Comentario sobre
+      User-Agent de browser impersonation sin referencia a ticket. Agregar TODO con issue number. ✅
+      Fixed in this pass — replaced `TODO(doc)` with the project-greppable `TODO(compliance-review)`
+      marker and explained the placeholder convention.
 
 #### Readability
 
-- [ ] **RD-001** — `src/features/subagent-status/ui/format.ts:59` — `formatCompactTokenCount` y
+- [x] **RD-001** — `src/features/subagent-status/ui/format.ts:59` — `formatCompactTokenCount` y
       `formatSidebarTokenCount` son casi idénticas. Unificar en `formatTokenCount(value, options?)`.
+      ✅ Already fixed before this pass — `formatTokenCount(value, { unit? })` is the single helper;
+      the per-context wrappers differ only in unit.
 
 #### SOLID
 
-- [ ] **SD-001** — `src/features/subagent-status/infrastructure/sqlite/hydrate.ts:386` —
+- [x] **SD-001** — `src/features/subagent-status/infrastructure/sqlite/hydrate.ts:386` —
       `resolveOpenCodeDatabasePath` asume path hardcodeado de Linux Desktop. No tener default,
-      forzar ruta desde config.
+      forzar ruta desde config. ✅ Already fixed before this pass — function and hardcoded path
+      removed; `sqliteDatabasePath` flows from config straight to the recovery source.
 
 #### Error Handling
 
-- [ ] **EH-002** — `src/features/subagent-status/infrastructure/persistence.ts:284` — `loadState`
+- [x] **EH-002** — `src/features/subagent-status/infrastructure/persistence.ts:284` — `loadState`
       con catch vacío que devuelve createEmptyState() sin log. Si el archivo está corrupto, el
-      usuario pierde estado previo sin saberlo. Agregar `console.warn`.
-- [ ] **EH-003** — `src/features/subagent-status/runtime/refresh/orchestrator.ts:250` — El catch de
+      usuario pierde estado previo sin saberlo. Agregar `console.warn`. ✅ Already fixed before this
+      pass
+- [x] **EH-003** — `src/features/subagent-status/runtime/refresh/orchestrator.ts:250` — El catch de
       refreshRunner muta `nextState.recovering = false` ANTES del syncState, dejando flag
-      inconsistente si sync falla. Mover a finally, loggear stack trace completo.
+      inconsistente si sync falla. Mover a finally, loggear stack trace completo. ✅ Already fixed
+      before this pass — `recovering = false` is in a `finally` block (orchestrator.ts:269-275) and
+      the catch logs the full error.
 
 #### Data Integrity
 
-- [ ] **DI-001** — `src/kit/clone.ts:36` — `cloneState` no clona `purgedSessionIDs`, compartiendo
+- [x] **DI-001** — `src/kit/clone.ts:36` — `cloneState` no clona `purgedSessionIDs`, compartiendo
       referencia con estado original. Cuando `clearPurgedSession` muta in-place, corrompe el estado
-      fuente. Agregar `purgedSessionIDs: { ...state.purgedSessionIDs }`.
-- [ ] **DI-002** — `src/features/quota/infrastructure/retry-policy.ts:22` — `parseBackoffResetMs`
+      fuente. Agregar `purgedSessionIDs: { ...state.purgedSessionIDs }`. ✅ Already fixed before
+      this pass
+- [x] **DI-002** — `src/features/quota/infrastructure/retry-policy.ts:22` — `parseBackoffResetMs`
       usa threshold de 1.000.000.000 para distinguir epoch-seconds de epoch-milliseconds, pero
       timestamps en ms (~1.7T en 2026) también superan ese threshold, causando backoff que nunca
-      expira. Cambiar threshold a `> 10_000_000_000`.
+      expira. Cambiar threshold a `> 10_000_000_000`. ✅ Already fixed before this pass
 
 #### Observability
 
-- [ ] **OB-002** — `src/features/subagent-status/runtime/tui-runtime.ts:104` — Transición
+- [x] **OB-002** — `src/features/subagent-status/runtime/tui-runtime.ts:104` — Transición
       running→error por hard-stale sin ningún log. Agregar
-      `console.warn('[agent-monitor] hard-stale: marking', child.id, 'as error')`.
-- [ ] **OB-003** — `src/features/quota/infrastructure/providers/auth.ts:76` — Fallo de decode JWT
+      `console.warn('[agent-monitor] hard-stale: marking', child.id, 'as error')`. ✅ Already fixed
+      before this pass — log lives in `markHardStaleRunningChildren`
+      (domain/state/maintenance.ts:241) which is the right seam.
+- [x] **OB-003** — `src/features/quota/infrastructure/providers/auth.ts:76` — Fallo de decode JWT
       silenciado. Si el token de OpenAI está malformado, el catch traga el error. Agregar
-      `console.warn`.
-- [ ] **OB-004** — `src/features/subagent-status/infrastructure/sqlite/script.ts:94` — Fallo de
+      `console.warn`. ✅ Already fixed before this pass
+- [x] **OB-004** — `src/features/subagent-status/infrastructure/sqlite/script.ts:94` — Fallo de
       parseo del output del script Python de recovery silenciado. Agregar `console.warn` con preview
-      del stdout.
-- [ ] **OB-005** — `src/features/subagent-status/infrastructure/config.ts:29` — Fallo de parseo de
+      del stdout. ✅ Fixed in this pass — log already existed; added a 200-char `stdoutPreview=` to
+      the message so the raw recovery output is greppable next to the failure.
+- [x] **OB-005** — `src/features/subagent-status/infrastructure/config.ts:29` — Fallo de parseo de
       `agent-monitor.json` silenciado (solo en subagent-status; quota sí loggea). Agregar el mismo
-      `console.warn` que usa quota.
-- [ ] **OB-006** — `(multiple files)` — Ningún mensaje de log incluye correlation ID (session_id,
+      `console.warn` que usa quota. ✅ Fixed in this pass — subagent-status already had the warn;
+      aligned quota's `e.message` → full Error so both files use the same canonical format.
+- [x] **OB-006** — `(multiple files)` — Ningún mensaje de log incluye correlation ID (session_id,
       trace_id). Debuggear sesiones específicas es imposible sin grep manual. Agregar `sessionId` a
-      cada log en contexto de sesión.
-- [ ] **OB-007** — `src/features/subagent-status/runtime/refresh/orchestrator.ts:84` — Errores de
+      cada log en contexto de sesión. ✅ Fixed in this pass — pragmatic 4-site pass: added
+      `sessionId=` to orchestrator.ts:clone-failure, tui-runtime.ts:bootstrap,
+      scope.ts:persistEmpty, persistence.ts:loadState. The bridge keeps its existing "spans every
+      session" comment.
+- [x] **OB-007** — `src/features/subagent-status/runtime/refresh/orchestrator.ts:84` — Errores de
       orquestación loggeados solo con `e.message` en vez del error completo. Se pierde el stack
-      trace. Pasar el error completo a `console.warn`.
+      trace. Pasar el error completo a `console.warn`. ✅ Already fixed before this pass — every
+      orchestrator catch passes the full Error object, not just the message.
 
 #### Architecture
 
-- [ ] **AR-001** — `src/features/subagent-status/infrastructure/sqlite/hydrate.ts:1` — Archivo de
+- [x] **AR-001** — `src/features/subagent-status/infrastructure/sqlite/hydrate.ts:1` — Archivo de
       426 líneas con lógica excesivamente compleja. Separar recovery-classifier,
-      map-recovered-child.
-- [ ] **AR-002** — `src/features/subagent-status/runtime/refresh/hydrate.ts:1` — Archivo de 344
+      map-recovered-child. ✅ Already fixed before this pass — `recovery-classifier.ts` and
+      `map-recovered-child.ts` already exist; hydrate.ts is now 65 lines of glue.
+- [x] **AR-002** — `src/features/subagent-status/runtime/refresh/hydrate.ts:1` — Archivo de 344
       líneas que mezcla hidratación, análisis de mensajes y caché TUI. Separar message-activity.ts,
-      hydrate-child.ts.
-- [ ] **AR-003** — `src/features/subagent-status/domain/state/mutations.ts:1` — Archivo de 358
+      hydrate-child.ts. ✅ Already fixed before this pass — `message-activity.ts`,
+      `hydrate-child.ts`, and `hydrate-client.ts` already extracted; hydrate.ts is the small surface
+      remaining.
+- [x] **AR-003** — `src/features/subagent-status/domain/state/mutations.ts:1` — Archivo de 358
       líneas con lógica densa. Extraer timing-policy.ts, replace.ts. Reemplazar JSON.stringify con
-      comparación estructurada.
-- [ ] **AR-004** — `src/features/subagent-status/infrastructure/persistence.ts:1` — Archivo de 326
-      líneas con 4+ responsabilidades. Separar en io.ts, load.ts, recovery.ts, queue.ts.
-- [ ] **AR-005** — `src/features/subagent-status/runtime/refresh/orchestrator.ts:1` — Archivo de 303
-      líneas con 6+ lambdas internas. Extraer events/merge.ts, refresh/token-backfill.ts.
+      comparación estructurada. ✅ Fixed in this pass — extracted `timing-policy.ts`
+      (resolveChildTiming, computeTimingPreservation, shouldReopenTerminal,
+      shouldPreserveSameTerminalTiming, isStaleEvidence, isKnownStatus, resolveIncomingStatus,
+      resolveSourceForUpsert) and `replace.ts` (replaceChildren). The two `JSON.stringify`
+      comparisons were already gone — `hasChildFieldChanges` is a 12-field structured compare.
+- [x] **AR-004** — `src/features/subagent-status/infrastructure/persistence.ts:1` — Archivo de 326
+      líneas con 4+ responsabilidades. Separar en io.ts, load.ts, recovery.ts, queue.ts. ✅ Fixed in
+      this pass — split into `persistence/{io,load,recovery,queue}.ts` and a thin re-export shim
+      preserves the public API.
+- [x] **AR-005** — `src/features/subagent-status/runtime/refresh/orchestrator.ts:1` — Archivo de 303
+      líneas con 6+ lambdas internas. Extraer events/merge.ts, refresh/token-backfill.ts. ✅ Fixed
+      in this pass — extracted `events/merge.ts` (createMergeEventState) and
+      `refresh/token-backfill.ts` (createTokenBackfillRunner + fireAndForget helper).
 
 ---
 
 ### 🟡 MEDIUM
 
-#### YAGNI
-
-- [ ] **YG-001** — `prettier.config.mjs:54` — Plugins de Prettier comentados que no están en
-      package.json. Eliminar bloque comentado.
-- [ ] **YG-002** — `src/features/subagent-status/infrastructure/sqlite/script.ts:1` — Recovery desde
-      SQLite vía `spawnSync('python3', ...)`. Dependencia externa frágil. Reemplazar con TypeScript
-      puro.
-- [ ] **YG-003** — `src/features/subagent-status/infrastructure/persistence.ts:94` —
-      `resolveTextPath`, `resolveDebugPath`, `saveDebugSnapshot` exportados pero solo usados
-      internamente. No exportar.
-- [ ] **YG-004** — `src/features/subagent-status/domain/state/core.ts:65` — Re-exports de
-      coercion.ts sin modificar. Eliminar, los consumidores ya importan directamente.
-
-#### Clean Code
-
-- [ ] **CC-008** — `src/features/subagent-status/ui/collapse.ts:70` — `collapseSubagentWorkItems`
-      tiene 62 líneas con 2 loops anidados, Maps y Sets. Extraer groupSyntheticByParent,
-      matchSyntheticToSession, deduplicateSyntheticTools.
-- [ ] **CC-009** — `src/features/subagent-status/infrastructure/sqlite/hydrate.ts:318` —
-      `resolveRecoveredStatus` y `decideRecoveredStatus` forman una máquina de estados con 6+ ramas.
-      Documentar con diagrama o simplificar.
-- [ ] **CC-010** — `src/features/subagent-status/infrastructure/persistence.ts:326` — Cerca del
-      límite de 400 líneas, 10+ funciones exportadas. Reducir exports.
-
-#### Over-engineering
-
-- [ ] **OE-006** — `src/features/subagent-status/infrastructure/sqlite/hydrate.ts:148` — 4 funciones
-      (153 líneas) para implementar un reducer de partes SQLite. Simplificar a un solo loop con 3
-      acumuladores.
-
-#### Simplification
-
-- [ ] **SM-001** — `src/features/quota/domain/lines.ts:42` — `resetAtMsFromSeconds` y
-      `remainingSeconds` son funciones de una línea. Inline donde se usan.
-- [ ] **SM-002** — `src/features/quota/domain/lines.ts:47` — `usageColor` duplicado como `toneColor`
-      en `quota-view.tsx`. Unificar en un solo helper.
-
-#### Error Handling
-
-- [ ] **EH-004** — `src/features/subagent-status/runtime/session/scope.ts:23` —
-      `void input.syncState(...)` fire-and-forget que pierde errores de persistencia. Agregar
-      `.catch(console.warn)`.
-- [ ] **EH-005** — `src/features/subagent-status/runtime/events/bridge.ts:34` — `void refresh()`
-      fire-and-forget en cada evento. Agregar `.catch((e) => console.warn(...))`.
-- [ ] **EH-006** — `src/features/subagent-status/runtime/refresh/orchestrator.ts:235` —
-      `nextState.recovering = false` antes de syncState. Mover a finally, incluir stack trace en
-      log.
-
-#### Concurrency
-
-- [ ] **CN-001** — `src/features/subagent-status/runtime/events/bridge.ts:34` — `void refresh()` sin
-      manejo de errores. Promesas lanzadas y olvidadas.
-
-#### Config Hygiene
-
-- [ ] **CF-001** — `src/features/quota/infrastructure/providers/constants.ts:1` — `FETCH_TIMEOUT_MS`
-      hardcodeado a 10s. Exponer como opción configurable con fallback a 10.000ms.
-
-#### Readability
-
-- [ ] **RD-002** — `src/features/subagent-status/runtime/events/parse.ts:161` —
-      `extractCreatedChild` tiene 25 líneas con cascada de campos de 4+ keys distintas. Agregar
-      comentarios de sección o extraer extractChildCore + extractChildTimestamps.
-- [ ] **RD-003** — `src/features/subagent-status/runtime/events/parse.ts:244` — `extractToolChild`
-      tiene 38 líneas con 5+ niveles de extracción anidada. Separar validateToolPart,
-      extractToolTitle, buildToolChild.
-
-#### SOLID
-
-- [ ] **SD-002** — `src/kit/coercion.ts:1` — Violación SRP: 16 funciones de 3 categorías (guards,
-      coercers, nested path finders) en un archivo. Separar en guards.ts, coercers.ts, nested.ts.
-
-#### Observability
-
-- [ ] **OB-008** — `src/features/subagent-status/runtime/refresh/orchestrator.ts:84` — Stack traces
-      perdidos, solo se loggea `e.message`. Pasar error completo.
-
-#### Architecture
-
-- [ ] **AR-006** — `src/features/subagent-status/runtime/events/parse.ts:1` — Archivo de 349 líneas
-      con 3 dominios distintos. Separar en events/extract.ts, events/extract-child.ts,
-      events/resolve.ts.
-- [ ] **AR-007** — `src/features/subagent-status/infrastructure/sqlite/recovery.py:1` — Script
-      Python de 322 líneas duplicando lógica TypeScript. Reemplazar con TypeScript puro.
-- [ ] **AR-008** — `src/kit/coercion.ts:4` — `isPlainObject as isRecord` en 13 archivos con
-      semántica engañosa (excluye arrays). Cambiar a `isRecord` directo.
+- [x] **YG-001** — FIXED: removed the stale commented plugin block.
+- [x] **YG-002** — FIXED: recovery uses built-in `node:sqlite`; no Python process.
+- [x] **YG-003** — FIXED: persistence shim exports only its consumed public API.
+- [x] **YG-004** — FIXED: removed pass-through coercion exports from state core.
+- [x] **CC-008** — FIXED: extracted grouping, matching, and tool-deduplication helpers.
+- [x] **CC-009** — ALREADY FIXED: extracted classifier documents evidence priority and stale guards.
+- [x] **CC-010** — ALREADY FIXED: persistence is a 15-line shim over focused modules.
+- [x] **OE-006** — ALREADY FIXED: prior split replaced the stale four-function hydrate
+      implementation.
+- [x] **SM-001** — FIXED: inlined trivial reset-time calculations.
+- [x] **SM-002** — FIXED: unified quota colors in `quotaColor`.
+- [x] **EH-004** — ALREADY FIXED: scoped persistence has a handled rejection with full error.
+- [x] **EH-005** — FIXED: event refresh rejection is handled once in the bridge.
+- [x] **EH-006** — ALREADY FIXED: recovery flag cleanup is in `finally` and logs full errors.
+- [x] **CN-001** — FIXED with EH-005 at the shared fire-and-forget boundary.
+- [x] **CF-001** — FIXED: `fetchTimeoutMs` flows from config to every provider with a 10,000ms
+      fallback.
+- [x] **RD-002** — FIXED: extracted `extractChildCore` and `extractChildTimestamps`.
+- [x] **RD-003** — FIXED: extracted `validateToolPart`, `extractToolTitle`, and `buildToolChild`.
+- [x] **SD-002** — FIXED: split guards, coercers, and nested readers behind a compatibility shim.
+- [x] **OB-008** — ALREADY FIXED: orchestrator logs full `Error` values.
+- [x] **AR-006** — FIXED: split raw extraction, child construction, and resolution into dedicated
+      modules; `parse.ts` remains a compatibility re-export shim.
+- [x] **AR-007** — FIXED: deleted `recovery.py` and Python test plumbing.
+- [x] **AR-008** — FIXED: `isRecord` and `isPlainObject` now have separate exact implementations.
 
 #### Production Readiness
 
@@ -404,11 +383,11 @@
 
 ## Progress
 
-- **CRITICAL**: `0 / 7`
-- **HIGH**: `0 / 22`
-- **MEDIUM**: `0 / 21`
+- **CRITICAL**: `7 / 7`
+- **HIGH**: `22 / 22`
+- **MEDIUM**: `22 / 22`
 - **LOW**: `0 / 38`
-- **Total**: `0 / 88`
+- **Total**: `51 / 89`
 
 ---
 
