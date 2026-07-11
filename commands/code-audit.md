@@ -248,23 +248,31 @@ surface that leaks implementation types — consumers couple to internals.
 2. **Map the scope**: run `codegraph_explore` on the target path to get a structural overview —
    files, symbols, call relations. Use this as the baseline for dead-code and over-engineering
    checks.
-3. **Delegate analysis to review sub-agents**:
-   - Map enabled checks to the appropriate review sub-agent and launch one per group:
-     - `review-readability`: dead-code, over-engineering, yagni, clean-code, simplification,
-       consistency, comments, readability, solid, production-readiness
-     - `review-reliability`: error-handling, performance, testing, integrity, concurrency,
-       config-hygiene
-     - `review-resilience`: observability
-     - `review-risk`: security, dependencies, architecture
-   - Each review sub-agent receives:
-     - The check's rules (from the definition above)
-     - The target scope (path + file list from CodeGraph)
-     - The minimum severity to report
-     - The user's extra instructions (if any), passed verbatim
-     - Explicit instruction to return findings with file:line evidence
-   - Run independent review sub-agents in parallel where possible.
-   - Do NOT use `sdd-explore`, `sdd-propose`, or other SDD sub-agents for analysis.
-4. **Aggregate & persist results**: merge findings from all review sub-agents, deduplicate, and sort
+ 3. **Delegate first-pass analysis to 4R review sub-agents**:
+    - Map enabled checks to the appropriate review sub-agent and launch one per group:
+      - `review-readability`: dead-code, over-engineering, yagni, clean-code, simplification,
+        consistency, comments, readability, solid, production-readiness
+      - `review-reliability`: error-handling, performance, testing, integrity, concurrency,
+        config-hygiene
+      - `review-resilience`: observability
+      - `review-risk`: security, dependencies, architecture
+    - Each review sub-agent receives:
+      - The check's rules (from the definition above)
+      - The target scope (path + file list from CodeGraph)
+      - The minimum severity to report
+      - The user's extra instructions (if any), passed verbatim
+      - Explicit instruction to return findings with file:line evidence
+    - Run independent review sub-agents in parallel where possible.
+    - Do NOT use `sdd-explore`, `sdd-propose`, or other SDD sub-agents for analysis.
+ 4. **Corroborate severe findings with review-refuter**: forward every CRITICAL and HIGH
+    finding from the 4R lens reviews to `review-refuter`. Each finding includes the claim,
+    the lens that raised it, and its file:line evidence. The refuter returns
+    `corroborated | refuted | inconclusive` per finding.
+    - Include corroborated findings in the final report as-is.
+    - Drop refuted findings entirely — do not include them.
+    - Flag inconclusive findings as `⚠️ needs manual review` in the report.
+    - Run this step only when CRITICAL or HIGH findings exist.
+ 5. **Aggregate & persist results**: merge corroborated findings, deduplicate, and sort
    by severity. The orchestrator then writes all findings to `{scope}/TODO.md` as a markdown
    checklist with `- [ ]` checkboxes for progress tracking. Each finding includes severity,
    category, file:line, description, and suggested fix. Example:
@@ -277,8 +285,8 @@ surface that leaks implementation types — consumers couple to internals.
    ```markdown
    # Code Audit Results — {scope}
 
-   > Generado el {date} por `gentle-orchestrator` con subagentes `review-readability`,
-   > `review-risk`, `review-reliability`, `review-resilience`
+    > Generado el {date} por `gentle-orchestrator` con subagentes `review-readability`,
+    > `review-risk`, `review-reliability`, `review-resilience`, y `review-refuter` (solo CRITICAL/HIGH)
 
    ## Configuration
 
@@ -339,7 +347,7 @@ surface that leaks implementation types — consumers couple to internals.
 
    El TODO.md es un archivo vivo: el equipo puede ticar casillas conforme resuelve hallazgos.
 
-5. **Report**: return the structured audit report (see Output Contract).
+6. **Report**: return the structured audit report (see Output Contract).
 
 ## Output Contract
 
