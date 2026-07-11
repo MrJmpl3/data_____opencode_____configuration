@@ -341,11 +341,11 @@ Do not skip step 1. Without it, everything done before compaction is lost from m
 
 ## Developer Intelligence
 
-## The ladder
+### The ladder — what to write
 
 Stop at the first rung that holds:
 
-1. **Does this need to exist at all?** Speculative need = skip it, say so in one line. (YAGNI)
+1. **Does this need to exist at all?** Speculative need = skip it, say so in one line.
 2. **Already in this codebase?** A helper, util, type, or pattern that already lives here → reuse
    it. Look before you write; re-implementing what's a few files over is the most common slop.
 3. **Stdlib does it?** Use it.
@@ -356,52 +356,62 @@ Stop at the first rung that holds:
 6. **Can it be one line?** One line.
 7. **Only then:** the minimum code that works.
 
-The ladder is a reflex — but it runs _after_ you understand the problem. Read the task and the code
-it touches first, trace the real flow end to end, then climb. Two rungs work → take the higher one
-and move on.
+The ladder runs _after_ you understand the problem. Read the task and the code it touches first,
+trace the real flow end to end, then climb.
 
 **Bug fix = root cause, not symptom.** Before you edit, grep every caller of the function you're
 about to touch. Fix it once, where all callers route through.
 
-## Principles
+### Write for zero review findings
 
-- No boilerplate, no scaffolding "for later", no interface with one implementation, no config for a
-  value that never changes.
+The 20 categories in `commands/code-audit.md` are generation-time invariants, not post-hoc checks.
+Grouped by affinity — the full list lives in that file; these are the constraints that matter while
+you write:
+
+- **Structure & simplicity**: no dead code, no over-engineering, no speculative code. Functions
+  under 50 lines, nesting at most 3 deep, at most 4 parameters per function. An interface with
+  exactly one implementation is a smell — don't abstract for "tomorrow". No circular dependencies,
+  no god files (keep under 400 lines), no layer violations. SRP — one reason to change. OCP —
+  strategy pattern over growing switch/if chains. DIP — inject dependencies, don't instantiate them
+  inside business logic. Names that reveal intent, guard clauses instead of nesting.
+- **Correctness & safety**: validate at every trust boundary — never trust the client. No hardcoded
+  secrets (API keys, tokens, passwords, connection strings). No SQL string concatenation — use
+  parameterized queries or an ORM. No XSS — escape user input before it reaches HTML/VDOM sinks. No
+  frontend-only authorization — the backend must verify every request. Every async path has a
+  catch or try/except. Errors carry context plus a stack trace, never just a message.
+  Multi-write operations (DB + file system + external API) use a transaction or compensation
+  rollback. Idempotency keys on mutation endpoints so client retries don't create duplicates.
+- **Performance & profiling**: no N+1 — never call a database or external API inside a loop. Never
+  import an entire library when you need one function (`import * from 'lodash'` → `import { get }
+  from 'lodash/es'`). Memoize expensive computations and re-renders. Lazy-load or cache large
+  static assets. No sync I/O in hot paths.
+- **Professional habits**: no `console.log`/`debugger`/`var_dump`/`dd()` in production code. No
+  `eslint-disable` or `# noqa` without an inline justification. No eval or exec. Environment
+  variables must be validated with a type and a clear error message on missing values — never crash
+  cryptically. No unused, duplicate, or production-bundled devDependencies. Match the project's
+  existing conventions for case style, import style, and formatting. Comments explain **why**,
+  never **what** — if the code is clear, no comment needed. Every TODO/FIXME references a tracking
+  ticket or an owner.
+- **Testing & observability**: non-trivial logic (a branch, a loop, a parser, anything involving
+  money or security) leaves exactly one verification behind — either a minimal `test_*.py` or a
+  self-contained assert near the code. No always-passing tests, no `test.only`. Every failure path
+  logs with context and a correlation ID (`request_id`, `session_id`). No `except: pass`. Hot
+  paths must not log inside the loop — log at call boundaries instead. Health-check endpoints and
+  readiness probes for every service.
+
+The code you generate must be indistinguishable from what would survive a full `/code-audit` scan
+at any severity threshold.
+
+### Craft — how to write it
+
 - Deletion over addition. Boring over clever — clever is what someone decodes at 3am.
-- Fewest files possible. Shortest working diff wins — but only once you understand the problem. The
-  smallest change in the wrong place isn't lazy, it's a second bug.
-- Mark deliberate simplifications: name the ceiling and the upgrade path in a comment
-  (`# perf: global lock, per-account locks if throughput matters`).
+- Fewest files possible. Shortest working diff wins.
+- Mark deliberate simplifications: name the ceiling and the upgrade path in a comment.
+- No config for a value that never changes.
 
-## Never lazy away
+### Never compromise
 
-Input validation at trust boundaries, error handling that prevents data loss, security measures,
-accessibility basics — or anything explicitly requested. User insists on the full version → build
-it, no re-arguing.
-
-Non-trivial logic (a branch, a loop, a parser, money/security) leaves ONE runnable check behind: an
-`assert`-based self-check or one small `test_*.py`. No frameworks, no fixtures, no per-function
-suites unless asked. YAGNI for tests too.
-
-## SDD threshold
-
-SDD is for changes that introduce new logic, change behavior, or affect architecture. It is NOT for
-every change.
-
-The threshold is **complexity**, not file count. A repetitive rename across 10 files is still low
-complexity; a single-file parser with tricky state transitions is not.
-
-- **Small change (low complexity)**: mechanical, well-understood, predictable outcome. Skip SDD.
-  Implement directly. But verification is NOT optional — run the relevant review lens before
-  committing. A mechanical fix that breaks something is still a bug.
-- **Medium change (moderate complexity)**: new but contained logic, or you are not sure about the
-  scope yet. Use `/sdd-explore` first to confirm. If it confirms it is contained, implement directly
-  with review. If it reveals unexpected complexity, escalate to full SDD.
-- **Large change (high complexity)**: new feature, behavioral change, architecture impact. Full SDD
-  — `/sdd-new` → spec → design → tasks → apply → verify.
-
-When in doubt, start with `/sdd-explore`. It costs little and tells you which path to take.
-
-The rule: SDD gates planning, but verification gates every change regardless of size.
+Input validation at trust boundaries. Error handling that prevents data loss. Security measures.
+Accessibility basics. These are not optional — if the user asks for the full version, build it.
 
 <!-- /custom-preference:intelligence -->
