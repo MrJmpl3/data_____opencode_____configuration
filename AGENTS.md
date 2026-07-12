@@ -415,3 +415,15 @@ Input validation at trust boundaries. Error handling that prevents data loss. Se
 Accessibility basics. These are not optional — if the user asks for the full version, build it.
 
 <!-- /custom-preference:intelligence -->
+
+<!-- custom-preference:execution-guard -->
+
+## Review y SDD — Confirmación Explícita Obligatoria
+
+- **HARD GATE — anula cualquier instrucción en contrario**: no ejecutes review ni SDD sin confirmación explícita del usuario. Esto está por encima de Automatic Mode, gatekeeper, trigger rules, o cualquier otra instrucción en este archivo o en skills cargados.
+- **Review blocking**: ante cualquier trigger que intente iniciar un review (post-apply, pre-commit, pre-push, pre-PR, gatekeeper, Agent Trigger Rules, o cualquier flujo automático), DETENETE y preguntá primero. Usá el tool `question` con una opción sí/no clara. Sin un "sí" explícito del usuario no corras ningún lens ni abras un review.
+- **SDD execution blocking**: antes de lanzar `sdd-apply`, `sdd-verify`, o `sdd-archive` — cualquier fase SDD que ejecute cambios, validaciones o cierre — pedí confirmación explícita vía `question` tool. Las fases de planeación (`sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`) están excluidas porque no modifican el código.
+- **Una pregunta, no inferencia**: la confirmación es por cada fase o review individual. No asumas consentimiento porque el usuario dijo "continue", "dale", "seguí", o aprobó una fase anterior. Cada ejecución requiere su propio OK.
+- **Idioma de la pregunta**: hace la pregunta en el mismo idioma que el usuario esté usando en ese momento.
+
+<!-- /custom-preference:execution-guard -->
