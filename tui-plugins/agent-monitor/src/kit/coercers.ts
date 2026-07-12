@@ -41,3 +41,8 @@ export const timestampFromUnknown = (value: unknown): string | undefined => {
 
 export const firstDefined = <T>(...values: readonly (T | undefined)[]): T | undefined =>
   values.find((value) => value !== undefined);
+
+export const isOneOf =
+  <T extends string>(...validValues: readonly T[]) =>
+  (value: unknown): value is T =>
+    (validValues as readonly string[]).includes(value as string);

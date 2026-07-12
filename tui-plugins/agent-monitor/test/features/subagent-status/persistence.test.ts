@@ -364,4 +364,23 @@ describe('persistence recovery', () => {
     expect(loaded.countedChildIDs).toEqual({ ses_failed: true, ses_stale: true });
     expect(loaded.totalExecuted).toBe(3);
   });
+
+  it('strips recovering from persists so the transient flag never lingers on disk', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'agent-monitor-'));
+    tempDirs.push(dir);
+    const statePath = join(dir, 'state.json');
+
+    const state: SubagentState = {
+      children: {},
+      countedChildIDs: {},
+      purgedSessionIDs: {},
+      totalExecuted: 0,
+      updatedAt: '2026-06-04T12:00:00.000Z',
+      recovering: true,
+    };
+    await saveState(statePath, state);
+
+    const loaded = await loadState(statePath);
+    expect(loaded.recovering).toBeUndefined();
+  });
 });

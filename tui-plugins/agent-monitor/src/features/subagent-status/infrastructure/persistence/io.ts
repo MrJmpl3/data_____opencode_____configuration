@@ -46,7 +46,7 @@ export const writeLocalFile = async (path: string, contents: string): Promise<vo
   const directory = dirname(path);
   await mkdir(directory, { recursive: true, mode: STATUS_DIR_MODE });
 
-  const tempPath = join(directory, `.${basename(path)}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`);
+  const tempPath = join(directory, `.${basename(path)}.${randomUUID()}.tmp`);
   try {
     await writeFile(tempPath, contents, { encoding: 'utf8', mode: STATUS_FILE_MODE });
     await rename(tempPath, path);
@@ -59,5 +59,6 @@ export const writeLocalFile = async (path: string, contents: string): Promise<vo
 };
 
 export const saveState = async (statePath: string, state: SubagentState): Promise<void> => {
-  await writeLocalFile(statePath, JSON.stringify(state, null, 2));
+  const { recovering, ...persistable } = state;
+  await writeLocalFile(statePath, JSON.stringify(persistable, null, 2));
 };

@@ -41,6 +41,7 @@ export const readOpencodeGoConfig = (): GoConnectionConfig | null => {
   return { authCookie: opencodeGoSection.authCookie, workspaces: opencodeGoSection.workspaces };
 };
 
+// May break on dashboard redesign — test after OpenCode updates.
 const DECIMAL_PATTERN = String.raw`(-?\d+(?:\.\d+)?)`;
 
 const windowRegexes = (key: string): { usagePercentFirst: RegExp; resetFirst: RegExp } => {
@@ -76,11 +77,11 @@ const parseGoWindow = (html: string, key: string): GoWindow | null => {
 const formatOpencodeGoLines = (data: GoDashboard, displayMode: QuotaDisplayMode, fetchedAtMs: number): QuotaLine[] => {
   const lines: QuotaLine[] = [];
 
-  const windows: readonly (readonly [string, keyof GoDashboard, number | undefined])[] = [
+  const windows = [
     ['5h', 'rolling', 5 * 3600],
     ['Wk', 'weekly', WEEK_SECONDS],
     ['Mo', 'monthly', MONTH_SECONDS],
-  ];
+  ] as const;
 
   for (const [name, key, paceWindowSeconds] of windows) {
     const window = data[key];

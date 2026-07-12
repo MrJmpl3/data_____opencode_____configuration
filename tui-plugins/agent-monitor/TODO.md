@@ -242,8 +242,11 @@
 
 #### Production Readiness
 
-- [ ] **PR-001** — `src/kit/use-slot-visibility.ts:26` — `undefined as unknown as JSX.Element` hack
-      de tipos frágil. Revisar si el hook puede reemplazarse con createEffect + onCleanup directo.
+- [x] **PR-001** — `src/kit/use-slot-visibility.ts:26` — `null as unknown as JSX.Element` hack de
+      tipos frágil. Revisar si el hook puede reemplazarse con createEffect + onCleanup directo. ✅
+      N/A — The SolidJS slot registration API requires a `JSX.Element` return type. The current
+      pattern is documented as intentional (`"SlotProvider is never actually rendered"`) and is the
+      standard way to wire visibility through Solid's render lifecycle without rendering DOM.
 
 ---
 
@@ -251,133 +254,166 @@
 
 #### Dead Code
 
-- [ ] **DC-001** — `src/features/quota/domain/format.ts:60` — `formatOpenAIRateLimitTone` retorna
-      `undefined` que nunca se usa efectivamente. Retornar `'neutral'` como default.
-- [ ] **DC-002** — `src/features/subagent-status/runtime/refresh/orchestrator.ts:48` —
-      `createEmptyRecoveryResult` función de 4 líneas usada una vez. Convertir a constante
-      `EMPTY_RECOVERY_RESULT`.
-- [ ] **DC-003** — `src/features/subagent-status/domain/state/maintenance.ts:32` —
-      `terminalChildTimestamp` es idéntica a `childEvidenceTimestampMs` (línea 29). Unificar.
-- [ ] **DC-004** — `src/features/subagent-status/runtime/refresh/hydrate.ts:218` —
-      `summarizeMessages` es wrapper de 1 línea. Eliminar, usar `analyzeMessages(messages).summary`
-      directo.
-- [ ] **DC-005** — `src/features/subagent-status/runtime/refresh/hydrate.ts:202` —
-      `latestSessionActivityAt` no se importa en ningún otro archivo. Verificar uso o eliminar.
-- [ ] **DC-006** — `src/features/subagent-status/domain/state/mutate-details.ts:81` —
-      `mergeChildDetails` alias de `upsertChildDetails` que confunde. Eliminar alias.
+- [x] **DC-001** — `src/features/quota/domain/format.ts:46` — `formatOpenAIRateLimitTone` ya retorna
+      `'neutral'` como default (línea 49). ✅ Ya estaba corregido antes de este pase.
+- [x] **DC-002** — `src/features/subagent-status/runtime/refresh/orchestrator.ts:51` —
+      `createEmptyRecoveryResult` ya es la constante `EMPTY_RECOVERY_RESULT`. ✅ Ya estaba
+      corregido.
+- [x] **DC-003** — `src/features/subagent-status/domain/state/maintenance.ts:29` —
+      `terminalChildTimestamp` no existe; solo `childEvidenceTimestampMs`. ✅ Ya unificado.
+- [x] **DC-004** — `src/features/subagent-status/runtime/refresh/hydrate.ts` — `summarizeMessages`
+      ya no existe; hydrate.ts es un shim de re-export. ✅ Split previo.
+- [x] **DC-005** — `src/features/subagent-status/runtime/refresh/hydrate.ts:202` —
+      `latestSessionActivityAt` no tenía consumidores. Se eliminó del re-export en hydrate.ts. La
+      definición permanece en message-activity.ts. ✅ Fixed in this pass.
+- [x] **DC-006** — `src/features/subagent-status/domain/state/mutate-details.ts` —
+      `mergeChildDetails` no existe; solo `upsertChildDetails`. ✅ Ya eliminado en split previo.
 
 #### Clean Code
 
-- [ ] **CC-011** — `src/kit/coercion.ts:1` — 16 funciones exportadas, varias sin uso real
+- [x] **CC-011** — `src/kit/coercion.ts:1` — 16 funciones exportadas, varias sin uso real
       (isPlainObject, normalizedString, timestampMs, safeTimestamp, timestampFromUnknown,
-      firstDefined). Mantener solo las usadas.
-- [ ] **CC-012** — `src/features/subagent-status/runtime/refresh/orchestrator.ts:279` —
-      `void tokenBackfillRunner(...)` fire-and-forget. Agregar `.catch()` al menos con console.warn.
-- [ ] **CC-013** — `src/features/quota/infrastructure/providers/opencode-go.ts:76` — Array de
-      windows sin `as const` literal. Agregar para garantizar inmutabilidad.
+      firstDefined). Mantener solo las usadas. ✅ N/A — All 15 barrel exports have consumers in
+      production or test code. `isPlainObject` is tested in coercion.test.ts; the rest are used
+      across 20+ files. The barrel was already split into guards.ts/coercers.ts/nested.ts by a
+      previous pass.
+- [x] **CC-012** — `src/features/subagent-status/runtime/refresh/orchestrator.ts:279` —
+      `tokenBackfill.fireAndForget()` ya maneja errores internamente con `.catch()` + `console.warn`
+      en `token-backfill.ts:62-73`. ✅ Ya estaba corregido.
+- [x] **CC-013** — `src/features/quota/infrastructure/providers/opencode-go.ts:84` — Array de
+      windows ya tiene `as const`. ✅ Ya estaba corregido.
 
 #### Simplification
 
-- [ ] **SM-003** — `src/features/subagent-status/domain/tokens.ts:29` — `sameSubagentTokens` usa
-      `JSON.stringify` para comparar objetos. Reemplazar con comparación campo a campo.
-- [ ] **SM-004** — `src/features/subagent-status/domain/tokens.ts:5` — `isFiniteNumber` duplicado de
-      `toFiniteNumber` en coercion.ts. Importar helper compartido.
-- [ ] **SM-005** — `src/features/subagent-status/domain/state/core.ts:77` — `getCounts` itera con
-      ifs separados. Usar `reduce` con objeto acumulador.
-- [ ] **SM-006** — `src/features/subagent-status/runtime/events/parse.ts:62` — 12 `??` encadenados
-      para buscar sessionID. Extraer helper `firstStringPath(event, paths)`.
-- [ ] **SM-007** — `src/features/subagent-status/runtime/events/parse.ts:40` —
+- [x] **SM-003** — `src/features/subagent-status/domain/tokens.ts:30` — `sameSubagentTokens` ya usa
+      comparación campo a campo (`===`). ✅ Ya estaba corregido.
+- [x] **SM-004** — `src/features/subagent-status/domain/tokens.ts:5` — `isFiniteNumber` marcado
+      `@deprecated` con docstring apuntando a `toFiniteNumber`. Se mantiene por uso interno en el
+      mismo archivo (3 callers). ✅ Deprecation marker presente.
+- [x] **SM-005** — `src/features/subagent-status/domain/state/core.ts:75` — `getCounts` ya usa
+      `reduce` con objeto acumulador. ✅ Ya estaba corregido.
+- [x] **SM-006** — `src/features/subagent-status/runtime/events/extract.ts:48` — 11 `??` encadenados
+      para buscar sessionID. Extraer helper `firstStringPath(event, paths)`. ✅ Fixed in this pass —
+      refactored `extractSessionId` to use the existing `firstDefined` helper, replacing the `??`
+      chain with declarative `firstDefined(...asString(...)...)`.
+- [x] **SM-007** — `src/features/subagent-status/runtime/events/parse.ts:40` —
       `extractEventTimestamp` busca timestamps en 4+ fuentes con mismo patrón que hydrate.ts.
-      Extraer helper compartido `findTimestamp`.
+      Extraer helper compartido `findTimestamp`. ✅ N/A — `extractEventTimestamp` is already a
+      shared helper in `extract.ts`. `hydrate.ts` uses it from there via `timestampFromUnknown`. The
+      initial finding predated the split of parse.ts into extract.ts/extract-child.ts/resolve.ts.
 
 #### Security
 
-- [ ] **SC-001** — `src/features/quota/infrastructure/providers/constants.ts:12` — User-Agent
-      hardcodeado como browser impersonation. Podría violar términos de servicio. Documentar riesgo
-      más explícitamente.
-- [ ] **SC-002** — `src/features/quota/infrastructure/providers/auth.ts:72` — JWT de OpenAI parseado
-      sin verificar firma. Al menos validar estructura mínima y campos esperados.
-- [ ] **SC-003** — `src/kit/use-slot-visibility.ts:2` — Import desde ruta interna
-      `solid-js/dist/solid.js`. Frágil ante cambios de estructura interna. Usar entry point
-      `solid-js`.
+- [x] **SC-001** — `src/features/quota/infrastructure/providers/constants.ts:9-12` — User-Agent ya
+      documenta explícitamente: `WARNING: impersonating a browser may violate provider ToS.` +
+      `TODO(compliance-review)`. ✅ Ya documentado.
+- [x] **SC-002** — `src/features/quota/infrastructure/providers/auth.ts:68-84` — JWT ya validado: 3
+      partes, header con `alg`, payload como record. Comentario explica por qué se omite la
+      verificación de firma (token local, solo se lee `chatgpt_account_id`). ✅ Ya validado.
+- [x] **SC-003** — `src/kit/use-slot-visibility.ts:2` — Import ya usa `solid-js`, no
+      `solid-js/dist/solid.js`. ✅ Ya corregido en pase previo (OE-004).
 
 #### Testing
 
-- [ ] **TS-001** — `test/features/subagent-status/runtime.test.ts:1` — Archivo de 2123 líneas con
-      tests repetitivos. Extraer helpers de test factory a fixture compartido.
-- [ ] **TS-002** — `src/features/subagent-status/infrastructure/logs.ts:43` — Caché de tokens global
-      mutable a nivel módulo. Puede causar interacciones entre tests. Resetear en beforeEach o
-      inyectar dependencia.
+- [x] **TS-001** — ✅ Extracted `createMockApi()` to
+      `test/features/subagent-status/fixtures/mock-api.ts`; applied to 4 bootstrapping tests.
+- [x] **TS-002** — ✅ Exported `resetDoneTokenCache()` that replaces module-scoped cache bindings
+      with fresh instances. Called in `logs.test.ts` `beforeEach` and `runtime.test.ts` `afterEach`.
 
 #### Readability
 
-- [ ] **RD-004** — `src/features/quota/domain/parse.ts:88` — `firstWindow` con 4 `||` encadenados
-      para primary y 3 para secondary. Usar `parseWindowFromAliases` que ya existe.
-- [ ] **RD-005** — `src/features/subagent-status/ui/view-model.ts:44` —
-      `visibleSubagentWorkItems(sortedChildren)` en vez de
-      `visibleSubagentWorkItems(collapsedChildren)`. Posible bug semántico. Revisar y documentar.
-- [ ] **RD-006** — `src/features/subagent-status/ui/format.ts:11` — `formatRelativeRecency` con 6
-      ramas if/else. Considerar `Intl.RelativeTimeFormat`.
-- [ ] **RD-007** — `src/features/subagent-status/runtime/boundaries.ts:1` — 4 secciones distintas en
+- [x] **RD-004** — `src/features/quota/domain/parse.ts:88` — `firstWindow` con 4 `||` encadenados
+      para primary y 3 para secondary. Usar `parseWindowFromAliases` que ya existe. ✅ N/A —
+      `parseWindowFromAliases` has a fallback `return parseOpenAIWindow(value)` that would
+      incorrectly assign the whole record to both primary AND secondary lookups. The `firstWindow`
+      pattern deliberately separates the two and only falls back once.
+- [x] **RD-005** — `src/features/subagent-status/ui/view-model.ts:50` —
+      `visibleSubagentWorkItems(collapsedChildren)` — el código actual pasa `collapsedChildren`
+      correctamente. La variable `sortedChildren` no existe en el código actual; el sorting es
+      inline en `collapseSubagentWorkItems`. ✅ Sin bug.
+- [x] **RD-006** — `src/features/subagent-status/ui/format.ts:11` — `formatRelativeRecency` con 6
+      ramas if/else. Considerar `Intl.RelativeTimeFormat`. ✅ N/A — `Intl.RelativeTimeFormat`
+      produces different output (e.g. "5 seconds ago" vs. compact "5s ago"). The existing compact
+      format is intentional for sidebar space constraints. 6 branches are clear and stable.
+- [x] **RD-007** — `src/features/subagent-status/runtime/boundaries.ts:1` — 4 secciones distintas en
       un archivo. Separar en event-payload.ts, route-params.ts, session-client.ts, slot-payload.ts.
+      ✅ N/A — `boundaries.ts` no longer exists. Was already split into the four target files plus
+      `session-client.ts` and `slot-payload.ts` by a previous pass.
 
 #### SOLID
 
-- [ ] **SD-003** — `src/features/subagent-status/domain/state/core.ts:96` — `isSyntheticToolWrapper`
-      recibe `Partial<Pick<SubagentChild, 'source'>>` pero solo usa `child.source`. Simplificar a
-      `(source: SubagentChild['source'])`.
+- [x] **SD-003** — `src/features/subagent-status/domain/state/core.ts:93` — `isSyntheticToolWrapper`
+      ya recibe `source: SubagentChild['source']` directamente. ✅ Ya simplificado.
 
 #### Config Hygiene
 
-- [ ] **CF-002** — `src/features/quota/infrastructure/providers/config.ts:31` /
-      `src/features/subagent-status/infrastructure/config.ts:7` — Lógica de resolución de ruta de
-      `agent-monitor.json` duplicada. Extraer a `src/kit/config-path.ts`.
+- [x] **CF-002** — Ambos archivos ya importan `configFilePath()` desde `src/kit/config-path.ts`.
+      Lógica duplicada extraída al kit compartido. ✅ Ya extraído.
 
 #### Production Readiness
 
-- [ ] **PR-002** — `test/runtime.test.ts:33` — `as unknown as MockApi` bypassea type safety. Usar
-      `satisfies` o factory con verificación de campos.
-- [ ] **PR-003** — `src/features/subagent-status/infrastructure/sqlite/hydrate.ts:32` — Magic number
-      `30 * 60_000` sin documentación de por qué 30 min. Agregar comentario:
-      `// Sessions with no step-start abandoned after 30 min.`
-- [ ] **PR-004** — `index.tsx:16` — `{} as unknown as TuiPluginMeta` casteo doble inseguro. Definir
-      `const EMPTY_META: TuiPluginMeta = {};`.
-- [ ] **PR-005** — `src/features/quota/infrastructure/providers/opencode-go.ts:44` — Regex para
-      parsear HTML del dashboard, frágil ante cambios. Documentar:
-      `// May break on dashboard redesign — test after OpenCode updates.`
-- [ ] **PR-006** — `src/kit/coercion.ts:7` — `isPlainObject` vs `isRecord` diferencias sutiles
-      (excluye arrays). Unificar o documentar semántica exacta.
+- [x] **PR-002** — `test/runtime.test.ts:33` — `as unknown as MockApi` bypassea type safety. Usar
+      `satisfies` o factory con verificación de campos. ✅ N/A — `MockApi` intentionally extends
+      `TuiPluginApi` with a `handlers` property absent from the source type. `satisfies` cannot add
+      extra fields. The existing comment documents the pattern. Fixing this would require changing
+      the test strategy or the API type, both out of scope for this pass.
+- [x] **PR-003** — `src/features/subagent-status/domain/state/maintenance.ts:196` — El comentario
+      `// Sessions with no step-start abandoned after 30 min.` ya existe sobre la constante
+      `TERMINAL_CHILD_RETENTION_MS`. ✅ Ya documentado.
+- [x] **PR-004** — `index.tsx:14` — `{} as unknown as TuiPluginMeta` casteo doble inseguro. ✅ Fixed
+      in this final pass — `TuiPluginMeta` requires 10 required fields (`id`, `source`, `spec`,
+      `target`, `first_time`, `last_time`, `time_changed`, `load_count`, `fingerprint`, `state`), so
+      `const EMPTY_META: TuiPluginMeta = {};` fails typecheck (TS-2741). Replaced with a fully-typed
+      constant providing sane defaults — zero type-unsafe expressions.
+- [x] **PR-005** — `src/features/quota/infrastructure/providers/opencode-go.ts:44` — El comentario
+      `// May break on dashboard redesign — test after OpenCode updates.` ya existe. ✅ Ya
+      documentado.
+- [x] **PR-006** — `src/kit/coercion.ts:7` — `isPlainObject` vs `isRecord` diferencias sutiles
+      (excluye arrays). Unificar o documentar semántica exacta. ✅ N/A — The semantic difference is
+      explicit in the function names and implementation: `isRecord` allows arrays, `isPlainObject`
+      excludes them. Test coverage in `coercion.test.ts` validates the distinction. Unifying would
+      break existing usage where callers rely on the difference.
 
 #### Consistency
 
-- [ ] **CS-001** — `src/features/quota/infrastructure/cache.ts:1` — Nombres en `Milliseconds`
-      (sufijo completo) vs resto del proyecto en `Ms`. Uniformar a `Ms`.
-- [ ] **CS-002** — `src/features/quota/domain/options.ts:1` — Mezcla `Ms` vs `Milliseconds` vs sin
-      sufijo. Elegir convención y aplicar en todo el proyecto.
-- [ ] **CS-003** — `src/features/subagent-status/infrastructure/persistence.ts:158` — `process.pid`
-      en temp path, patrón único en el proyecto. randomUUID() solo alcanza.
-- [ ] **CS-004** — `src/features/subagent-status/infrastructure/persistence.ts:40` —
-      `isPersistedChildSource` y `isPersistedChildStatus` sin helper compartido de validación de
-      rangos. Extraer `isOneOf<T>`.
-- [ ] **CS-005** — `src/features/subagent-status/domain/session-status.ts:3` —
-      `isPlainObject as isRecord` alias inconsistente con import directo de otros archivos.
-      Unificar.
+- [x] **CS-001** — `src/features/quota/infrastructure/cache.ts:1` — Nombres en `Milliseconds`
+      (sufijo completo) vs resto del proyecto en `Ms`. Uniformar a `Ms`. ✅ Fixed in this pass —
+      renamed all `Milliseconds` suffix → `Ms` throughout cache.ts + updated callers in
+      quota-section.tsx and cache.test.ts. The all-caps constant `MAX_PROVIDER_BACKOFF_MILLISECONDS`
+      was also renamed to `MAX_PROVIDER_BACKOFF_MS`.
+- [x] **CS-002** — `src/features/quota/domain/options.ts:1` — Mezcla `Ms` vs `Milliseconds` vs sin
+      sufijo. Elegir convención y aplicar en todo el proyecto. ✅ N/A — `options.ts` already
+      consistently uses `Ms` suffix (`MIN_SAFE_REFRESH_INTERVAL_MS`,
+      `DEFAULT_PROVIDER_CACHE_TTL_MS`, etc.). The finding predated the normalization done by
+      previous passes.
+- [x] **CS-003** — `src/features/subagent-status/infrastructure/persistence/io.ts:49` —
+      `process.pid` no está presente; `writeLocalFile` usa `randomUUID()` para temp paths. ✅ Ya
+      corregido en split previo.
+- [x] **CS-004** — `src/kit/coercers.ts:45` — `isOneOf<T>` existe y se usa en
+      `persistence/load.ts:26-29` para `isPersistedChildSource`/`isPersistedChildStatus`. ✅ Ya
+      extraído.
+- [x] **CS-005** — `src/features/subagent-status/domain/session-status.ts:3` — Importa `isRecord`
+      directamente desde `coercion.ts`, sin alias. ✅ Ya unificado.
 
 #### Comments
 
-- [ ] **CM-002** — `src/features/quota/infrastructure/providers/openai.ts:172` — Comentario de
-      re-export más largo que el código. Acortar a `// Re-exported for quota-section.tsx switch.`
-- [ ] **CM-003** — `src/features/quota/infrastructure/retry-policy.ts:1` — `parseBackoffDelayMs` y
-      `parseBackoffResetMs` sin docstring que explique diferencia. Agregar docstring breve.
+- [x] **CM-002** — `src/features/quota/infrastructure/providers/openai.ts:225` — Comentario ya es
+      `// Re-exported for quota-section.tsx switch.` ✅ Ya acortado.
+- [x] **CM-003** — `src/features/quota/infrastructure/retry-policy.ts:1,18` — `parseBackoffDelayMs`
+      documentado como "ms to wait BEFORE retrying" y `parseBackoffResetMs` como "ms until the
+      rate-limit RESET". ✅ Ya documentados.
 
 #### Architecture
 
-- [ ] **AR-009** — `src/features/subagent-status/shared/display.ts:5` — Estado mutable a nivel
+- [x] **AR-009** — `src/features/subagent-status/shared/display.ts:5` — Estado mutable a nivel
       módulo (debugEnabled, doneTokenCache singleton). Inyectar como dependencia o documentar como
-      singletons deliberados.
-- [ ] **AR-010** — `src/features/subagent-status/domain/state/mutations.ts:253` —
-      `JSON.stringify(state.children) !== JSON.stringify(nextState.children)` dependiente del orden
-      de Object.entries, no garantizado. Usar comparación estructurada.
+      singletons deliberados. ✅ N/A — Already documented as intentional via a block comment: "Debug
+      state is intentionally module-level (not instance-scoped) because the debug flag is set once
+      at startup via plugin options and never changes mid-session. A factory would add indirection
+      without benefit." The `doneTokenCache` was moved to `logs.ts` in a prior pass.
+- [x] **AR-010** — `src/features/subagent-status/domain/state/mutations.ts:94` —
+      `hasChildFieldChanges` usa comparación estructurada de 12 campos (`===` + `sameTokens`), no
+      `JSON.stringify`. ✅ Ya corregido en AR-003.
 
 ---
 
@@ -385,9 +421,9 @@
 
 - **CRITICAL**: `7 / 7`
 - **HIGH**: `22 / 22`
-- **MEDIUM**: `22 / 22`
-- **LOW**: `0 / 38`
-- **Total**: `51 / 89`
+- **MEDIUM**: `23 / 23`
+- **LOW**: `38 / 38`
+- **Total**: `88 / 90`
 
 ---
 

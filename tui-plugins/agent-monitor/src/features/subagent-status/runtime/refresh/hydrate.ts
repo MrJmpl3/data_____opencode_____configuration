@@ -8,9 +8,7 @@ export {
   createTuiMessageActivityCache,
   emptyMessageActivity,
   groupTargetRowsBySessionID,
-  latestSessionActivityAt,
   sessionStatusEndedAt,
-  summarizeMessages,
 } from './message-activity.ts';
 
 export type { HydrationContext, RunningEvidenceCollector, StatusHydrationOptions } from './hydrate-child.ts';

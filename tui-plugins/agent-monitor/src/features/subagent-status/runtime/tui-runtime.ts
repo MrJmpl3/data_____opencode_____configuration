@@ -90,6 +90,11 @@ export const createTuiRuntime = (
     await persistQueuedSnapshot(nextState, meta);
   };
 
+  const publishState = (nextState: SubagentState): void => {
+    if (disposed) return;
+    input.setState(nextState);
+  };
+
   sessionScope = createRuntimeSessionScopeHelpers({
     getSessionId: input.getSessionId,
     setSessionId: input.setSessionId,
@@ -108,6 +113,7 @@ export const createTuiRuntime = (
     staleRunningProbeStateBySessionId: new Map(),
     createPersistMeta,
     syncState,
+    publishState,
     isDisposed: () => disposed,
   });
   mergeEventStateFn = refreshBundle.mergeEventState;

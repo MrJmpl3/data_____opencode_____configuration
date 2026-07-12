@@ -1,3 +1,6 @@
+// Returns the ms to wait BEFORE retrying (delta from now), so timers
+// that fire after this delay can safely attempt a new request.
+
 const parseBackoffDelayMs = (message: string, pattern: RegExp): number => {
   const match = message.match(pattern);
   if (!match) return 0;
@@ -11,6 +14,9 @@ const parseBackoffDelayMs = (message: string, pattern: RegExp): number => {
 
   return 0;
 };
+
+// Returns the ms until the rate-limit RESET (absolute clock time), so
+// callers can decide to stop retrying early when the window is too long.
 
 const parseBackoffResetMs = (message: string, pattern: RegExp): number => {
   const match = message.match(pattern);

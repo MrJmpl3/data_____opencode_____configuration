@@ -266,8 +266,8 @@ export const QuotaSection = (props: QuotaSectionProps): JSX.Element => {
   // el cache por instancia evita leaks entre mounts/unmounts.
   // El TTL y el backoff ahora vienen de options, no de constantes hardcoded.
   const cacheAndFetcher = createQuotaProviderCache<ProviderFetchContext>({
-    providerCacheTtlMilliseconds: resolved.providerCacheTtlMs,
-    providerErrorBackoffMilliseconds: resolved.providerErrorBackoffMs,
+    providerCacheTtlMs: resolved.providerCacheTtlMs,
+    providerErrorBackoffMs: resolved.providerErrorBackoffMs,
     fetchProviderLines: (providerId, ctx) => fetchProviderLines({ providerId, ...ctx }),
   });
 

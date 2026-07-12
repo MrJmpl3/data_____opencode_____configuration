@@ -1,6 +1,6 @@
 import { deriveSessionStatus as deriveOpenCodeSessionStatus } from '../../domain/session-status.ts';
 import { conciseText, sameDisplayText } from '../../shared/display.ts';
-import { asString, isRecord, timestampFromUnknown } from '../../../../kit/coercion.ts';
+import { asString, firstDefined, isRecord, timestampFromUnknown } from '../../../../kit/coercion.ts';
 import type { EventLike } from './event-payload.ts';
 
 export type SyntheticChild = {
@@ -46,17 +46,19 @@ export const extractEventTimestamp = (event: EventLike, keys: string[]): string 
 };
 
 export const extractSessionId = (event: EventLike): string | undefined =>
-  asString(event.properties?.sessionID) ??
-  asString(event.properties?.session_id) ??
-  asString(event.properties?.sessionId) ??
-  asString(event.properties?.info?.sessionID) ??
-  asString(event.properties?.info?.session_id) ??
-  asString(event.properties?.info?.sessionId) ??
-  asString(event.sessionID) ??
-  asString(event.session_id) ??
-  asString(event.sessionId) ??
-  asString(event.properties?.info?.id) ??
-  asString(event.properties?.id);
+  firstDefined(
+    asString(event.properties?.sessionID),
+    asString(event.properties?.session_id),
+    asString(event.properties?.sessionId),
+    asString(event.properties?.info?.sessionID),
+    asString(event.properties?.info?.session_id),
+    asString(event.properties?.info?.sessionId),
+    asString(event.sessionID),
+    asString(event.session_id),
+    asString(event.sessionId),
+    asString(event.properties?.info?.id),
+    asString(event.properties?.id),
+  );
 
 export const extractOpenCodeEventSessionStatus = (event: EventLike): SyntheticChild['status'] | undefined => {
   const statuses = [

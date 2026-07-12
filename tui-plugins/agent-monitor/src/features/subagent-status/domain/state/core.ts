@@ -72,18 +72,17 @@ export const createEmptyState = (): SubagentState => ({
   updatedAt: new Date().toISOString(),
 });
 
-export const getCounts = (state: SubagentState): SubagentCounts => {
-  const counts: SubagentCounts = { running: 0, done: 0, stale: 0, error: 0 };
-
-  for (const child of Object.values(state.children)) {
-    if (child.status === 'running') counts.running += 1;
-    if (child.status === 'done') counts.done += 1;
-    if (child.status === 'stale') counts.stale += 1;
-    if (child.status === 'error') counts.error += 1;
-  }
-
-  return counts;
-};
+export const getCounts = (state: SubagentState): SubagentCounts =>
+  Object.values(state.children).reduce<SubagentCounts>(
+    (counts, child) => {
+      if (child.status === 'running') counts.running += 1;
+      else if (child.status === 'done') counts.done += 1;
+      else if (child.status === 'stale') counts.stale += 1;
+      else if (child.status === 'error') counts.error += 1;
+      return counts;
+    },
+    { running: 0, done: 0, stale: 0, error: 0 },
+  );
 
 // ─── child-kind ──────────────────────────────────────────────────────────────
 
@@ -91,8 +90,7 @@ export const isRealSessionChild = (
   child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'source'>>,
 ): boolean => child.source === 'session' || child.id.startsWith('ses_');
 
-export const isSyntheticToolWrapper = (child: Partial<Pick<SubagentChild, 'source'>>): boolean =>
-  child.source === 'tool';
+export const isSyntheticToolWrapper = (source: SubagentChild['source']): boolean => source === 'tool';
 
 export const isDelegationLikeChild = (child: Pick<SubagentChild, 'title'>): boolean =>
   child.title.trim().toLowerCase().startsWith('delegation:');

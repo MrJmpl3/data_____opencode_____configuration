@@ -46,9 +46,8 @@ export const buildSubagentSnapshotView = (
   nowMs = Date.now(),
   visibilityPolicy: SubagentVisibilityPolicy = DEFAULT_SUBAGENT_VISIBILITY_POLICY,
 ): SubagentSnapshotView => {
-  const sortedChildren = [...children].sort(byPriority);
-  const collapsedChildren = collapseSubagentWorkItems(sortedChildren);
-  const visibleChildren = visibleSubagentWorkItems(sortedChildren, nowMs, visibilityPolicy).sort(byPriority);
+  const collapsedChildren = collapseSubagentWorkItems([...children].sort(byPriority));
+  const visibleChildren = visibleSubagentWorkItems(collapsedChildren, nowMs, visibilityPolicy).sort(byPriority);
 
   return {
     trackedChildren: collapsedChildren,

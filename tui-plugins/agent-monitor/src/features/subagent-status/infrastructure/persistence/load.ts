@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 import type { SubagentChild, SubagentState } from '../../domain/types.ts';
-import { isRecord, toFiniteNumber, toNonNegativeInteger } from '../../../../kit/coercion.ts';
+import { isRecord, isOneOf, toFiniteNumber, toNonNegativeInteger } from '../../../../kit/coercion.ts';
 import { clearPurgedSession, createEmptyState } from '../../domain/state/core.ts';
 import {
   normalizeChild,
@@ -24,10 +24,9 @@ const safeReadJSON = (value: string): unknown => {
 };
 
 const isPersistedChildSource = (value: unknown): boolean =>
-  value === undefined || value === 'session' || value === 'subtask' || value === 'tool';
+  value === undefined || isOneOf('session', 'subtask', 'tool')(value);
 
-const isPersistedChildStatus = (value: unknown): boolean =>
-  value === 'running' || value === 'done' || value === 'error' || value === 'stale';
+const isPersistedChildStatus = isOneOf('running', 'done', 'error', 'stale');
 
 type HydratablePersistedChild = Record<string, unknown> & {
   parentID: string;

@@ -11,8 +11,8 @@ import {
   hydrateChildStatusesFromTuiState,
 } from '../../../src/features/subagent-status/runtime/refresh/hydrate-client.ts';
 import {
+  analyzeMessages,
   hydrateChildTokensFromLogs,
-  summarizeMessages,
 } from '../../../src/features/subagent-status/runtime/refresh/hydrate.ts';
 
 const createApi = (input: {
@@ -518,13 +518,13 @@ describe('status hydration', () => {
 
   it('summarizes step-finish stop as ambiguous successful completion evidence', () => {
     expect(
-      summarizeMessages([
+      analyzeMessages([
         {
           type: 'step-finish',
           reason: 'stop',
           time: { end: '2026-06-04T12:01:30.000Z' },
         },
-      ]),
+      ]).summary,
     ).toEqual({
       status: 'done',
       endedAt: '2026-06-04T12:01:30.000Z',
@@ -534,7 +534,7 @@ describe('status hydration', () => {
 
   it('keeps step-finish stop ambiguous when a newer step starts later', () => {
     expect(
-      summarizeMessages([
+      analyzeMessages([
         {
           type: 'step-finish',
           reason: 'stop',
@@ -544,19 +544,19 @@ describe('status hydration', () => {
           type: 'step-start',
           time: { start: '2026-06-04T12:02:00.000Z' },
         },
-      ]),
+      ]).summary,
     ).toEqual({});
   });
 
   it('summarizes failed step-finish evidence as error', () => {
     expect(
-      summarizeMessages([
+      analyzeMessages([
         {
           type: 'step-finish',
           reason: 'failed',
           time: { end: '2026-06-04T12:01:30.000Z' },
         },
-      ]),
+      ]).summary,
     ).toEqual({
       status: 'error',
       endedAt: '2026-06-04T12:01:30.000Z',
@@ -566,7 +566,7 @@ describe('status hydration', () => {
 
   it('prefers explicit done evidence when error and done arrive with the same terminal timestamp', () => {
     expect(
-      summarizeMessages([
+      analyzeMessages([
         {
           type: 'session.status',
           state: { status: 'completed' },
@@ -577,7 +577,7 @@ describe('status hydration', () => {
           error: { message: 'boom' },
           time: { ended: '2026-06-04T12:01:30.000Z' },
         },
-      ]),
+      ]).summary,
     ).toEqual({
       status: 'done',
       endedAt: '2026-06-04T12:01:30.000Z',
@@ -586,7 +586,7 @@ describe('status hydration', () => {
 
   it('prefers later error evidence over earlier strict done evidence', () => {
     expect(
-      summarizeMessages([
+      analyzeMessages([
         {
           type: 'session.status',
           state: { status: 'completed' },
@@ -597,7 +597,7 @@ describe('status hydration', () => {
           error: { message: 'boom' },
           time: { ended: '2026-06-04T12:01:30.000Z' },
         },
-      ]),
+      ]).summary,
     ).toEqual({
       status: 'error',
       endedAt: '2026-06-04T12:01:30.000Z',

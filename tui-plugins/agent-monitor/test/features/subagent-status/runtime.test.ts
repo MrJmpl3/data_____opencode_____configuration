@@ -14,6 +14,8 @@ import {
   MAX_DEFERRED_STARTUP_SCOPED_EVENTS,
 } from '../../../src/features/subagent-status/runtime/session/scope.ts';
 import { deferred } from './fixtures/deferred.ts';
+import { createMockApi } from './fixtures/mock-api.ts';
+import { resetDoneTokenCache } from '../../../src/features/subagent-status/infrastructure/logs.ts';
 
 const waitForCondition = async (predicate: () => boolean, attempts = 5000): Promise<void> => {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -35,6 +37,7 @@ describe('refresh runtime', () => {
     setDebugEnabled(false);
     vi.restoreAllMocks();
     vi.useRealTimers();
+    resetDoneTokenCache();
     vi.doUnmock('../../../src/features/subagent-status/runtime/events/bridge.ts');
     vi.doUnmock('../../../src/features/subagent-status/infrastructure/persistence.ts');
     vi.doUnmock('../../../src/features/subagent-status/infrastructure/sqlite/hydrate.ts');
@@ -1907,26 +1910,7 @@ describe('refresh runtime', () => {
 
     let state: SubagentState = createEmptyState();
     let sessionID = '';
-    const api = {
-      client: {
-        session: {
-          children: vi.fn(async () => ({ data: [] })),
-        },
-      },
-      event: {},
-      lifecycle: {
-        onDispose: vi.fn(),
-      },
-      state: {
-        path: {
-          directory: '/tmp/workspace',
-        },
-        session: {
-          messages: vi.fn(() => []),
-          status: vi.fn(() => undefined),
-        },
-      },
-    } as unknown as TuiPluginApi;
+    const api = createMockApi();
 
     const runtime = createTuiRuntime(
       api,
@@ -1959,26 +1943,7 @@ describe('refresh runtime', () => {
 
     let state: SubagentState = createEmptyState();
     let sessionID = '';
-    const api = {
-      client: {
-        session: {
-          children: vi.fn(async () => ({ data: [] })),
-        },
-      },
-      event: {},
-      lifecycle: {
-        onDispose: vi.fn(),
-      },
-      state: {
-        path: {
-          directory: '/tmp/workspace',
-        },
-        session: {
-          messages: vi.fn(() => []),
-          status: vi.fn(() => undefined),
-        },
-      },
-    } as unknown as TuiPluginApi;
+    const api = createMockApi();
 
     const runtime = createTuiRuntime(
       api,
@@ -2006,6 +1971,7 @@ describe('debug gating for tui-runtime console.log replacements', () => {
   afterEach(() => {
     setDebugEnabled(false);
     vi.restoreAllMocks();
+    resetDoneTokenCache();
     vi.doUnmock('../../../src/features/subagent-status/infrastructure/persistence.ts');
   });
 
@@ -2032,24 +1998,7 @@ describe('debug gating for tui-runtime console.log replacements', () => {
 
     let state: SubagentState = createEmptyState();
     let sessionID = '';
-    const api = {
-      client: {
-        session: {
-          children: vi.fn(async () => ({ data: [] })),
-        },
-      },
-      event: {},
-      lifecycle: {
-        onDispose: vi.fn(),
-      },
-      state: {
-        path: { directory: '/tmp/workspace' },
-        session: {
-          messages: vi.fn(() => []),
-          status: vi.fn(() => undefined),
-        },
-      },
-    } as unknown as TuiPluginApi;
+    const api = createMockApi();
 
     const runtime = createTuiRuntime(
       api,
@@ -2096,24 +2045,7 @@ describe('debug gating for tui-runtime console.log replacements', () => {
 
     let state: SubagentState = createEmptyState();
     let sessionID = '';
-    const api = {
-      client: {
-        session: {
-          children: vi.fn(async () => ({ data: [] })),
-        },
-      },
-      event: {},
-      lifecycle: {
-        onDispose: vi.fn(),
-      },
-      state: {
-        path: { directory: '/tmp/workspace' },
-        session: {
-          messages: vi.fn(() => []),
-          status: vi.fn(() => undefined),
-        },
-      },
-    } as unknown as TuiPluginApi;
+    const api = createMockApi();
 
     const runtime = createTuiRuntime(
       api,

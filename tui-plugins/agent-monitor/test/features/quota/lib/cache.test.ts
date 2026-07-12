@@ -20,8 +20,8 @@ describe('createQuotaProviderCache', () => {
   it('returns the cached value within the TTL window without calling the fetcher again', async () => {
     const fetcher = makeFetcher([[{ kind: 'detail', text: 'cached' }]]);
     const { getCachedProviderLines } = createQuotaProviderCache<string>({
-      providerCacheTtlMilliseconds: 60_000,
-      providerErrorBackoffMilliseconds: 60_000,
+      providerCacheTtlMs: 60_000,
+      providerErrorBackoffMs: 60_000,
       fetchProviderLines: fetcher,
     });
 
@@ -36,8 +36,8 @@ describe('createQuotaProviderCache', () => {
     vi.useFakeTimers();
     const fetcher = makeFetcher([[{ kind: 'detail', text: 'first' }], [{ kind: 'detail', text: 'second' }]]);
     const { getCachedProviderLines } = createQuotaProviderCache<string>({
-      providerCacheTtlMilliseconds: 1_000,
-      providerErrorBackoffMilliseconds: 1_000,
+      providerCacheTtlMs: 1_000,
+      providerErrorBackoffMs: 1_000,
       fetchProviderLines: fetcher,
     });
 
@@ -60,8 +60,8 @@ describe('createQuotaProviderCache', () => {
         }),
     );
     const { getCachedProviderLines } = createQuotaProviderCache<string>({
-      providerCacheTtlMilliseconds: 60_000,
-      providerErrorBackoffMilliseconds: 60_000,
+      providerCacheTtlMs: 60_000,
+      providerErrorBackoffMs: 60_000,
       fetchProviderLines: fetcher,
     });
 
@@ -77,8 +77,8 @@ describe('createQuotaProviderCache', () => {
   it('skips re-fetching while a rate-limited provider is in cooldown and surfaces the cached error', async () => {
     const fetcher = makeFetcher(['HTTP 429 · retry-after=600']);
     const { getCachedProviderLines } = createQuotaProviderCache<string>({
-      providerCacheTtlMilliseconds: 60_000,
-      providerErrorBackoffMilliseconds: 60_000,
+      providerCacheTtlMs: 60_000,
+      providerErrorBackoffMs: 60_000,
       fetchProviderLines: fetcher,
     });
 
@@ -93,8 +93,8 @@ describe('createQuotaProviderCache', () => {
   it('caches string error results and applies the rate-limit backoff so the next call returns the same string without re-fetching', async () => {
     const fetcher = makeFetcher(['Service unavailable', 'Service unavailable']);
     const { getCachedProviderLines } = createQuotaProviderCache<string>({
-      providerCacheTtlMilliseconds: 60_000,
-      providerErrorBackoffMilliseconds: 60_000,
+      providerCacheTtlMs: 60_000,
+      providerErrorBackoffMs: 60_000,
       fetchProviderLines: fetcher,
     });
 
@@ -118,8 +118,8 @@ describe('createQuotaProviderCache', () => {
         }),
     );
     const { getCachedProviderLines, invalidateVisibleData } = createQuotaProviderCache<string>({
-      providerCacheTtlMilliseconds: 60_000,
-      providerErrorBackoffMilliseconds: 60_000,
+      providerCacheTtlMs: 60_000,
+      providerErrorBackoffMs: 60_000,
       fetchProviderLines: slowFetcher,
     });
 
@@ -144,8 +144,8 @@ describe('createQuotaProviderCache', () => {
   it('invalidateVisibleData resets every entry so the next call re-fetches', async () => {
     const fetcher = makeFetcher([[{ kind: 'detail', text: 'first' }], [{ kind: 'detail', text: 'second' }]]);
     const { getCachedProviderLines, invalidateVisibleData } = createQuotaProviderCache<string>({
-      providerCacheTtlMilliseconds: 60_000,
-      providerErrorBackoffMilliseconds: 60_000,
+      providerCacheTtlMs: 60_000,
+      providerErrorBackoffMs: 60_000,
       fetchProviderLines: fetcher,
     });
 
@@ -190,5 +190,12 @@ describe('retryAfterMsFromMessage', () => {
 
   it('returns 0 when no header is present', () => {
     expect(retryAfterMsFromMessage('Service unavailable')).toBe(0);
+  });
+
+  it('parses an HTTP-date retry-after header via Date.parse fallback', () => {
+    const futureDate = new Date(Date.now() + 120_000);
+    const ms = retryAfterMsFromMessage(`retry-after: ${futureDate.toUTCString()}`);
+    expect(ms).toBeGreaterThan(100_000);
+    expect(ms).toBeLessThan(140_000);
   });
 });

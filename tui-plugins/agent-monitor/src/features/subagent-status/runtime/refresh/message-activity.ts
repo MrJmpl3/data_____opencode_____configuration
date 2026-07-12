@@ -192,8 +192,6 @@ export const sessionStatusEndedAt = (value: unknown): string | undefined => {
   );
 };
 
-export const summarizeMessages = (messages: readonly unknown[]): MessageSummary => analyzeMessages(messages).summary;
-
 export const groupTargetRowsBySessionID = (
   state: SubagentState,
   targetSessionIDSet: ReadonlySet<string>,

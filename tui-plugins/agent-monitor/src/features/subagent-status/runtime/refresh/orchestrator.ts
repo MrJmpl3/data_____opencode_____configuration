@@ -48,10 +48,10 @@ type RefreshRequest = {
   sessionToken: number;
 };
 
-const createEmptyRecoveryResult = (): RecoveryResult => ({
+const EMPTY_RECOVERY_RESULT: RecoveryResult = {
   changed: false,
   authoritativeSessionIDs: [],
-});
+};
 
 const resolveTerminalRecoverySessionIDs = (
   state: SubagentState,
@@ -92,7 +92,7 @@ const hydrateRecoverySourcesSafely = async (input: {
       ':',
       e instanceof Error ? e : String(e),
     );
-    return createEmptyRecoveryResult();
+    return EMPTY_RECOVERY_RESULT;
   }
 };
 
@@ -126,6 +126,7 @@ export const createTuiRuntimeRefresh = (
     staleRunningProbeStateBySessionId: Map<string, StaleRunningProbeState>;
     createPersistMeta: CreatePersistMeta;
     syncState: (nextState: SubagentState, meta: PersistSnapshotMeta) => Promise<void>;
+    publishState: (state: SubagentState) => void;
     isDisposed: () => boolean;
   },
 ) => {
@@ -247,10 +248,17 @@ export const createTuiRuntimeRefresh = (
     } catch (e) {
       console.warn('[agent-monitor] Refresh failed — sessionId=', sessionId, ':', e instanceof Error ? e : String(e));
     } finally {
-      // Clear `recovering` only when we actually allocated nextState so the
-      // flag never ends up out of sync with what the persistence layer wrote.
       if (nextState) {
-        nextState.recovering = false;
+        const liveState = input.state.getState();
+        if (liveState !== nextState && liveState.recovering) {
+          const corrected = cloneState(liveState);
+          corrected.recovering = false;
+          await input.syncState(corrected, input.createPersistMeta('refresh'));
+        } else if (liveState === nextState) {
+          const corrected = cloneState(nextState);
+          corrected.recovering = false;
+          input.publishState(corrected);
+        }
       }
     }
   });

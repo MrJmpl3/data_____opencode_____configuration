@@ -40,7 +40,13 @@ const createDoneTokenCache = (): {
   return { cache, prune };
 };
 
-const { cache: doneTokenCache, prune: pruneDoneTokenCache } = createDoneTokenCache();
+let { cache: doneTokenCache, prune: pruneDoneTokenCache } = createDoneTokenCache();
+
+export const resetDoneTokenCache = (): void => {
+  const fresh = createDoneTokenCache();
+  doneTokenCache = fresh.cache;
+  pruneDoneTokenCache = fresh.prune;
+};
 
 const safeRead = <T>(reader: () => T): T | undefined => {
   try {

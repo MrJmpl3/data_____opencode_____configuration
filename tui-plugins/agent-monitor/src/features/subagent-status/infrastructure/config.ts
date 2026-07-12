@@ -1,14 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
 
 import { isRecord } from '../../../kit/coercion.ts';
-
-const configFilePath = (): string => {
-  const configDir = process.env.OPENCODE_CONFIG_DIR;
-  if (configDir) return join(configDir, 'agent-monitor.json');
-  return join(homedir(), '.config', 'opencode', 'agent-monitor.json');
-};
+import { configFilePath } from '../../../kit/config-path.ts';
 
 /**
  * Lee `sections.subagent-status.options` de `agent-monitor.json`.

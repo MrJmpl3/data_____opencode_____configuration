@@ -55,6 +55,7 @@ describe('4.3 — recovering toggle in refresh cycle', () => {
   const createRefreshContext = () => {
     let currentState = structuredClone(createEmptyState());
     const syncStateCalls: SubagentState[] = [];
+    const publishStateCalls: SubagentState[] = [];
 
     const recoverySources: RecoverySource[] = [
       {
@@ -124,6 +125,11 @@ describe('4.3 — recovering toggle in refresh cycle', () => {
       currentState = nextState;
     };
 
+    const publishState = (nextState: SubagentState) => {
+      publishStateCalls.push(structuredClone(nextState));
+      currentState = nextState;
+    };
+
     const { refresh } = createTuiRuntimeRefresh(api, {
       state: {
         getState: () => currentState,
@@ -137,34 +143,200 @@ describe('4.3 — recovering toggle in refresh cycle', () => {
         source,
       }),
       syncState,
+      publishState,
       isDisposed: () => false,
     });
 
-    return { refresh, syncStateCalls, sessionScope };
+    return { refresh, syncStateCalls, publishStateCalls, sessionScope };
   };
 
-  it('clears recovering from state after syncState completes', async () => {
-    const { refresh, syncStateCalls } = createRefreshContext();
+  it('clears recovering even when the runtime state was replaced by a concurrent event merge', async () => {
+    let currentState = structuredClone(createEmptyState());
+    const eventMergeReplacement = structuredClone(createEmptyState());
+    eventMergeReplacement.recovering = true;
+
+    // Simulate an event merge that replaces the runtime state *during*
+    // syncState (as would happen when the event bridge fires between
+    // setState and the finally block).  The one-shot guard ensures the
+    // finally block's correction actually persists instead of being
+    // replaced again.
+    let simulateEventMerge = true;
+    const syncState = async (nextState: SubagentState) => {
+      currentState = nextState;
+      if (simulateEventMerge) {
+        currentState = eventMergeReplacement;
+        simulateEventMerge = false;
+      }
+    };
+    const publishState = vi.fn();
+
+    const recoverySources: RecoverySource[] = [
+      {
+        hydrateState: vi.fn(
+          async (state: SubagentState): Promise<RecoveryResult | undefined> => ({
+            changed: true,
+            authoritativeSessionIDs: [],
+          }),
+        ),
+      },
+    ];
+
+    const sessionScope = {
+      beginSessionScope: vi.fn(),
+      bufferStartupScopedEvent: vi.fn(),
+      currentSessionToken: () => 1,
+      finishStartupScopedEventBuffering: vi.fn(),
+      invalidateSessionScope: vi.fn(() => 2),
+      isBufferingStartupScopedEvents: () => false,
+      replayDeferredStartupScopedEvents: vi.fn(async () => undefined),
+      resetSessionScope: vi.fn(),
+    };
+
+    const api = {
+      client: {
+        session: {
+          listChildren: vi.fn(async () => ({ data: [] })),
+          status: vi.fn(async () => ({ data: {} })),
+          messages: vi.fn(async () => ({ data: [] })),
+        },
+      },
+      state: {
+        path: { directory: '/tmp/workspace' },
+        session: {
+          messages: vi.fn(() => []),
+          status: vi.fn(() => undefined),
+        },
+      },
+    } as unknown as TuiPluginApi;
+
+    const { refresh } = createTuiRuntimeRefresh(api, {
+      state: {
+        getState: () => currentState,
+        getSessionId: () => 'ses_parent',
+      },
+      sessionScope,
+      recoverySources,
+      staleRunningProbePolicy: {
+        refreshIntervalMs: 60_000,
+        hardStaleAfterMs: 10 * 60_000,
+        baseBackoffMs: 1_000,
+        maxBackoffMs: 10_000,
+        maxAttempts: 3,
+      },
+      staleRunningProbeStateBySessionId: new Map(),
+      createPersistMeta: (source: PersistSnapshotMeta['source']): PersistSnapshotMeta => ({
+        source,
+      }),
+      syncState,
+      publishState,
+      isDisposed: () => false,
+    });
 
     await refresh('ses_parent', 1);
 
-    expect(syncStateCalls.length).toBeGreaterThan(0);
-    const lastSynced = syncStateCalls[syncStateCalls.length - 1];
-    // The recovering flag is cleared in the finally block AFTER syncState
-    // commits, so the persisted snapshot can briefly carry recovering=true.
-    // What we DO guarantee is that the flag is eventually cleared in the
-    // post-refresh state owned by the runtime.
-    expect(lastSynced.recovering).toBeTruthy();
+    // The finally block must publish a new reference through syncState
+    // with recovering=false so Solid's referential equality re-evaluates
+    // the memo/UI from "syncing" to idle.  An in-place mutation on the
+    // merged reference would be invisible to Solid.
+    expect(currentState.recovering).toBeFalsy();
   });
 
-  it('sets recovering on the cloned state during recovery and clears after sync', async () => {
-    const { refresh, syncStateCalls } = createRefreshContext();
+  it('publishes a new reference through syncState after event merge recovering fix', async () => {
+    let currentState = structuredClone(createEmptyState());
+    const eventMergeReplacement = structuredClone(createEmptyState());
+    eventMergeReplacement.recovering = true;
+    const syncStateCalls: SubagentState[] = [];
+
+    let simulateEventMerge = false;
+    const syncState = async (nextState: SubagentState) => {
+      syncStateCalls.push(structuredClone(nextState));
+      currentState = nextState;
+      if (simulateEventMerge) {
+        currentState = eventMergeReplacement;
+        simulateEventMerge = false;
+      }
+    };
+    const publishState = vi.fn();
+
+    const recoverySources: RecoverySource[] = [
+      {
+        hydrateState: vi.fn(
+          async (state: SubagentState): Promise<RecoveryResult | undefined> => ({
+            changed: true,
+            authoritativeSessionIDs: [],
+          }),
+        ),
+      },
+    ];
+
+    const sessionScope = {
+      beginSessionScope: vi.fn(),
+      bufferStartupScopedEvent: vi.fn(),
+      currentSessionToken: () => 1,
+      finishStartupScopedEventBuffering: vi.fn(),
+      invalidateSessionScope: vi.fn(() => 2),
+      isBufferingStartupScopedEvents: () => false,
+      replayDeferredStartupScopedEvents: vi.fn(async () => undefined),
+      resetSessionScope: vi.fn(),
+    };
+
+    const api = {
+      client: {
+        session: {
+          listChildren: vi.fn(async () => ({ data: [] })),
+          status: vi.fn(async () => ({ data: {} })),
+          messages: vi.fn(async () => ({ data: [] })),
+        },
+      },
+      state: {
+        path: { directory: '/tmp/workspace' },
+        session: {
+          messages: vi.fn(() => []),
+          status: vi.fn(() => undefined),
+        },
+      },
+    } as unknown as TuiPluginApi;
+
+    const { refresh } = createTuiRuntimeRefresh(api, {
+      state: {
+        getState: () => currentState,
+        getSessionId: () => 'ses_parent',
+      },
+      sessionScope,
+      recoverySources,
+      staleRunningProbePolicy: {
+        refreshIntervalMs: 60_000,
+        hardStaleAfterMs: 10 * 60_000,
+        baseBackoffMs: 1_000,
+        maxBackoffMs: 10_000,
+        maxAttempts: 3,
+      },
+      staleRunningProbeStateBySessionId: new Map(),
+      createPersistMeta: (source: PersistSnapshotMeta['source']): PersistSnapshotMeta => ({
+        source,
+      }),
+      syncState,
+      publishState,
+      isDisposed: () => false,
+    });
+
+    simulateEventMerge = true;
+    await refresh('ses_parent', 1);
+
+    // The finally block must publish a new reference through syncState
+    // with recovering=false, proving Solid reactivity is triggered.
+    expect(syncStateCalls.some((c) => c.recovering === false)).toBe(true);
+  });
+
+  it('publishes a new state reference when recovering transitions from true to false after normal refresh', async () => {
+    const { refresh, syncStateCalls, publishStateCalls } = createRefreshContext();
 
     await refresh('ses_parent', 1);
 
-    // All synced states may carry recovering=true during the cycle; the
-    // flag is only guaranteed to clear via the finally block after sync.
-    // The next refresh cycle's clone will see whatever the runtime stored.
     expect(syncStateCalls.length).toBeGreaterThan(0);
+    const synced = syncStateCalls.filter((c) => c.recovering === true);
+    expect(synced.length).toBeGreaterThan(0);
+
+    expect(publishStateCalls.some((c) => c.recovering === false)).toBe(true);
   });
 });

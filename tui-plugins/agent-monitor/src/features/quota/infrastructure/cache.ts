@@ -3,26 +3,26 @@ import type { ProviderFetchResult, QuotaProviderId } from '../domain/types.ts';
 
 import { isQuotaRateLimitError, retryAfterMsFromMessage } from './retry-policy.ts';
 
-const MAX_PROVIDER_BACKOFF_MILLISECONDS = 60 * 60_000;
+const MAX_PROVIDER_BACKOFF_MS = 60 * 60_000;
 
 interface ProviderCacheEntry {
   generation: number;
   value?: ProviderFetchResult;
-  fetchedAtMilliseconds: number;
-  cooldownUntilMilliseconds?: number;
+  fetchedAtMs: number;
+  cooldownUntilMs?: number;
   consecutiveErrors: number;
   inFlight?: Promise<ProviderFetchResult>;
 }
 
 interface QuotaProviderCacheConfig<TConfig> {
-  providerCacheTtlMilliseconds: number;
-  providerErrorBackoffMilliseconds: number;
+  providerCacheTtlMs: number;
+  providerErrorBackoffMs: number;
   fetchProviderLines: (providerId: QuotaProviderId, config: TConfig) => Promise<ProviderFetchResult>;
 }
 
 export const createQuotaProviderCache = <TConfig>({
-  providerCacheTtlMilliseconds,
-  providerErrorBackoffMilliseconds,
+  providerCacheTtlMs,
+  providerErrorBackoffMs,
   fetchProviderLines,
 }: QuotaProviderCacheConfig<TConfig>): {
   getCachedProviderLines: (providerId: QuotaProviderId, config: TConfig) => Promise<ProviderFetchResult>;
@@ -30,11 +30,11 @@ export const createQuotaProviderCache = <TConfig>({
 } => {
   const providerCache = new Map<QuotaProviderId, ProviderCacheEntry>();
 
-  const getErrorCooldownMilliseconds = (message: string, attempts: number): number => {
+  const getErrorCooldownMs = (message: string, attempts: number): number => {
     const retryAfterMs = retryAfterMsFromMessage(message);
-    const baseMs = isQuotaRateLimitError(message) ? providerErrorBackoffMilliseconds : providerCacheTtlMilliseconds;
+    const baseMs = isQuotaRateLimitError(message) ? providerErrorBackoffMs : providerCacheTtlMs;
     const multipliedMs = baseMs * Math.min(4, Math.max(1, attempts));
-    return Math.max(retryAfterMs, Math.min(multipliedMs, MAX_PROVIDER_BACKOFF_MILLISECONDS));
+    return Math.max(retryAfterMs, Math.min(multipliedMs, MAX_PROVIDER_BACKOFF_MS));
   };
 
   const cacheProviderResult = (
@@ -58,10 +58,9 @@ export const createQuotaProviderCache = <TConfig>({
     providerCache.set(providerId, {
       generation: requestGeneration,
       value,
-      fetchedAtMilliseconds: now,
+      fetchedAtMs: now,
       consecutiveErrors,
-      cooldownUntilMilliseconds:
-        typeof value === 'string' ? now + getErrorCooldownMilliseconds(value, consecutiveErrors) : undefined,
+      cooldownUntilMs: typeof value === 'string' ? now + getErrorCooldownMs(value, consecutiveErrors) : undefined,
     });
     return value;
   };
@@ -70,13 +69,10 @@ export const createQuotaProviderCache = <TConfig>({
     const now = Date.now();
     const entry = providerCache.get(providerId);
     if (entry?.inFlight) return entry.inFlight;
-    if (entry?.cooldownUntilMilliseconds && entry.cooldownUntilMilliseconds > now) {
-      return (
-        entry.value ??
-        `Refresh paused · retry in ${fmtDuration(Math.ceil((entry.cooldownUntilMilliseconds - now) / 1000))}`
-      );
+    if (entry?.cooldownUntilMs && entry.cooldownUntilMs > now) {
+      return entry.value ?? `Refresh paused · retry in ${fmtDuration(Math.ceil((entry.cooldownUntilMs - now) / 1000))}`;
     }
-    if (entry?.value !== undefined && now - entry.fetchedAtMilliseconds < providerCacheTtlMilliseconds) {
+    if (entry?.value !== undefined && now - entry.fetchedAtMs < providerCacheTtlMs) {
       return entry.value;
     }
 
@@ -92,8 +88,8 @@ export const createQuotaProviderCache = <TConfig>({
     providerCache.set(providerId, {
       generation: requestGeneration,
       value: entry?.value,
-      fetchedAtMilliseconds: entry?.fetchedAtMilliseconds ?? 0,
-      cooldownUntilMilliseconds: entry?.cooldownUntilMilliseconds,
+      fetchedAtMs: entry?.fetchedAtMs ?? 0,
+      cooldownUntilMs: entry?.cooldownUntilMs,
       consecutiveErrors: entry?.consecutiveErrors ?? 0,
       inFlight: request,
     });
@@ -105,7 +101,7 @@ export const createQuotaProviderCache = <TConfig>({
     for (const entry of providerCache.values()) {
       entry.generation += 1;
       entry.value = undefined;
-      entry.fetchedAtMilliseconds = 0;
+      entry.fetchedAtMs = 0;
       entry.inFlight = undefined;
     }
   };

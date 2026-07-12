@@ -43,13 +43,10 @@ export const formatPaceLineText = (
   return { paceText, recoverySeconds };
 };
 
-export const formatOpenAIRateLimitTone = (limit: {
-  allowed?: boolean;
-  limitReached?: boolean;
-}): QuotaLineTone | undefined => {
+export const formatOpenAIRateLimitTone = (limit: { allowed?: boolean; limitReached?: boolean }): QuotaLineTone => {
   if (limit.limitReached) return 'error';
   if (limit.allowed === false) return 'error';
-  return undefined;
+  return 'neutral';
 };
 
 const compactText = (text: string, maxLength: number): string => {

@@ -29,8 +29,6 @@ export const isTerminalStatus = (
 export const childEvidenceTimestampMs = (child: Pick<SubagentChild, 'startedAt' | 'updatedAt' | 'endedAt'>): number =>
   timestampMs(child.endedAt ?? child.updatedAt ?? child.startedAt);
 
-export const terminalChildTimestamp = (child: SubagentChild): number => childEvidenceTimestampMs(child) ?? 0;
-
 const rememberPurgedSession = (
   state: SubagentState,
   child: Pick<SubagentChild, 'id'> & Partial<Pick<SubagentChild, 'targetSessionID'>>,
@@ -168,7 +166,7 @@ export const resolveExecutionCountIdentity = (
   child: Pick<SubagentChild, 'id' | 'title' | 'parentID'> &
     Partial<Pick<SubagentChild, 'messageID' | 'source' | 'targetSessionID'>>,
 ): string | undefined => {
-  if (isSyntheticToolWrapper(child) || isDelegationLikeChild(child)) return undefined;
+  if (isSyntheticToolWrapper(child.source) || isDelegationLikeChild(child)) return undefined;
 
   if (isRealSessionChild(child)) {
     const matchingSubtaskID = findMatchingCountedSubtaskID(state, child);
@@ -195,19 +193,20 @@ export const syncExecutionState = (state: SubagentState): void => {
 
 // ─── pruning ─────────────────────────────────────────────────────────────────
 
+// Sessions with no step-start abandoned after 30 min.
 const TERMINAL_CHILD_RETENTION_MS = 30 * 60 * 1000;
 const MAX_TERMINAL_CHILDREN = 50;
 
 export const pruneTerminalChildren = (state: SubagentState, now = Date.now()): boolean => {
   const terminalChildren = Object.values(state.children)
     .filter((child) => child.status !== 'running')
-    .sort((left, right) => terminalChildTimestamp(right) - terminalChildTimestamp(left));
+    .sort((left, right) => (childEvidenceTimestampMs(right) ?? 0) - (childEvidenceTimestampMs(left) ?? 0));
   if (terminalChildren.length === 0) return false;
 
   const cutoff = now - TERMINAL_CHILD_RETENTION_MS;
   const keepIDs = new Set(
     terminalChildren
-      .filter((child) => terminalChildTimestamp(child) >= cutoff)
+      .filter((child) => (childEvidenceTimestampMs(child) ?? 0) >= cutoff)
       .slice(0, MAX_TERMINAL_CHILDREN)
       .map((child) => child.id),
   );
@@ -258,7 +257,7 @@ export const pruneOrphanedSyntheticRunningChildren = (
   let changed = false;
   for (const child of Object.values(state.children)) {
     if (child.status !== 'running') continue;
-    if (!isSyntheticToolWrapper(child) && !isSubtaskFallback(child)) continue;
+    if (!isSyntheticToolWrapper(child.source) && !isSubtaskFallback(child)) continue;
 
     if (pruneToolWrappersWithoutRealSessions && isSubtaskFallback(child)) {
       continue;

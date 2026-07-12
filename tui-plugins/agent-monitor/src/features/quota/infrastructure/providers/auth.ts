@@ -69,7 +69,12 @@ export const readOpenAIAccountId = (token: string): string | null => {
     // JWT signature verification skipped because the token comes from
     // the user's local auth.json (trusted file). Only the chatgpt_account_id
     // claim is read — no authorization decisions are made from this payload.
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf-8')) as unknown;
+    // Structure validation: 3-part token + parseable header with `alg`.
+    const parts = token.split('.');
+    if (parts.length !== 3 || !parts[0] || !parts[1]) return null;
+    const headerRaw = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf-8')) as unknown;
+    if (!isRecord(headerRaw) || typeof headerRaw.alg !== 'string') return null;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8')) as unknown;
     if (!isRecord(payload)) return null;
     const jwtAccountId = payload.chatgpt_account_id;
     if (typeof jwtAccountId === 'string' && jwtAccountId.trim()) return jwtAccountId.trim();

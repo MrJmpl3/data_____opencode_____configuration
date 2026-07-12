@@ -1,9 +1,8 @@
 import { existsSync, readFileSync } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
 
 import type { OpenCodeGoWorkspaceConfig, QuotaPluginOptions } from '../../domain/types.ts';
 import { isRecord } from '../../../../kit/coercion.ts';
+import { configFilePath } from '../../../../kit/config-path.ts';
 
 export interface QuotaFileConfig {
   /** Provider-specific configuration */
@@ -28,12 +27,6 @@ export interface QuotaFileConfig {
     experimentalOpenAIResetCredits?: QuotaPluginOptions['experimentalOpenAIResetCredits'];
   };
 }
-
-const quotaConfigPath = (): string => {
-  const configDir = process.env.OPENCODE_CONFIG_DIR;
-  if (configDir) return join(configDir, 'agent-monitor.json');
-  return join(homedir(), '.config', 'opencode', 'agent-monitor.json');
-};
 
 const asStringArray = (value: unknown): readonly string[] => {
   if (!Array.isArray(value)) return [];
@@ -61,7 +54,7 @@ const normalizeWorkspaceEntries = (value: unknown): readonly OpenCodeGoWorkspace
 };
 
 export const readQuotaConfig = (): QuotaFileConfig | null => {
-  const path = quotaConfigPath();
+  const path = configFilePath();
   if (!existsSync(path)) return null;
   try {
     const parsed: unknown = JSON.parse(readFileSync(path, 'utf-8'));

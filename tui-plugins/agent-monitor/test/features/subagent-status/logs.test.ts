@@ -20,6 +20,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import {
   hydrateDoneChildTokens,
   readOpenCodeLogFileIfSmall,
+  resetDoneTokenCache,
 } from '../../../src/features/subagent-status/infrastructure/logs.ts';
 
 describe('logs', () => {
@@ -27,6 +28,7 @@ describe('logs', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetDoneTokenCache();
   });
 
   afterEach(async () => {
