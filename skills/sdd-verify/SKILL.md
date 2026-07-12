@@ -76,6 +76,21 @@ dependency states, and `actionContext` before judging artifacts.
 - Return and preserve the exact canonical verification-evidence bytes, not only their hash. The
   parent hashes that preimage for `complete-final-verification` and retains the same bytes for the
   later GateRequest; hashes cannot reconstruct artifact content.
+- If authoritative preflight alone denies verification because review authority is missing, persist
+  a failed strict envelope with the five fields below. Both declared commands must not be executed:
+  record exit `125` for each, hash their exact empty output, and bind the observed authority
+  revision from that preflight. Do not use this envelope for substantive failures or command
+  failures.
+
+```yaml
+authority_only_failure: true
+missing_review_authority: true
+substantive_failure: false
+command_failed: false
+observed_authority_revision: sha256:{observed-authority-revision}
+test_exit_code: 125
+build_exit_code: 125
+```
 
 ## Decision Gates
 
