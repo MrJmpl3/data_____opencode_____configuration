@@ -29,12 +29,12 @@ Generated technical artifacts default to English. Do not inherit the user's conv
 or the active persona's regional voice for SDD artifacts unless the user explicitly requests that
 artifact language or the project convention requires it.
 
-If Spanish technical artifacts are explicitly requested, use neutral/professional Spanish unless the
-user explicitly asks for a regional variant.
+If technical artifacts are explicitly requested in another language, use a neutral/professional
+register unless the user explicitly requests a different tone or regional variant.
 
 Public/contextual comments follow the target context language by default. Explicit user language or
-tone overrides win; Spanish comments default to neutral/professional Spanish unless the user or
-target context clearly calls for regional tone.
+tone overrides win; otherwise use a neutral/professional register unless the target context clearly
+calls for another tone or regional variant.
 
 ## Activation Contract
 
@@ -69,9 +69,13 @@ dependency states, and `actionContext` before judging artifacts.
 - This is the one independent requirements/runtime final verification. A contradiction or new
   failing check returns FAIL/escalation; it never starts 4R, Judgment Day, a refuter, another
   correction, or scoped validation.
-- Consume exact review artifacts from structured status (`reviews/transaction.json`, `ledger.json`,
-  `receipt.json`, `gate-context.json`, or equivalent `sdd/{change-name}/review/*` Engram topics). Do
-  not substitute prompt-only state when native artifacts exist.
+- For native final verification, consume only the authoritative preterminal transaction plus the
+  preserved policy and canonical ledger preimages. Do not require `receipt.json`,
+  `chain-bundle.json`, `gate-context.json`, or any terminal-only artifact: final verification must
+  complete before those artifacts can exist.
+- Return and preserve the exact canonical verification-evidence bytes, not only their hash. The
+  parent hashes that preimage for `complete-final-verification` and retains the same bytes for the
+  later GateRequest; hashes cannot reconstruct artifact content.
 
 ## Decision Gates
 
