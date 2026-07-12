@@ -1150,4 +1150,62 @@ describe('characterization: shared hydration logic (pre-refactor baseline)', () 
     expect(changed).toBe(false);
     expect(runningEv.has('ses_child')).toBe(false);
   });
+
+  describe('analyzeMessages with nested parts[]', () => {
+    it('recognizes step-finish reason stop in parts[] as ambiguous done', () => {
+      const result = analyzeMessages([
+        {
+          type: 'message.updated',
+          parts: [{ type: 'step-finish', reason: 'stop', time: { end: '2026-06-04T12:01:30.000Z' } }],
+        },
+      ]);
+      expect(result.summary).toEqual({
+        status: 'done',
+        endedAt: '2026-06-04T12:01:30.000Z',
+        evidence: 'ambiguous',
+      });
+    });
+
+    it('recognizes step-finish error in parts[] as ambiguous error', () => {
+      const result = analyzeMessages([
+        {
+          type: 'message.updated',
+          parts: [{ type: 'step-finish', error: { message: 'failed' }, time: { end: '2026-06-04T12:01:30.000Z' } }],
+        },
+      ]);
+      expect(result.summary).toEqual({
+        status: 'error',
+        endedAt: '2026-06-04T12:01:30.000Z',
+        evidence: 'ambiguous',
+      });
+    });
+
+    it('respects step-start guard over parts[] ambiguous done', () => {
+      const result = analyzeMessages([
+        {
+          type: 'message.updated',
+          parts: [
+            { type: 'step-finish', reason: 'stop', time: { end: '2026-06-04T12:01:30.000Z' } },
+            { type: 'step-start', time: { start: '2026-06-04T12:02:00.000Z' } },
+          ],
+        },
+      ]);
+      expect(result.summary).toEqual({});
+    });
+
+    it('does not double-count when message envelope already has explicit status', () => {
+      const result = analyzeMessages([
+        {
+          type: 'session.status',
+          state: { status: 'completed' },
+          time: { completed: '2026-06-04T12:01:00.000Z' },
+          parts: [{ type: 'step-finish', reason: 'stop', time: { end: '2026-06-04T12:01:30.000Z' } }],
+        },
+      ]);
+      expect(result.summary).toEqual({
+        status: 'done',
+        endedAt: '2026-06-04T12:01:00.000Z',
+      });
+    });
+  });
 });

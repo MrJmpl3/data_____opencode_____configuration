@@ -22,6 +22,14 @@ import {
 
 const formatCompactPercent = (value: number): string => value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
 
+const deriveWindowLabel = (limitWindowSec: number, fallback: string): string => {
+  if (Math.abs(limitWindowSec - 5 * 3600) < 300) return '5h';
+  if (Math.abs(limitWindowSec - 24 * 3600) < 600) return '24h';
+  if (Math.abs(limitWindowSec - 7 * 24 * 3600) < 600) return 'Wk';
+  if (Math.abs(limitWindowSec - 30 * 24 * 3600) < 3600) return 'Mo';
+  return fallback;
+};
+
 export const formatPaceLineText = (
   window: { usedPct: number; resetSec: number },
   windowSeconds: number,
@@ -131,9 +139,11 @@ export const formatOpenAILines = (
     tone?: QuotaLineTone,
   ) => {
     if (!window) return;
+    const effectiveLabel =
+      window.limitWindowSec !== undefined ? deriveWindowLabel(window.limitWindowSec, label) : label;
     lines.push(
       windowLine(
-        label,
+        effectiveLabel,
         formatUsedPercentQuota(window.usedPct, displayMode),
         window.resetSec,
         fetchedAtMs,
@@ -141,7 +151,10 @@ export const formatOpenAILines = (
         window.usedPct,
       ),
     );
-    if (paceWindowSeconds) lines.push(paceLine(window, paceWindowSeconds, fetchedAtMs));
+    if (paceWindowSeconds) {
+      const effectivePace = window.limitWindowSec ?? paceWindowSeconds;
+      lines.push(paceLine(window, effectivePace, fetchedAtMs));
+    }
   };
   addWindow('5h', data.hourly, 5 * 3600);
   addWindow('Wk', data.weekly, WEEK_SECONDS);

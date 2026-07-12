@@ -135,6 +135,32 @@ export const analyzeMessages = (messages: readonly unknown[]): MessageActivity =
     if (ambiguousStatus === 'done' && terminalAt) {
       ambiguousCompletedAtMs = maxTimestamp(ambiguousCompletedAtMs, terminalAt);
     }
+
+    const parts =
+      isRecord(message) && Array.isArray((message as Record<string, unknown>).parts)
+        ? ((message as Record<string, unknown>).parts as unknown[])
+        : [];
+    for (const part of parts) {
+      if (!isRecord(part)) continue;
+      latestActivityMs = maxTimestamp(latestActivityMs, messageActivityAt(part));
+      latestLiveActivityMs = maxTimestamp(latestLiveActivityMs, messageLiveActivityAt(part));
+
+      const partType = normalizedString(part.type);
+      if (partType === 'step-start') {
+        latestStepStartAtMs = maxTimestamp(latestStepStartAtMs, resolveStepStartTimestamp(part));
+      }
+
+      const partAmbiguous = resolveAmbiguousStepFinishStatus(part);
+      if (!partAmbiguous) continue;
+
+      const partTerminalAt =
+        messageTime(part, 'completed', 'end', 'ended', 'updated', 'created') ?? messageActivityAt(part);
+      if (partAmbiguous === 'error' && partTerminalAt) {
+        ambiguousErrorAtMs = maxTimestamp(ambiguousErrorAtMs, partTerminalAt);
+      } else if (partAmbiguous === 'done' && partTerminalAt) {
+        ambiguousCompletedAtMs = maxTimestamp(ambiguousCompletedAtMs, partTerminalAt);
+      }
+    }
   }
 
   const ambiguousAtMs = Math.max(ambiguousCompletedAtMs, ambiguousErrorAtMs);

@@ -84,10 +84,10 @@ describe('events', () => {
     });
 
     expect(evidence).toMatchObject({
-      status: 'running',
+      status: 'done',
       targetSessionID: 'ses_child_1',
+      endedAt: '2026-06-04T12:05:00.000Z',
     });
-    expect(evidence?.endedAt).toBeUndefined();
   });
 
   it('ignores ambiguous task target evidence', () => {
@@ -162,7 +162,7 @@ describe('events', () => {
     ).toBe('ses_child');
   });
 
-  it('keeps matching tool and subtask rows running until the delegated session finishes', () => {
+  it('completes tool and closes subtask when task tool completes', () => {
     const state = createEmptyState();
 
     applySubagentEvent(state, {
@@ -176,6 +176,7 @@ describe('events', () => {
           messageID: 'msg_1',
           description: 'Execute migration slice',
           targetSession: 'ses_child_1',
+          time: { created: '2026-06-04T12:00:00.000Z' },
         },
       },
     });
@@ -203,15 +204,15 @@ describe('events', () => {
     ).toBe(true);
 
     expect(state.children['tool:tool_1']).toMatchObject({
-      status: 'running',
+      status: 'done',
       targetSessionID: 'ses_child_1',
+      endedAt: '2026-06-04T12:10:00.000Z',
     });
     expect(state.children['subtask:part_1']).toMatchObject({
-      status: 'running',
+      status: 'done',
       targetSessionID: 'ses_child_1',
+      endedAt: '2026-06-04T12:10:00.000Z',
     });
-    expect(state.children['tool:tool_1']?.endedAt).toBeUndefined();
-    expect(state.children['subtask:part_1']?.endedAt).toBeUndefined();
   });
 
   it('does not mark the only running subtask as failed when task tool evidence cannot be correlated', () => {

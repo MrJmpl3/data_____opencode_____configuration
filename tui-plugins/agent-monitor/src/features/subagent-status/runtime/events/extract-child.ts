@@ -9,6 +9,7 @@ import {
   type SyntheticChild,
 } from './extract.ts';
 import { extractPartTargetSessionCandidates, parseTaskSessionIdFromOutput } from './resolve.ts';
+import { deriveTerminalSessionStatus } from '../../domain/session-status.ts';
 
 export type TaskToolEvidence = { status: 'running' | 'done' | 'error'; targetSessionID?: string; endedAt?: string };
 
@@ -75,7 +76,9 @@ export const extractTaskToolEvidence = (event: EventLike): TaskToolEvidence | nu
   if (!part || part.type !== 'tool' || asString(part.tool) !== 'task') return null;
   const state = isRecord(part.state) ? part.state : undefined;
   if (!state) return null;
-  const status: TaskToolEvidence['status'] = asString(state.status) === 'error' ? 'error' : 'running';
+  const terminalStatus = deriveTerminalSessionStatus(state.status);
+  const status: TaskToolEvidence['status'] =
+    terminalStatus === 'error' ? 'error' : terminalStatus === 'done' ? 'done' : 'running';
   const metadata = isRecord(state.metadata) ? state.metadata : undefined;
   const parentID = asString(part.sessionID) ?? asString(part.session_id) ?? extractSessionId(event);
   const targets = extractPartTargetSessionCandidates(event);
@@ -87,7 +90,7 @@ export const extractTaskToolEvidence = (event: EventLike): TaskToolEvidence | nu
       asString(metadata?.session_id) ??
       parseTaskSessionIdFromOutput(state.output, parentID) ??
       (targets.length === 1 ? targets[0] : undefined),
-    endedAt: status === 'error' ? extractEventTimestamp(event, ['completed', 'end', 'ended', 'updated']) : undefined,
+    endedAt: status !== 'running' ? extractEventTimestamp(event, ['completed', 'end', 'ended', 'updated']) : undefined,
   };
 };
 
