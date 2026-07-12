@@ -2069,3 +2069,460 @@ describe('debug gating for tui-runtime console.log replacements', () => {
     expect(console.log).toHaveBeenCalled();
   });
 });
+
+describe('concurrency guard: event + refresh interleaving', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-04T05:25:00.000Z'));
+  });
+
+  afterEach(() => {
+    setDebugEnabled(false);
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    resetDoneTokenCache();
+    vi.doUnmock('../../../src/features/subagent-status/runtime/events/bridge.ts');
+    vi.doUnmock('../../../src/features/subagent-status/infrastructure/persistence.ts');
+  });
+
+  it('routes a terminal session.idle event through mergeEventState correctly', async () => {
+    vi.resetModules();
+
+    let capturedOnEvent: ((event: unknown) => void) | undefined;
+
+    vi.doMock('../../../src/features/subagent-status/runtime/events/bridge.ts', async () => {
+      const actual = await vi.importActual<
+        typeof import('../../../src/features/subagent-status/runtime/events/bridge.ts')
+      >('../../../src/features/subagent-status/runtime/events/bridge.ts');
+
+      return {
+        ...actual,
+        installEventBridge: vi.fn((_api, _refresh, onEvent) => {
+          capturedOnEvent = onEvent;
+          return () => {
+            capturedOnEvent = undefined;
+          };
+        }),
+      };
+    });
+
+    vi.doMock('../../../src/features/subagent-status/infrastructure/persistence.ts', async () => {
+      const actual = await vi.importActual<
+        typeof import('../../../src/features/subagent-status/infrastructure/persistence.ts')
+      >('../../../src/features/subagent-status/infrastructure/persistence.ts');
+
+      return {
+        ...actual,
+        resolveStatePath: vi.fn(() => '/tmp/agent-monitor-state.json'),
+        resolveTextPath: vi.fn(() => '/tmp/agent-monitor-status.txt'),
+        loadState: vi.fn(async () => createEmptyState()),
+        shouldPreserveStateOnStartup: vi.fn(() => false),
+        createPersistQueue: vi.fn(() => async () => undefined),
+      };
+    });
+
+    const { createTuiRuntime } = await import('../../../src/features/subagent-status/runtime/tui-runtime.ts');
+
+    let state: SubagentState = createEmptyState();
+    let sessionID = 'ses_parent';
+    const api = {
+      client: {
+        session: {
+          children: vi.fn(async () => ({
+            data: [
+              {
+                id: 'ses_parent',
+                parentID: 'ses_grandparent',
+                title: 'Target child',
+                source: 'session',
+                status: 'running',
+                startedAt: '2026-06-04T05:15:00.000Z',
+                updatedAt: '2026-06-04T05:20:00.000Z',
+              },
+            ],
+          })),
+          status: vi.fn(async () => ({ data: {} })),
+          messages: vi.fn(async () => ({ data: [] })),
+        },
+      },
+      event: {},
+      lifecycle: { onDispose: vi.fn() },
+      state: {
+        path: { directory: '/tmp/workspace' },
+        session: {
+          messages: vi.fn(() => []),
+          status: vi.fn(() => undefined),
+        },
+      },
+    } as unknown as TuiPluginApi;
+
+    const runtime = createTuiRuntime(
+      api,
+      {
+        getState: () => state,
+        setState: (nextState) => {
+          state = nextState;
+        },
+        getSessionId: () => sessionID,
+        setSessionId: (nextSessionID) => {
+          sessionID = nextSessionID;
+        },
+        setNowMs: vi.fn(),
+      },
+      {
+        debug: false,
+        recovery: { sqliteDatabasePath: '' },
+        staleRunningProbePolicy: {
+          hardStaleAfterMs: 0,
+          baseBackoffMs: 60_000,
+          maxBackoffMs: 300_000,
+          maxAttempts: 4,
+          refreshIntervalMs: 100,
+        },
+        visibility: { doneRetentionMs: 600_000, staleRetentionMs: 1_200_000 },
+        persistence: { statePath: '', preserveStateOnStartup: false },
+      } as Parameters<typeof createTuiRuntime>[2],
+    );
+
+    await runtime.bootstrap();
+
+    // Wait for the first refresh to seed the running child
+    await vi.advanceTimersByTimeAsync(10);
+    await waitForCondition(() => state.children.ses_parent?.status === 'running');
+
+    // Fire a terminal event — the child id matches current session (ses_parent)
+    // so extractSessionId routes it through handleSessionIdle → handleSessionStatus
+    // → markChildStatus finds the child by id.
+    capturedOnEvent?.({
+      type: 'session.idle',
+      sessionID: 'ses_parent',
+      properties: {
+        info: {
+          id: 'ses_parent',
+          parentID: 'ses_grandparent',
+          title: 'Target child',
+          status: 'completed',
+          time: { updated: '2026-06-04T05:20:30.000Z' },
+        },
+      },
+    });
+    await waitForCondition(() => state.children.ses_parent?.status === 'done');
+
+    expect(state.children.ses_parent).toMatchObject({
+      status: 'done',
+      endedAt: '2026-06-04T05:20:30.000Z',
+    });
+
+    runtime.dispose();
+  });
+
+  it('does not reopen a terminal child when a stale listChildren running response arrives after a terminal event', async () => {
+    vi.resetModules();
+
+    let capturedOnEvent: ((event: unknown) => void) | undefined;
+    let listChildrenCallCount = 0;
+    const listChildrenGate = deferred<unknown>();
+
+    vi.doMock('../../../src/features/subagent-status/runtime/events/bridge.ts', async () => {
+      const actual = await vi.importActual<
+        typeof import('../../../src/features/subagent-status/runtime/events/bridge.ts')
+      >('../../../src/features/subagent-status/runtime/events/bridge.ts');
+
+      return {
+        ...actual,
+        installEventBridge: vi.fn((_api, _refresh, onEvent) => {
+          capturedOnEvent = onEvent;
+          return () => {
+            capturedOnEvent = undefined;
+          };
+        }),
+      };
+    });
+
+    vi.doMock('../../../src/features/subagent-status/infrastructure/persistence.ts', async () => {
+      const actual = await vi.importActual<
+        typeof import('../../../src/features/subagent-status/infrastructure/persistence.ts')
+      >('../../../src/features/subagent-status/infrastructure/persistence.ts');
+
+      return {
+        ...actual,
+        resolveStatePath: vi.fn(() => '/tmp/agent-monitor-state.json'),
+        resolveTextPath: vi.fn(() => '/tmp/agent-monitor-status.txt'),
+        loadState: vi.fn(async () => createEmptyState()),
+        shouldPreserveStateOnStartup: vi.fn(() => false),
+        createPersistQueue: vi.fn(() => async () => undefined),
+      };
+    });
+
+    const { createTuiRuntime } = await import('../../../src/features/subagent-status/runtime/tui-runtime.ts');
+
+    let state: SubagentState = createEmptyState();
+    let sessionID = 'ses_parent';
+    const childrenSpy = vi.fn(async () => {
+      listChildrenCallCount++;
+      if (listChildrenCallCount <= 1) {
+        return {
+          data: [
+            {
+              id: 'ses_parent',
+              parentID: 'ses_grandparent',
+              title: 'Target child',
+              source: 'session',
+              status: 'running',
+              startedAt: '2026-06-04T05:15:00.000Z',
+              updatedAt: '2026-06-04T05:20:00.000Z',
+            },
+          ],
+        };
+      }
+      await listChildrenGate.promise;
+      return {
+        data: [
+          {
+            id: 'ses_parent',
+            parentID: 'ses_grandparent',
+            title: 'Target child',
+            source: 'session',
+            status: 'running',
+            startedAt: '2026-06-04T05:15:00.000Z',
+            updatedAt: '2026-06-04T05:18:00.000Z',
+          },
+        ],
+      };
+    });
+
+    const api = {
+      client: {
+        session: {
+          children: childrenSpy,
+          status: vi.fn(async () => ({ data: {} })),
+          messages: vi.fn(async () => ({ data: [] })),
+        },
+      },
+      event: {},
+      lifecycle: {
+        onDispose: vi.fn(),
+      },
+      state: {
+        path: {
+          directory: '/tmp/workspace',
+        },
+        session: {
+          messages: vi.fn(() => []),
+          status: vi.fn(() => undefined),
+        },
+      },
+    } as unknown as TuiPluginApi;
+
+    const runtime = createTuiRuntime(
+      api,
+      {
+        getState: () => state,
+        setState: (nextState) => {
+          state = nextState;
+        },
+        getSessionId: () => sessionID,
+        setSessionId: (nextSessionID) => {
+          sessionID = nextSessionID;
+        },
+        setNowMs: vi.fn(),
+      },
+      {
+        debug: false,
+        recovery: { sqliteDatabasePath: '' },
+        staleRunningProbePolicy: {
+          hardStaleAfterMs: 0,
+          baseBackoffMs: 60_000,
+          maxBackoffMs: 300_000,
+          maxAttempts: 4,
+          refreshIntervalMs: 100,
+        },
+        visibility: { doneRetentionMs: 600_000, staleRetentionMs: 1_200_000 },
+        persistence: { statePath: '', preserveStateOnStartup: false },
+      } as Parameters<typeof createTuiRuntime>[2],
+    );
+
+    await runtime.bootstrap();
+
+    // Advance past the first refresh so the child is in state as running
+    await vi.advanceTimersByTimeAsync(10);
+    await waitForCondition(() => state.children.ses_parent?.status === 'running');
+
+    // Second refresh call — listChildren will stall on listChildrenGate
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.waitFor(() => expect(childrenSpy).toHaveBeenCalledTimes(2), { timeout: 2000 });
+
+    // Fire a terminal event while refresh is stalled at listChildren.
+    // session.idle with a terminal status routes through handleSessionStatus
+    // and uses extractSessionId which returns event.sessionID (ses_parent).
+    // The child in state has id: 'ses_parent', so markChildStatus finds it.
+    capturedOnEvent?.({
+      type: 'session.idle',
+      sessionID: 'ses_parent',
+      properties: {
+        info: {
+          id: 'ses_parent',
+          parentID: 'ses_grandparent',
+          title: 'Target child',
+          status: 'completed',
+          time: { updated: '2026-06-04T05:20:30.000Z' },
+        },
+      },
+    });
+    await waitForCondition(() => state.children.ses_parent?.status === 'done');
+
+    // Now let the stalled refresh finish with stale running data
+    listChildrenGate.resolve({
+      data: [
+        {
+          id: 'ses_parent',
+          parentID: 'ses_grandparent',
+          title: 'Target child',
+          source: 'session',
+          status: 'running',
+          startedAt: '2026-06-04T05:15:00.000Z',
+          updatedAt: '2026-06-04T05:18:00.000Z',
+        },
+      ],
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    await Promise.resolve();
+
+    // The child must stay terminal — the refresh must not reopen it with stale data
+    expect(state.children.ses_parent?.status).toBe('done');
+
+    runtime.dispose();
+  });
+
+  it('recovers stale children when listChildren fails', async () => {
+    vi.resetModules();
+
+    let listChildrenCallCount = 0;
+    const listChildrenFailsOnce = deferred<void>();
+
+    vi.doMock('../../../src/features/subagent-status/runtime/events/bridge.ts', async () => {
+      const actual = await vi.importActual<
+        typeof import('../../../src/features/subagent-status/runtime/events/bridge.ts')
+      >('../../../src/features/subagent-status/runtime/events/bridge.ts');
+
+      return {
+        ...actual,
+        installEventBridge: vi.fn(() => () => undefined),
+      };
+    });
+
+    vi.doMock('../../../src/features/subagent-status/infrastructure/persistence.ts', async () => {
+      const actual = await vi.importActual<
+        typeof import('../../../src/features/subagent-status/infrastructure/persistence.ts')
+      >('../../../src/features/subagent-status/infrastructure/persistence.ts');
+
+      return {
+        ...actual,
+        resolveStatePath: vi.fn(() => '/tmp/agent-monitor-state.json'),
+        resolveTextPath: vi.fn(() => '/tmp/agent-monitor-status.txt'),
+        loadState: vi.fn(async () => createEmptyState()),
+        shouldPreserveStateOnStartup: vi.fn(() => false),
+        createPersistQueue: vi.fn(() => async () => undefined),
+      };
+    });
+
+    const { createTuiRuntime } = await import('../../../src/features/subagent-status/runtime/tui-runtime.ts');
+
+    let state: SubagentState = createEmptyState();
+    let sessionID = 'ses_parent';
+    const childrenSpy = vi.fn(async () => {
+      listChildrenCallCount++;
+      if (listChildrenCallCount <= 1) {
+        return {
+          data: [
+            {
+              id: 'ses_child',
+              parentID: 'ses_parent',
+              title: 'Recovered child',
+              source: 'session',
+              status: 'running',
+              startedAt: '2026-06-04T05:15:00.000Z',
+              updatedAt: '2026-06-04T05:20:00.000Z',
+            },
+          ],
+        };
+      }
+      await listChildrenFailsOnce.promise;
+      throw new Error('listChildren network error');
+    });
+
+    const api = {
+      client: {
+        session: {
+          children: childrenSpy,
+          status: vi.fn(async () => ({ data: {} })),
+          messages: vi.fn(async () => ({ data: [] })),
+        },
+      },
+      event: {},
+      lifecycle: {
+        onDispose: vi.fn(),
+      },
+      state: {
+        path: {
+          directory: '/tmp/workspace',
+        },
+        session: {
+          messages: vi.fn(() => []),
+          status: vi.fn(() => undefined),
+        },
+      },
+    } as unknown as TuiPluginApi;
+
+    const runtime = createTuiRuntime(
+      api,
+      {
+        getState: () => state,
+        setState: (nextState) => {
+          state = nextState;
+        },
+        getSessionId: () => sessionID,
+        setSessionId: (nextSessionID) => {
+          sessionID = nextSessionID;
+        },
+        setNowMs: vi.fn(),
+      },
+      {
+        debug: false,
+        recovery: { sqliteDatabasePath: '' },
+        staleRunningProbePolicy: {
+          hardStaleAfterMs: 0,
+          baseBackoffMs: 60_000,
+          maxBackoffMs: 300_000,
+          maxAttempts: 4,
+          refreshIntervalMs: 100,
+        },
+        visibility: { doneRetentionMs: 600_000, staleRetentionMs: 1_200_000 },
+        persistence: { statePath: '', preserveStateOnStartup: false },
+      } as Parameters<typeof createTuiRuntime>[2],
+    );
+
+    await runtime.bootstrap();
+
+    // First refresh completes — child is in state as running
+    await vi.advanceTimersByTimeAsync(10);
+    await waitForCondition(() => state.children.ses_child?.status === 'running');
+
+    // Second refresh: listChildren fails, but recovery/stale probe still runs
+    listChildrenFailsOnce.resolve();
+    await vi.advanceTimersByTimeAsync(100);
+
+    // The runtime must not crash and the child must still exist
+    // (even if it eventually becomes error because the stale probe exhausts)
+    expect(state.children.ses_child).toBeDefined();
+
+    // The child should have been probed — status might still be running
+    // (next cycle would mark it error if probes exhaust)
+    await vi.advanceTimersByTimeAsync(100);
+    await Promise.resolve();
+
+    expect(state.children.ses_child).toBeDefined();
+
+    runtime.dispose();
+  });
+});

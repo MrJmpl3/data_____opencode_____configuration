@@ -1,4 +1,5 @@
 import { cloneState } from '../../../../kit/clone.ts';
+import { createSerializedTaskQueue } from '../queue.ts';
 import { applySubagentEvent } from './handle.ts';
 import { extractSessionId } from './extract.ts';
 import type { PersistSnapshotMeta } from '../snapshot.ts';
@@ -17,12 +18,57 @@ export type MergeEventStateInput = {
 };
 
 /**
+ * Wraps the caller's syncState with a version-based guard that prevents
+ * overwriting live state that was modified (e.g. by the refresh path)
+ * between the event clone and persist. Follows the same snapshot-version
+ * pattern used in the refresh orchestrator.
+ *
+ * A `snapshotVersion` is captured at clone time. At persist time the guard
+ * compares it with the live state. If they differ, live children take
+ * precedence and only new (absent) children from the event are merged in.
+ */
+const createVersionGuardedSyncState = (input: MergeEventStateInput) => {
+  let snapshotVersion: string | undefined;
+
+  const captureVersion = (version: string): void => {
+    snapshotVersion = version;
+  };
+
+  const guard = async (nextState: SubagentState, meta: PersistSnapshotMeta): Promise<void> => {
+    if (!snapshotVersion || input.getCurrentState().updatedAt === snapshotVersion) {
+      await input.syncState(nextState, meta);
+      return;
+    }
+
+    // Live state was modified after our clone. Merge new children from
+    // nextState into the live state rather than overwriting it.
+    const liveState = cloneState(input.getCurrentState());
+    for (const [id, child] of Object.entries(nextState.children)) {
+      if (!liveState.children[id]) liveState.children[id] = child;
+    }
+    if (nextState.updatedAt > liveState.updatedAt) {
+      liveState.updatedAt = nextState.updatedAt;
+    }
+    await input.syncState(liveState, meta);
+  };
+
+  return { captureVersion, guard };
+};
+
+/**
  * Builds the event-merge loop used by the refresh orchestrator. Encapsulates
  * the clone/apply/prune/persist cycle for one normalized event so the
  * orchestrator can stay focused on its refresh responsibilities.
+ *
+ * The handler is wrapped in a serialized task queue so that concurrent event
+ * delivery (e.g. a batch arriving while the previous merge is still awaiting
+ * syncState) does not interleave clone/apply/prune cycles and cause lost or
+ * overwritten mutations.
  */
 export const createMergeEventState = (input: MergeEventStateInput) => {
-  return async (event: unknown): Promise<void> => {
+  const { captureVersion, guard } = createVersionGuardedSyncState(input);
+
+  const mergeEvent = async (event: unknown): Promise<void> => {
     if (input.isDisposed()) return;
 
     const normalizedEvent = normalizeEventPayload(event);
@@ -38,7 +84,13 @@ export const createMergeEventState = (input: MergeEventStateInput) => {
     }
 
     let nextState: SubagentState;
+    let snapshotVersion: string | undefined;
     try {
+      // Capture the live state version BEFORE we clone so that any
+      // interleaving modification (e.g. from the refresh path) between
+      // clone and persist can be detected as a version mismatch and
+      // handled by the merge guard.
+      snapshotVersion = input.getCurrentState().updatedAt;
       nextState = cloneState(input.getCurrentState());
     } catch (e) {
       // Format: "[agent-monitor] <message> — sessionId=<id>: <error>" so a
@@ -55,8 +107,11 @@ export const createMergeEventState = (input: MergeEventStateInput) => {
     if (!changed) return;
 
     pruneTerminalChildren(nextState);
-    await input.syncState(nextState, input.createPersistMeta('event'));
+    captureVersion(snapshotVersion);
+    await guard(nextState, input.createPersistMeta('event'));
   };
+
+  return createSerializedTaskQueue(mergeEvent);
 };
 
 // Re-export so consumers don't need a second import path.

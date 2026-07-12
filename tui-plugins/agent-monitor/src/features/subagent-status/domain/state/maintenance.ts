@@ -204,16 +204,18 @@ export const pruneTerminalChildren = (state: SubagentState, now = Date.now()): b
   if (terminalChildren.length === 0) return false;
 
   const cutoff = now - TERMINAL_CHILD_RETENTION_MS;
-  const keepIDs = new Set(
-    terminalChildren
-      .filter((child) => (childEvidenceTimestampMs(child) ?? 0) >= cutoff)
-      .slice(0, MAX_TERMINAL_CHILDREN)
-      .map((child) => child.id),
+
+  // Keep ALL terminal children within the retention window regardless of
+  // count — the 50-cap must never purge items the user can see. Children
+  // outside the window are pruned unconditionally; the retention window
+  // itself bounds growth (~30 min of terminal entries).
+  const withinWindowIDs = new Set(
+    terminalChildren.filter((child) => (childEvidenceTimestampMs(child) ?? 0) >= cutoff).map((child) => child.id),
   );
 
   let changed = false;
   for (const child of terminalChildren) {
-    if (keepIDs.has(child.id)) continue;
+    if (withinWindowIDs.has(child.id)) continue;
     rememberPurgedSession(state, child);
     delete state.children[child.id];
     changed = true;

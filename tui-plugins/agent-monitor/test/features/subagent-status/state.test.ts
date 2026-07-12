@@ -818,4 +818,113 @@ describe('state', () => {
       summary: 'Recovered from older source',
     });
   });
+
+  it('preserves more than 50 recent terminal children (does not cap within retention window)', () => {
+    const state = createEmptyState();
+    const baseTime = Date.parse('2026-06-04T12:00:00.000Z');
+    // Create 60 terminal children within the retention window (all within TERMINAL_CHILD_RETENTION_MS ~30min)
+    for (let i = 0; i < 60; i++) {
+      const id = `ses_recent_${String(i).padStart(2, '0')}`;
+      state.children[id] = {
+        id,
+        title: `Recent child ${i}`,
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'done',
+        color: 'green',
+        startedAt: new Date(baseTime - (60 - i) * 30_000).toISOString(),
+        updatedAt: new Date(baseTime - (60 - i) * 30_000).toISOString(),
+        endedAt: new Date(baseTime - (60 - i) * 30_000).toISOString(),
+      };
+      state.countedChildIDs[id] = true;
+    }
+    state.totalExecuted = 60;
+
+    expect(pruneTerminalChildren(state, baseTime)).toBe(false);
+
+    // All 60 recent children must survive — the 50 cap only applies
+    // to items OUTSIDE the retention window.
+    expect(Object.keys(state.children).length).toBe(60);
+    expect(state.countedChildIDs).toHaveProperty('ses_recent_00');
+    expect(state.countedChildIDs).toHaveProperty('ses_recent_59');
+  });
+
+  it('caps stale terminal children outside the retention window at 50', () => {
+    const state = createEmptyState();
+    const baseTime = Date.parse('2026-06-04T12:00:00.000Z');
+    const outsideWindow = baseTime - 40 * 60 * 1000; // 40 min ago — outside 30 min retention
+
+    // Create 60 children outside the retention window
+    for (let i = 0; i < 60; i++) {
+      const id = `ses_stale_${String(i).padStart(2, '0')}`;
+      state.children[id] = {
+        id,
+        title: `Stale child ${i}`,
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'done',
+        color: 'green',
+        startedAt: new Date(outsideWindow + i * 10_000).toISOString(),
+        updatedAt: new Date(outsideWindow + i * 10_000).toISOString(),
+        endedAt: new Date(outsideWindow + i * 10_000).toISOString(),
+      };
+      state.countedChildIDs[id] = true;
+    }
+    state.totalExecuted = 60;
+
+    expect(pruneTerminalChildren(state, baseTime)).toBe(true);
+
+    // At most 50 survive from outside the retention window
+    expect(Object.keys(state.children).length).toBeLessThanOrEqual(50);
+  });
+
+  it('mixes recent and stale children correctly — keeps all recent even beyond 50', () => {
+    const state = createEmptyState();
+    const baseTime = Date.parse('2026-06-04T12:00:00.000Z');
+
+    // 10 recent children within retention window
+    for (let i = 0; i < 10; i++) {
+      const id = `ses_recent_${i}`;
+      state.children[id] = {
+        id,
+        title: `Recent ${i}`,
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'done',
+        color: 'green',
+        startedAt: new Date(baseTime - (10 - i) * 60_000).toISOString(),
+        updatedAt: new Date(baseTime - (10 - i) * 60_000).toISOString(),
+        endedAt: new Date(baseTime - (10 - i) * 60_000).toISOString(),
+      };
+      state.countedChildIDs[id] = true;
+    }
+    // 60 stale children outside retention window
+    const outsideWindow = baseTime - 40 * 60 * 1000;
+    for (let i = 0; i < 60; i++) {
+      const id = `ses_stale_${i}`;
+      state.children[id] = {
+        id,
+        title: `Stale ${i}`,
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'done',
+        color: 'green',
+        startedAt: new Date(outsideWindow + i * 10_000).toISOString(),
+        updatedAt: new Date(outsideWindow + i * 10_000).toISOString(),
+        endedAt: new Date(outsideWindow + i * 10_000).toISOString(),
+      };
+      state.countedChildIDs[id] = true;
+    }
+    state.totalExecuted = 70;
+
+    expect(pruneTerminalChildren(state, baseTime)).toBe(true);
+
+    // All 10 recent survive
+    for (let i = 0; i < 10; i++) {
+      expect(state.children[`ses_recent_${i}`]).toBeDefined();
+    }
+    // At most 50 stale survive (10 + 50 = 60)
+    expect(Object.keys(state.children).length).toBeLessThanOrEqual(60);
+    expect(Object.keys(state.children).length).toBeGreaterThanOrEqual(10);
+  });
 });

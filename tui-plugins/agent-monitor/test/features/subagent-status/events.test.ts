@@ -126,6 +126,42 @@ describe('events', () => {
     ).toBe('ses_child');
   });
 
+  it('does NOT use part.sessionID as the event session (parent ownership, not event identity)', () => {
+    // `part.sessionID` identifies the session that OWNS the part (the
+    // parent), not the event's own session identifier. If present at the
+    // event level, `properties.sessionID` should always take priority.
+    // If only `part.sessionID` exists without an event-level session,
+    // the function must return undefined — the event is ambiguous and
+    // should be routed via another mechanism (buffered startup, etc.).
+    expect(
+      extractSessionId({
+        type: 'message.part.updated',
+        properties: {
+          part: {
+            type: 'subtask',
+            sessionID: 'ses_parent',
+          },
+        },
+      }),
+    ).toBeUndefined();
+
+    // When both `properties.sessionID` and `part.sessionID` exist, the
+    // event-level session ID wins (it names the session this event is
+    // about, not the session that owns the part).
+    expect(
+      extractSessionId({
+        type: 'message.part.updated',
+        properties: {
+          sessionID: 'ses_child',
+          part: {
+            type: 'subtask',
+            sessionID: 'ses_parent',
+          },
+        },
+      }),
+    ).toBe('ses_child');
+  });
+
   it('keeps matching tool and subtask rows running until the delegated session finishes', () => {
     const state = createEmptyState();
 

@@ -154,9 +154,11 @@ export const createTuiRuntimeRefresh = (
     // when the inner try block throws — keeping the flag consistent with the
     // actual sync state on disk.
     let nextState: SubagentState | undefined;
+    let stateUpdatedAtAtCloneTime: string | undefined;
 
     try {
       nextState = cloneState(input.state.getState());
+      stateUpdatedAtAtCloneTime = nextState.updatedAt;
       nextState.recovering = true;
       const directory = api.state.path.directory;
       const recovered = await hydrateRecoverySourcesSafely({
@@ -173,6 +175,7 @@ export const createTuiRuntimeRefresh = (
       );
       const terminalRecoverySessionIDs = resolveTerminalRecoverySessionIDs(nextState, protectedRecoverySessionIDs);
       let response: unknown;
+      let hasListChildrenResponse = true;
       try {
         response = await sessionClient.listChildren(sessionId);
       } catch (e) {
@@ -184,20 +187,30 @@ export const createTuiRuntimeRefresh = (
           ':',
           e instanceof Error ? e : String(e),
         );
-        if (nextState && recovered.changed) {
-          await input.syncState(nextState, input.createPersistMeta('refresh'));
-        }
-        return;
+        hasListChildrenResponse = false;
+        // Continue without the snapshot — recovery hydration and stale
+        // running probes are still viable.
       }
       if (isInactiveSessionToken(sessionToken)) return;
 
-      const incomingChildren = normalizeChildrenResponse(response);
-      const authoritativeSessionIDs = mergeAuthoritativeSessionIDs(recoverySessionIDs, incomingChildren);
-      const { changed, nextState: reconciledState } = reconcileNormalizedChildrenState(nextState, incomingChildren, {
-        recoverySessionIDs,
-        terminalRecoverySessionIDs,
-      });
-      nextState = reconciledState;
+      let changed = false;
+      const authoritativeSessionIDs = hasListChildrenResponse
+        ? mergeAuthoritativeSessionIDs(recoverySessionIDs, normalizeChildrenResponse(response))
+        : recoverySessionIDs;
+
+      if (hasListChildrenResponse) {
+        const incomingChildren = normalizeChildrenResponse(response);
+        const { changed: reconcileChanged, nextState: reconciledState } = reconcileNormalizedChildrenState(
+          nextState,
+          incomingChildren,
+          {
+            recoverySessionIDs,
+            terminalRecoverySessionIDs,
+          },
+        );
+        changed = reconcileChanged;
+        nextState = reconciledState;
+      }
 
       const staleRunningProbeTargets = resolveStaleRunningProbeTargets(
         nextState,
@@ -233,6 +246,32 @@ export const createTuiRuntimeRefresh = (
       );
       const pruned = pruneTerminalChildren(nextState);
       if (isInactiveSessionToken(sessionToken)) return;
+
+      // Check whether the event path (mergeEventState) modified the live
+      // state since we cloned. If it did, a terminal child in the live state
+      // must not be overwritten by stale listChildren data. We still persist
+      // children that were added by recovery (not present in the live state)
+      // and clear the `recovering` flag.
+      if (stateUpdatedAtAtCloneTime != null && input.state.getState().updatedAt !== stateUpdatedAtAtCloneTime) {
+        if (
+          recovered.changed ||
+          changed ||
+          tuiStatusHydrated ||
+          clientStatusHydrated ||
+          staleRunningSettled ||
+          pruned
+        ) {
+          const mergedState = cloneState(input.state.getState());
+          for (const [id, child] of Object.entries(nextState.children)) {
+            if (!mergedState.children[id]) mergedState.children[id] = child;
+          }
+          mergedState.recovering = false;
+          nextState = undefined;
+          await input.syncState(mergedState, input.createPersistMeta('refresh'));
+        }
+        return;
+      }
+
       if (
         !recovered.changed &&
         !changed &&

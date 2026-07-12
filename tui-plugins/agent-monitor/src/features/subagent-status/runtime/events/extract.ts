@@ -45,6 +45,13 @@ export const extractEventTimestamp = (event: EventLike, keys: string[]): string 
   return undefined;
 };
 
+// `part.sessionID` (from `event.properties.part`) is deliberately NOT included
+// in the resolution chain. `part.sessionID` identifies the SESSION THAT OWNS the
+// part (the parent), not the event's own session identifier. Using it here would
+// cause `message.part.updated` events from child sessions to be incorrectly
+// routed to the parent session when the event-level `sessionID` is absent or
+// different. The `part.sessionID` field is correctly scoped as a `parentID`
+// fallback in `extract-child.ts` and `resolve.ts`.
 export const extractSessionId = (event: EventLike): string | undefined =>
   firstDefined(
     asString(event.properties?.sessionID),
