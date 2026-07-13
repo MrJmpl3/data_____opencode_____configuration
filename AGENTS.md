@@ -315,7 +315,6 @@ Do not skip step 1. Without it, everything done before compaction is lost from m
 
 <!-- /gentle-ai:engram-protocol -->
 
-
 <!-- custom-preference:code-comments -->
 
 ## Code Comments
