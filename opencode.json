@@ -443,6 +443,9 @@
       "**/secrets/**": "deny"
     }
   },
+  "plugin": [
+    "./plugins/hashline/index.ts"
+  ],
   "share": "disabled",
   "small_model": "opencode-go/deepseek-v4-flash"
 }
