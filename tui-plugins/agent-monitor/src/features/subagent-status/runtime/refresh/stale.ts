@@ -136,12 +136,16 @@ export const settleStaleRunningProbeTargets = (
         ? 0
         : Math.min(policy.maxAttempts, previousMissingRunningEvidenceAttempts(previous, child.updatedAt) + 1);
 
+    const hasExceededInactiveThreshold =
+      !hasRunningEvidence && policy.inactiveThresholdMs > 0 && nowMs - childEvidenceMs >= policy.inactiveThresholdMs;
+
     if (
       hasExceededHardStaleAge ||
+      hasExceededInactiveThreshold ||
       (!hasRunningEvidence && !hasAuthoritativePresenceGuard && missingRunningEvidenceAttempts >= policy.maxAttempts)
     ) {
       console.warn(
-        `[agent-monitor] stale-probe: marking ${sessionId} as error (hardStale=${hasExceededHardStaleAge} runningEvidence=${hasRunningEvidence} authGuard=${hasAuthoritativePresenceGuard} missingAttempts=${missingRunningEvidenceAttempts})`,
+        `[agent-monitor] stale-probe: marking ${sessionId} as error (hardStale=${hasExceededHardStaleAge} inactiveThreshold=${hasExceededInactiveThreshold} runningEvidence=${hasRunningEvidence} authGuard=${hasAuthoritativePresenceGuard} missingAttempts=${missingRunningEvidenceAttempts})`,
       );
       const errorAt = new Date(Math.max(nowMs, childEvidenceMs)).toISOString();
       const marked = markChildStatus(state, child.id, 'error', errorAt);

@@ -115,6 +115,7 @@ describe('4.3 — recovering toggle in refresh cycle', () => {
     const staleRunningProbePolicy: ResolvedSubagentStatusPluginOptions['staleRunningProbePolicy'] = {
       refreshIntervalMs: 60_000,
       hardStaleAfterMs: 10 * 60_000,
+      inactiveThresholdMs: 0,
       baseBackoffMs: 1_000,
       maxBackoffMs: 10_000,
       maxAttempts: 3,
@@ -217,6 +218,7 @@ describe('4.3 — recovering toggle in refresh cycle', () => {
       staleRunningProbePolicy: {
         refreshIntervalMs: 60_000,
         hardStaleAfterMs: 10 * 60_000,
+        inactiveThresholdMs: 0,
         baseBackoffMs: 1_000,
         maxBackoffMs: 10_000,
         maxAttempts: 3,
@@ -303,6 +305,7 @@ describe('4.3 — recovering toggle in refresh cycle', () => {
       staleRunningProbePolicy: {
         refreshIntervalMs: 60_000,
         hardStaleAfterMs: 10 * 60_000,
+        inactiveThresholdMs: 0,
         baseBackoffMs: 1_000,
         maxBackoffMs: 10_000,
         maxAttempts: 3,

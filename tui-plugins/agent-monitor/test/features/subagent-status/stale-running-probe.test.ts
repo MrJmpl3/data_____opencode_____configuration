@@ -672,6 +672,256 @@ describe('stale running probe helpers', () => {
   });
 });
 
+describe('inactivity threshold fallback', () => {
+  const baseNowMs = Date.parse('2026-06-04T12:00:00.000Z');
+  const activeThreshold = 10 * 60_000;
+  const oldUpdatedAt = '2026-06-04T11:49:00.000Z';
+
+  it('marks running children error when no running evidence past the inactivity threshold', () => {
+    const probeState = new Map();
+    const policy = resolveSubagentStatusPluginOptions({
+      staleRunningProbePolicy: { inactiveThresholdMs: activeThreshold, baseBackoffMs: 1_000, maxAttempts: 100 },
+    }).staleRunningProbePolicy;
+    const state = runningState({
+      ses_child: {
+        id: 'ses_child',
+        title: 'Real session',
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'running',
+        startedAt: oldUpdatedAt,
+        updatedAt: oldUpdatedAt,
+      },
+    });
+
+    const targets = resolveStaleRunningProbeTargets(state, probeState, policy, baseNowMs);
+    const changed = settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs: baseNowMs,
+    });
+
+    expect(changed).toBe(true);
+    expect(probeState.has('ses_child')).toBe(false);
+    expect(state.children.ses_child).toMatchObject({
+      status: 'error',
+      endedAt: baseNowMs >= Date.parse(oldUpdatedAt) ? '2026-06-04T12:00:00.000Z' : undefined,
+    });
+  });
+
+  it('does not trigger inactivity when running evidence exists past the threshold', () => {
+    const probeState = new Map();
+    const policy = resolveSubagentStatusPluginOptions({
+      staleRunningProbePolicy: { inactiveThresholdMs: activeThreshold, baseBackoffMs: 1_000, maxAttempts: 100 },
+    }).staleRunningProbePolicy;
+    const state = runningState({
+      ses_child: {
+        id: 'ses_child',
+        title: 'Real session',
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'running',
+        startedAt: oldUpdatedAt,
+        updatedAt: oldUpdatedAt,
+      },
+    });
+
+    const targets = resolveStaleRunningProbeTargets(state, probeState, policy, baseNowMs);
+    const changed = settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(['ses_child']),
+      policy,
+      nowMs: baseNowMs,
+    });
+
+    expect(changed).toBe(false);
+    expect(state.children.ses_child).toMatchObject({ status: 'running' });
+    expect(probeState.has('ses_child')).toBe(true);
+  });
+
+  it('resets inactivity clock when new activity appears before the threshold fires', () => {
+    const probeState = new Map();
+    const policy = resolveSubagentStatusPluginOptions({
+      staleRunningProbePolicy: { inactiveThresholdMs: activeThreshold, baseBackoffMs: 1_000, maxAttempts: 100 },
+    }).staleRunningProbePolicy;
+    const recentUpdatedAt = '2026-06-04T11:55:00.000Z';
+    const state = runningState({
+      ses_child: {
+        id: 'ses_child',
+        title: 'Real session',
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'running',
+        startedAt: recentUpdatedAt,
+        updatedAt: recentUpdatedAt,
+      },
+    });
+
+    // First probe: no running evidence, only 5min elapsed (below threshold)
+    const firstNowMs = baseNowMs;
+    const firstTargets = resolveStaleRunningProbeTargets(state, probeState, policy, firstNowMs);
+    settleStaleRunningProbeTargets(state, probeState, firstTargets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs: firstNowMs,
+    });
+    expect(probeState.get('ses_child')).toMatchObject({ attempts: 1 });
+    expect(state.children.ses_child).toMatchObject({ status: 'running' });
+
+    // New activity arrives (updatedAt advances), resetting probe state
+    state.children.ses_child.updatedAt = '2026-06-04T12:05:00.000Z';
+    const fiveMinLater = baseNowMs + 5 * 60_000;
+
+    const secondTargets = resolveStaleRunningProbeTargets(state, probeState, policy, fiveMinLater);
+    expect(secondTargets).toEqual([]);
+    expect(probeState.get('ses_child')).toMatchObject({ attempts: 0 });
+
+    // Advance past the 10min threshold from the new activity time
+    const sixteenMinLater = baseNowMs + 16 * 60_000;
+    const thirdTargets = resolveStaleRunningProbeTargets(state, probeState, policy, sixteenMinLater);
+    const changed = settleStaleRunningProbeTargets(state, probeState, thirdTargets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs: sixteenMinLater,
+    });
+
+    expect(changed).toBe(true);
+    expect(state.children.ses_child).toMatchObject({ status: 'error' });
+  });
+
+  it('does not trigger when inactiveThresholdMs is 0 (disabled)', () => {
+    const probeState = new Map();
+    const policy = resolveSubagentStatusPluginOptions({
+      staleRunningProbePolicy: {
+        inactiveThresholdMs: 0,
+        hardStaleAfterMs: 0,
+        baseBackoffMs: 1_000,
+        maxAttempts: 100,
+      },
+    }).staleRunningProbePolicy;
+    const state = runningState({
+      ses_child: {
+        id: 'ses_child',
+        title: 'Real session',
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'running',
+        startedAt: oldUpdatedAt,
+        updatedAt: oldUpdatedAt,
+      },
+    });
+
+    const targets = resolveStaleRunningProbeTargets(state, probeState, policy, baseNowMs);
+    const changed = settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs: baseNowMs,
+    });
+
+    expect(changed).toBe(false);
+    expect(state.children.ses_child).toMatchObject({ status: 'running' });
+  });
+
+  it('applies inactivity even to authoritative sessions', () => {
+    const probeState = new Map();
+    const policy = resolveSubagentStatusPluginOptions({
+      staleRunningProbePolicy: { inactiveThresholdMs: activeThreshold, baseBackoffMs: 1_000, maxAttempts: 100 },
+    }).staleRunningProbePolicy;
+    const state = runningState({
+      ses_child: {
+        id: 'ses_child',
+        title: 'Real session',
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'running',
+        startedAt: oldUpdatedAt,
+        updatedAt: oldUpdatedAt,
+      },
+    });
+
+    const targets = resolveStaleRunningProbeTargets(state, probeState, policy, baseNowMs);
+    const changed = settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(['ses_child']),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs: baseNowMs,
+    });
+
+    expect(changed).toBe(true);
+    expect(state.children.ses_child).toMatchObject({ status: 'error' });
+  });
+
+  it('does not infer done from elapsed time alone', () => {
+    const probeState = new Map();
+    const policy = resolveSubagentStatusPluginOptions({
+      staleRunningProbePolicy: { inactiveThresholdMs: activeThreshold, baseBackoffMs: 1_000, maxAttempts: 100 },
+    }).staleRunningProbePolicy;
+    const state = runningState({
+      ses_child: {
+        id: 'ses_child',
+        title: 'Real session',
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'running',
+        startedAt: oldUpdatedAt,
+        updatedAt: oldUpdatedAt,
+      },
+    });
+
+    const targets = resolveStaleRunningProbeTargets(state, probeState, policy, baseNowMs);
+    const changed = settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs: baseNowMs,
+    });
+
+    expect(changed).toBe(true);
+    expect(state.children.ses_child).toMatchObject({ status: 'error' });
+    expect(state.children.ses_child).not.toMatchObject({ status: 'done' });
+  });
+
+  it('uses the configured 5-minute threshold instead of the default', () => {
+    const probeState = new Map();
+    const fiveMinThreshold = 5 * 60_000;
+    const policy = resolveSubagentStatusPluginOptions({
+      staleRunningProbePolicy: { inactiveThresholdMs: fiveMinThreshold, baseBackoffMs: 1_000, maxAttempts: 100 },
+    }).staleRunningProbePolicy;
+    const fiveMinAgo = '2026-06-04T11:55:00.000Z';
+    const state = runningState({
+      ses_child: {
+        id: 'ses_child',
+        title: 'Real session',
+        parentID: 'ses_parent',
+        source: 'session',
+        status: 'running',
+        startedAt: fiveMinAgo,
+        updatedAt: fiveMinAgo,
+      },
+    });
+
+    // At +5min exactly, should trigger
+    const targets = resolveStaleRunningProbeTargets(state, probeState, policy, baseNowMs);
+    const changed = settleStaleRunningProbeTargets(state, probeState, targets, {
+      authoritativeSessionIDs: new Set(),
+      runningEvidenceSessionIDs: new Set(),
+      policy,
+      nowMs: baseNowMs,
+    });
+
+    expect(changed).toBe(true);
+    expect(state.children.ses_child).toMatchObject({ status: 'error' });
+
+    // Verify default threshold would not trigger at +5min
+    const defaultPolicy = resolveSubagentStatusPluginOptions(undefined).staleRunningProbePolicy;
+    expect(defaultPolicy.inactiveThresholdMs).toBe(10 * 60_000);
+  });
+});
+
 describe('debug gating for stale-probe console.warn replacements', () => {
   afterEach(() => {
     setDebugEnabled(false);

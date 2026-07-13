@@ -52,6 +52,7 @@ describe('subagent status options', () => {
       staleRunningProbePolicy: {
         baseBackoffMs: 1_000,
         hardStaleAfterMs: 0,
+        inactiveThresholdMs: 600_000,
         maxBackoffMs: 1_000,
         maxAttempts: 0,
         refreshIntervalMs: 1_000,

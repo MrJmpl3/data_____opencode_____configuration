@@ -9,6 +9,7 @@ import {
 export type StaleRunningProbePolicy = {
   baseBackoffMs: number;
   hardStaleAfterMs: number;
+  inactiveThresholdMs: number;
   maxBackoffMs: number;
   maxAttempts: number;
   refreshIntervalMs: number;
@@ -21,6 +22,13 @@ export interface SubagentStatusStaleRunningProbePolicyOptions {
    */
   baseBackoffMs?: number;
   hardStaleAfterMs?: number;
+  /**
+   * How long a running session can go without new activity (any event that
+   * updates the child) before the stale-probe marks it as error when there is
+   * no running evidence from messages. Default 10 minutes.
+   * 0 disables this check.
+   */
+  inactiveThresholdMs?: number;
   /**
    * Exponential backoff ceiling so abandoned probes do not run forever while
    * still avoiding excessive pressure on sessions that have not emitted
@@ -120,6 +128,7 @@ export interface ResolvedSubagentStatusPluginOptions {
 export const DEFAULT_STALE_RUNNING_PROBE_POLICY: StaleRunningProbePolicy = {
   baseBackoffMs: 60_000,
   hardStaleAfterMs: 5 * 60 * 60_000,
+  inactiveThresholdMs: 10 * 60_000,
   maxBackoffMs: 5 * 60_000,
   maxAttempts: 4,
   refreshIntervalMs: 60_000,
@@ -195,6 +204,12 @@ export const normalizeSubagentStatusPluginOptions = (options: unknown): Resolved
     0,
     { floor: true },
   );
+  const inactiveThresholdMs = clampOption(
+    staleRunningProbePolicy.inactiveThresholdMs,
+    DEFAULT_STALE_RUNNING_PROBE_POLICY.inactiveThresholdMs,
+    0,
+    { floor: true },
+  );
   const refreshIntervalMs = clampOption(
     staleRunningProbePolicy.refreshIntervalMs,
     DEFAULT_STALE_RUNNING_PROBE_POLICY.refreshIntervalMs,
@@ -207,6 +222,7 @@ export const normalizeSubagentStatusPluginOptions = (options: unknown): Resolved
     staleRunningProbePolicy: {
       baseBackoffMs,
       hardStaleAfterMs,
+      inactiveThresholdMs,
       maxBackoffMs,
       maxAttempts,
       refreshIntervalMs,

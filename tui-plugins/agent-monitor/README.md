@@ -84,6 +84,7 @@ Ambos features se configuran desde `~/.config/opencode/agent-monitor.json` (o
         "staleRunningProbePolicy": {
           "baseBackoffMs": 60000, // default: 60s, mínimo: 1s
           "hardStaleAfterMs": 18000000, // default: 5h
+          "inactiveThresholdMs": 600000, // default: 10 min — marca error si no hay evidencia de running ni nueva actividad
           "maxBackoffMs": 300000, // default: 5 min
           "maxAttempts": 4, // default: 4, máximo: 100
           "refreshIntervalMs": 60000, // default: 60s, mínimo: 1s
@@ -231,8 +232,10 @@ src/
   (`sqlite/hydrate.ts`).
 - Política de visibilidad: items `done` desaparecen tras `doneRetentionMs` (default 10 min); items
   `stale`/`error` permanecen visibles siempre.
+- Sesiones `running` sin evidencia de mensajes ni nueva actividad tras `inactiveThresholdMs`
+  (default 10 min) se marcan como `error`.
 - Sesiones `running` que superan `hardStaleAfterMs` (default 5h) sin evidencia se marcan como
-  `error` automáticamente.
+  `error` automáticamente (safety-net).
 - La UI colapsa work items sintéticos (tool calls, subtasks) contra sesiones reales para evitar
   duplicados.
 
