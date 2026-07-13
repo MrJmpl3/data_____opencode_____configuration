@@ -4,5 +4,8 @@
   "dependencies": {
     "@opencode-ai/plugin": "^1.17.18",
     "unique-names-generator": "^4.7.1"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
   }
 }
