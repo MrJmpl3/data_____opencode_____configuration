@@ -357,6 +357,20 @@ CodeGraph-aware worktree placement:
 - Every worktree needs its own `.codegraph/` index. Never copy, symlink, or reuse another checkout's
   index because its root and checked-out bytes may differ.
 
+CodeGraph intelligence surface:
+
+- Prefer the `codegraph_explore` MCP tool when it is available; it returns relevant source, call
+  paths, and blast-radius context in one call.
+- If the MCP tool is unavailable, invoke the upstream CLI directly. Agents may use its read-only
+  intelligence commands: `codegraph status`, `codegraph query`, `codegraph explore`,
+  `codegraph node`, `codegraph files`, `codegraph callers`, `codegraph callees`, `codegraph impact`,
+  and `codegraph affected`.
+- Do not use `gentle-ai codegraph` as a general proxy. Its `init` command exists only to validate
+  the project root before initialization; intelligence queries belong to the upstream CLI.
+- Never run or recommend destructive or administrative lifecycle commands: `codegraph uninit`,
+  `codegraph install`, `codegraph uninstall`, or `codegraph upgrade`. Reserve `codegraph index` for
+  explicit index-corruption recovery, never routine use.
+
 Required order for structural/codebase questions:
 
 1. Resolve the project root with `git rev-parse --show-toplevel || pwd`.
@@ -365,13 +379,16 @@ Required order for structural/codebase questions:
    folders.
 3. Check for `<project-root>/.codegraph/` before any broad Read/Glob/Grep filesystem exploration.
 4. If `.codegraph/` is missing and CodeGraph is enabled/available, immediately run
-   `gentle-ai codegraph init --cwd <project-root>` once, then use the `codegraph_explore` MCP tool
-   or `codegraph explore "..."`.
+   `gentle-ai codegraph init --cwd <project-root>` once.
 5. Missing .codegraph/ is the trigger to initialize, not a reason to skip CodeGraph. Do not fall
    back just because `.codegraph/` is missing; a missing index is the trigger to lazy-initialize,
    not a reason to skip CodeGraph.
-6. Only fall back after CodeGraph init or CodeGraph use fails. Only fall back to normal filesystem
-   tools after CodeGraph init or CodeGraph use fails, and briefly explain the fallback.
+6. Use `codegraph_explore` after initialization, or the read-only upstream CLI commands when MCP
+   tools are absent.
+7. After edits, rely on watcher auto-sync by default. Run `codegraph sync` only when the watcher is
+   disabled or CodeGraph reports stale files that do not refresh normally.
+8. Only fall back to normal filesystem tools after CodeGraph initialization or use fails, and
+   briefly explain the fallback.
 
 Broad Read/Glob/Grep exploration before this CodeGraph check is explicitly discouraged for
 structural/codebase questions.
