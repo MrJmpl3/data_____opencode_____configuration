@@ -342,7 +342,7 @@ describe('status hydration', () => {
     });
   });
 
-  it('does not close a running row from idle plus ambiguous generic completion evidence', async () => {
+  it('does not close a running row from non-terminal status plus ambiguous generic completion evidence', async () => {
     const state = createEmptyState();
     state.children.ses_child = {
       id: 'ses_child',
@@ -985,7 +985,7 @@ describe('characterization: shared hydration logic (pre-refactor baseline)', () 
       createApi({
         // status derived from tuiStatus: { status: 'busy' } → 'busy' is RUNNING → 'running' path
         // Actually let's test the non-terminal no-nextStatus path instead
-        tuiStatus: { type: 'unknown-status' },
+        tuiStatus: { type: 'idle' },
         tuiMessages: [{ time: { updated: '2026-06-04T12:03:00.000Z' } }],
       }),
       state,
@@ -1015,9 +1015,9 @@ describe('characterization: shared hydration logic (pre-refactor baseline)', () 
 
     const changed = await hydrateChildStatusesFromClient(
       createApi({
-        tuiStatus: { type: 'unknown-status' },
+        tuiStatus: { type: 'idle' },
         tuiMessages: [{ time: { updated: '2026-06-04T12:03:00.000Z' } }],
-        clientStatus: { ses_child: { type: 'unknown-status' } },
+        clientStatus: { ses_child: { type: 'idle' } },
         clientMessages: [{ time: { updated: '2026-06-04T12:03:00.000Z' } }],
       }),
       state,
@@ -1047,6 +1047,7 @@ describe('characterization: shared hydration logic (pre-refactor baseline)', () 
 
     const changed = hydrateChildStatusesFromTuiState(
       createApi({
+        // idle is non-terminal so nextStatus falls through to messageActivity
         tuiStatus: { type: 'idle' },
         tuiMessages: [
           {
@@ -1077,6 +1078,7 @@ describe('characterization: shared hydration logic (pre-refactor baseline)', () 
 
     const changed = await hydrateChildStatusesFromClient(
       createApi({
+        // idle is non-terminal so nextStatus falls through to messageActivity
         tuiStatus: { type: 'idle' },
         tuiMessages: [
           {

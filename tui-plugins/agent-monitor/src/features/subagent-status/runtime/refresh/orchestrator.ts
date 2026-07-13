@@ -198,8 +198,9 @@ export const createTuiRuntimeRefresh = (
         ? mergeAuthoritativeSessionIDs(recoverySessionIDs, normalizeChildrenResponse(response))
         : recoverySessionIDs;
 
+      let incomingChildren: SubagentChild[] | undefined;
       if (hasListChildrenResponse) {
-        const incomingChildren = normalizeChildrenResponse(response);
+        incomingChildren = normalizeChildrenResponse(response);
         const { changed: reconcileChanged, nextState: reconciledState } = reconcileNormalizedChildrenState(
           nextState,
           incomingChildren,
@@ -218,18 +219,33 @@ export const createTuiRuntimeRefresh = (
         input.staleRunningProbePolicy,
         Date.now(),
       );
+
+      // Include API-reported running children in hydration targets so the
+      // probes can authoritatively verify or reject their running status.
+      const apiRunningSessionIDs: string[] = incomingChildren
+        ? incomingChildren
+            .filter((child) => child.status === 'running')
+            .filter((child) => {
+              const sessionId = resolveSessionRowSessionId(child);
+              return !sessionId || !terminalRecoverySessionIDs?.has(sessionId);
+            })
+            .map((child) => resolveSessionRowSessionId(child))
+            .filter((candidate): candidate is string => Boolean(candidate))
+        : [];
+      const hydrationTargetSessionIDs = [...new Set([...staleRunningProbeTargets, ...apiRunningSessionIDs])];
+
       const runningEvidenceSessionIDs = new Set<string>();
       const tuiStatusHydrated = hydrateChildStatusesFromTuiState(
         api,
         nextState,
-        staleRunningProbeTargets,
+        hydrationTargetSessionIDs,
         runningEvidenceSessionIDs,
         { terminalRecoverySessionIDs },
       );
       const clientStatusHydrated = await hydrateChildStatusesFromClient(
         api,
         nextState,
-        staleRunningProbeTargets,
+        hydrationTargetSessionIDs,
         runningEvidenceSessionIDs,
         { terminalRecoverySessionIDs },
       );

@@ -25,7 +25,7 @@ describe('reconcile', () => {
     expect(children[0]?.tokens?.total).toBe(123);
   });
 
-  it('uses session time fields without terminalizing idle snapshots', () => {
+  it('treats idle snapshot status as running with undefined endedAt', () => {
     const children = normalizeChildrenResponse({
       data: [
         {
@@ -456,7 +456,7 @@ describe('reconcile', () => {
     });
   });
 
-  it('reopens a done child when a newer live snapshot reports it as running', () => {
+  it('preserves a done child terminal when a newer snapshot reports it as running', () => {
     const initial = createEmptyState();
     initial.children.ses_child = {
       id: 'ses_child',
@@ -486,14 +486,13 @@ describe('reconcile', () => {
     });
 
     expect(result.nextState.children.ses_child).toMatchObject({
-      status: 'running',
-      color: 'yellow',
-      updatedAt: '2026-06-04T12:00:00.000Z',
-      endedAt: undefined,
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T11:56:00.000Z',
     });
   });
 
-  it('reopens an errored child when a newer live snapshot reports it as running', () => {
+  it('preserves an errored child terminal when a newer snapshot reports it as running', () => {
     const initial = createEmptyState();
     initial.children.ses_child = {
       id: 'ses_child',
@@ -522,10 +521,46 @@ describe('reconcile', () => {
     });
 
     expect(result.nextState.children.ses_child).toMatchObject({
-      status: 'running',
-      color: 'yellow',
-      updatedAt: '2026-06-04T12:00:00.000Z',
-      endedAt: undefined,
+      status: 'error',
+      color: 'red',
+      endedAt: '2026-06-04T11:56:00.000Z',
+    });
+  });
+
+  it('does not reopen a terminal child when the API snapshot updatedAt matches the terminal evidence', () => {
+    const initial = createEmptyState();
+    initial.updatedAt = '2026-06-04T11:56:00.000Z';
+    initial.children.ses_child = {
+      id: 'ses_child',
+      title: 'Stale terminal child',
+      parentID: 'ses_parent',
+      source: 'session',
+      targetSessionID: 'ses_child',
+      status: 'done',
+      color: 'green',
+      startedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T11:56:00.000Z',
+      endedAt: '2026-06-04T11:56:00.000Z',
+      elapsedMs: 60_000,
+    };
+
+    const result = reconcileChildrenState(initial, {
+      data: [
+        {
+          id: 'ses_child',
+          parentID: 'ses_parent',
+          title: 'Stale terminal child',
+          source: 'session',
+          status: 'running',
+          startedAt: '2026-06-04T11:55:00.000Z',
+          updatedAt: '2026-06-04T11:56:00.000Z',
+        },
+      ],
+    });
+
+    expect(result.nextState.children.ses_child).toMatchObject({
+      status: 'done',
+      endedAt: '2026-06-04T11:56:00.000Z',
     });
   });
 

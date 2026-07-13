@@ -1303,13 +1303,13 @@ describe('refresh runtime', () => {
     await waitForCondition(() => statusSpy.mock.calls.length === 2);
 
     await vi.advanceTimersByTimeAsync(probePolicy.baseBackoffMs);
-    expect(statusSpy).toHaveBeenCalledTimes(2);
-    expect(messagesSpy).toHaveBeenCalledTimes(2);
+    expect(statusSpy).toHaveBeenCalledTimes(3);
+    expect(messagesSpy).toHaveBeenCalledTimes(3);
 
     await vi.advanceTimersByTimeAsync(probePolicy.baseBackoffMs);
-    await waitForCondition(() => statusSpy.mock.calls.length === 3);
+    await waitForCondition(() => statusSpy.mock.calls.length === 4);
 
-    expect(messagesSpy).toHaveBeenCalledTimes(3);
+    expect(messagesSpy).toHaveBeenCalledTimes(4);
     expect(state.children.ses_child).toMatchObject({ status: 'running', endedAt: undefined });
 
     runtime.dispose();

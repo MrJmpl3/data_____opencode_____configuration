@@ -493,6 +493,54 @@ describe('events', () => {
     });
   });
 
+  it('marks a running session child done from step-finish/stop part', () => {
+    const state = seedChildSession();
+
+    expect(
+      applySubagentEvent(state, {
+        type: 'message.part.updated',
+        properties: {
+          sessionID: 'ses_child',
+          part: {
+            type: 'step-finish',
+            reason: 'stop',
+          },
+          info: {
+            time: {
+              completed: DONE_AT,
+            },
+          },
+        },
+      }),
+    ).toBe(true);
+
+    expect(state.children.ses_child).toMatchObject({
+      status: 'done',
+      endedAt: DONE_AT,
+    });
+  });
+
+  it('does NOT mark done from step-finish/tool-calls (intermediate signal)', () => {
+    const state = seedChildSession();
+
+    expect(
+      applySubagentEvent(state, {
+        type: 'message.part.updated',
+        properties: {
+          sessionID: 'ses_child',
+          part: {
+            type: 'step-finish',
+            reason: 'tool-calls',
+          },
+        },
+      }),
+    ).toBe(false);
+
+    expect(state.children.ses_child).toMatchObject({
+      status: 'running',
+    });
+  });
+
   it('preserves failed subtask recency when a later matching task message arrives', () => {
     const state = createEmptyState();
     state.children['subtask:part_1'] = {

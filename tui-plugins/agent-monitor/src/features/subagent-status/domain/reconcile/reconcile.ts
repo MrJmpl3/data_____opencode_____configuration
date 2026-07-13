@@ -59,10 +59,18 @@ const resolveIncomingChild = (
 };
 
 const canReopenTerminalChild = (
+  existing: SubagentChild | undefined,
   child: SubagentChild,
   sessionID: string | undefined,
   terminalRecoverySessionIDs: ReadonlySet<string> | undefined,
-): boolean => !(child.status === 'running' && sessionID && terminalRecoverySessionIDs?.has(sessionID));
+): boolean => {
+  // Only the event path or explicit terminal recovery should reopen
+  // a terminal child. The API snapshot (listChildren) may be stale and
+  // must not override a known terminal status.
+  if (!existing || !isTerminalStatus(existing.status)) return true;
+  if (child.status !== 'running') return true;
+  return Boolean(sessionID && terminalRecoverySessionIDs?.has(sessionID));
+};
 
 const isNewTerminalRecoveryAlias = (
   existing: SubagentChild | undefined,
@@ -139,7 +147,12 @@ export const reconcileNormalizedChildrenState = (
       terminalRecoveryChildren,
     );
     if (isNewTerminalRecoveryAlias(before, incomingChild, sessionID, inheritedTerminalRecovery)) continue;
-    const allowTerminalReopen = canReopenTerminalChild(incomingChild, sessionID, options.terminalRecoverySessionIDs);
+    const allowTerminalReopen = canReopenTerminalChild(
+      nextState.children[incomingChild.id],
+      incomingChild,
+      sessionID,
+      options.terminalRecoverySessionIDs,
+    );
     changed = upsertRunningChild(nextState, child, { allowTerminalReopen }) || changed;
     if (isTerminalStatus(child.status))
       changed =

@@ -12,10 +12,11 @@ describe('session status classification', () => {
     expect(deriveSessionStatus({ error: { message: 'boom' } })).toBe('error');
   });
 
-  it('does not treat idle as done', () => {
+  it('treats idle as non-terminal (undefined)', () => {
     expect(deriveSessionStatus('idle')).toBeUndefined();
     expect(deriveSessionStatus({ type: 'idle' })).toBeUndefined();
     expect(deriveTerminalSessionStatus('idle')).toBeUndefined();
+    expect(deriveTerminalSessionStatus({ type: 'idle' })).toBeUndefined();
   });
 
   it('derives terminal states without turning idle-like gaps into done', () => {
@@ -38,7 +39,7 @@ describe('session status classification', () => {
   });
 
   it('ignores running-only hints when deriving terminal-only status', () => {
-    expect(deriveTerminalSessionStatus({ running: true, phase: 'queued', status: 'idle' })).toBeUndefined();
+    expect(deriveTerminalSessionStatus({ running: true, phase: 'queued', status: 'indeterminate' })).toBeUndefined();
     expect(deriveTerminalSessionStatus({ busy: true, type: 'running' })).toBeUndefined();
   });
 });

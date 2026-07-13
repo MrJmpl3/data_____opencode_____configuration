@@ -28,6 +28,30 @@ export const RELEVANT_EVENT_TYPES = new Set([
 
 // ─── handling: process events ────────────────────────────────────────────────
 
+const handleStepFinish = (state: SubagentState, event: EventLike): boolean => {
+  const part = event.properties?.part;
+  if (!part || part.type !== 'step-finish') return false;
+
+  const sessionId = extractSessionId(event);
+  if (!sessionId) return false;
+
+  const reason = part.reason;
+
+  // `tool-calls` is an intermediate continuation signal, NOT terminal.
+  if (reason === 'tool-calls') return false;
+
+  if (reason === 'stop') {
+    return markChildStatus(
+      state,
+      sessionId,
+      'done',
+      extractEventTimestamp(event, ['completed', 'end', 'ended', 'updated', 'created', 'started']),
+    );
+  }
+
+  return false;
+};
+
 const handleSessionCreated = (state: SubagentState, event: EventLike): boolean => {
   const created = extractCreatedChild(event);
   if (!created) return false;
@@ -93,6 +117,8 @@ const handleSessionUpdated = (state: SubagentState, event: EventLike): boolean =
 
 const handleMessagePartUpdated = (state: SubagentState, event: EventLike): boolean => {
   let changed = false;
+
+  changed = handleStepFinish(state, event) || changed;
 
   const subtask = extractSubtaskChild(event);
   if (subtask) {
