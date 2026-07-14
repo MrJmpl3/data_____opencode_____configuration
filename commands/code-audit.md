@@ -6,8 +6,8 @@ description:
   Configurable scope, checks, and severity.
 ---
 
-You are the `gentle-orchestrator`, not an executor. This command scans the target codebase across 20
-quality dimensions: dead code, over-engineering, YAGNI, clean code, simplification, security, error
+You are the orchestrator, not an executor. This command scans the target codebase across 20 quality
+dimensions: dead code, over-engineering, YAGNI, clean code, simplification, security, error
 handling, performance, architecture, testing quality, dependencies, consistency, comments,
 readability, SOLID, observability, data integrity, concurrency, configuration hygiene, and
 production readiness. Each dimension is independently enabled/disabled via `--checks`. Delegate ALL
@@ -248,7 +248,7 @@ surface that leaks implementation types — consumers couple to internals.
 2. **Map the scope**: run `codegraph_explore` on the target path to get a structural overview —
    files, symbols, call relations. Use this as the baseline for dead-code and over-engineering
    checks.
-3. **Delegate first-pass analysis to 4R review sub-agents**:
+3. **Delegate first-pass analysis to the four configured review agents**:
    - Map enabled checks to the appropriate review sub-agent and launch one per group:
      - `review-readability`: dead-code, over-engineering, yagni, clean-code, simplification,
        consistency, comments, readability, solid, production-readiness
@@ -264,18 +264,18 @@ surface that leaks implementation types — consumers couple to internals.
      - Explicit instruction to return findings with file:line evidence
    - Run independent review sub-agents in parallel where possible.
    - Do NOT use `sdd-explore`, `sdd-propose`, or other SDD sub-agents for analysis.
-4. **Corroborate severe findings with review-refuter**: forward every CRITICAL and HIGH finding from
-   the 4R lens reviews to `review-refuter`. Each finding includes the claim, the lens that raised
-   it, and its file:line evidence. The refuter returns `corroborated | refuted | inconclusive` per
-   finding.
-   - Include corroborated findings in the final report as-is.
-   - Drop refuted findings entirely — do not include them.
-   - Flag inconclusive findings as `⚠️ needs manual review` in the report.
-   - Run this step only when CRITICAL or HIGH findings exist.
-5. **Aggregate & persist results**: merge corroborated findings, deduplicate, and sort by severity.
-   The orchestrator then writes all findings to `{scope}/TODO.md` as a markdown checklist with
-   `- [ ]` checkboxes for progress tracking. Each finding includes severity, category, file:line,
-   description, and suggested fix. Example:
+4. **Refute consolidated severe findings with `review-refuter`**: after the four review agents
+   complete, consolidate duplicate BLOCKER/CRITICAL findings and forward those findings to
+   `review-refuter`. Each finding includes the claim, the reviewing agent(s), and its file:line
+   evidence. The refuter returns only `stands` or `refuted` per finding.
+   - Include findings marked `stands` in the final report as-is.
+   - Drop findings marked `refuted` entirely — do not include them.
+   - Run this step only when consolidated BLOCKER/CRITICAL findings exist.
+5. **Aggregate & persist results**: merge the surviving findings, deduplicate, and sort by severity.
+   After final aggregation, delegate only the mechanical creation or update of `{scope}/TODO.md` to
+   `fixer`. `fixer` must not analyze findings, modify audited code, or change any file other than
+   that TODO.md. The file is a markdown checklist with `- [ ]` checkboxes for progress tracking.
+   Each finding includes severity, category, file:line, description, and suggested fix. Example:
 
 Se asigna un ID único por hallazgo con prefijo según categoría (CC, DC, SM, SC, etc.) y correlativo.
 El TODO.md incluye: generación con fecha y subagentes, configuración del análisis, tabla resumen,
@@ -285,8 +285,8 @@ completo:
 ```markdown
 # Code Audit Results — {scope}
 
-> Generado el {date} por `gentle-orchestrator` con subagentes `review-readability`, `review-risk`,
-> `review-reliability`, `review-resilience`, y `review-refuter` (solo CRITICAL/HIGH)
+> Generado el {date} por el orquestador con agentes `review-readability`, `review-risk`,
+> `review-reliability`, `review-resilience`, `review-refuter`, y `fixer`
 
 ## Configuration
 
