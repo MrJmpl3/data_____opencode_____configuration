@@ -173,10 +173,12 @@ describe('4.3 — recovering toggle in refresh cycle', () => {
 
     const recoverySources: RecoverySource[] = [
       {
-        hydrateState: vi.fn(async (state: SubagentState): Promise<RecoveryResult | undefined> => ({
-          changed: true,
-          authoritativeSessionIDs: [],
-        })),
+        hydrateState: vi.fn(
+          async (state: SubagentState): Promise<RecoveryResult | undefined> => ({
+            changed: true,
+            authoritativeSessionIDs: [],
+          }),
+        ),
       },
     ];
 
@@ -260,10 +262,12 @@ describe('4.3 — recovering toggle in refresh cycle', () => {
 
     const recoverySources: RecoverySource[] = [
       {
-        hydrateState: vi.fn(async (state: SubagentState): Promise<RecoveryResult | undefined> => ({
-          changed: true,
-          authoritativeSessionIDs: [],
-        })),
+        hydrateState: vi.fn(
+          async (state: SubagentState): Promise<RecoveryResult | undefined> => ({
+            changed: true,
+            authoritativeSessionIDs: [],
+          }),
+        ),
       },
     ];
 
