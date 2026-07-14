@@ -104,6 +104,6 @@
     }
   },
   "model": "opencode-go/deepseek-v4-flash",
-  "plugin": ["opencode-hashline", "oh-my-opencode-slim"],
+  "plugin": ["oh-my-opencode-slim"],
   "small_model": "opencode-go/deepseek-v4-flash"
 }
