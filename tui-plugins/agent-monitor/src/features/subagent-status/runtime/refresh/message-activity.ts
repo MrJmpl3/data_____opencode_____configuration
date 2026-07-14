@@ -53,7 +53,7 @@ const messageActivityAt = (message: unknown): string | undefined => {
 };
 
 const messageLiveActivityAt = (message: unknown): string | undefined => {
-  return messageTime(message, 'updated', 'created');
+  return messageTime(message, 'updated', 'start', 'started', 'created');
 };
 
 const latestISOString = (timestampMs: number): string | undefined => {
@@ -86,12 +86,19 @@ const resolveAmbiguousStepFinishStatus = (message: unknown): MessageSummary['sta
   return reason === 'stop' ? 'done' : undefined;
 };
 
+const isStopMessage = (message: unknown): boolean => {
+  const record = isRecord(message) ? message : undefined;
+  const info = messageInfo(message);
+  return normalizedString(record?.finish ?? info?.finish) === 'stop';
+};
+
 export const emptyMessageActivity = (): MessageActivity => ({ summary: {} });
 
 export const analyzeMessages = (messages: readonly unknown[]): MessageActivity => {
   let latestActivityMs = 0;
   let latestLiveActivityMs = 0;
   let completedAtMs = 0;
+  let stopCompletedAtMs = 0;
   let errorAtMs = 0;
   let ambiguousCompletedAtMs = 0;
   let ambiguousErrorAtMs = 0;
@@ -106,7 +113,8 @@ export const analyzeMessages = (messages: readonly unknown[]): MessageActivity =
     const state = isRecord(record?.state) ? record.state : undefined;
     const status =
       deriveTerminalSessionStatus(state?.status ?? info?.status ?? record?.status ?? state ?? info ?? record) ??
-      (record?.error || info?.error || state?.error ? 'error' : undefined);
+      (record?.error || info?.error || state?.error ? 'error' : undefined) ??
+      (isStopMessage(message) ? 'done' : undefined);
     const type = normalizedString(record?.type ?? info?.type ?? state?.type);
     if (type === 'step-start') {
       latestStepStartAtMs = maxTimestamp(latestStepStartAtMs, resolveStepStartTimestamp(message));
@@ -120,10 +128,14 @@ export const analyzeMessages = (messages: readonly unknown[]): MessageActivity =
       continue;
     }
 
-    const hasDoneSignal = status === 'done' && (type === 'session.status' || type === 'completed');
+    const hasDoneSignal =
+      status === 'done' && (type === 'session.status' || type === 'completed' || isStopMessage(message));
     if (hasDoneSignal && terminalAt) {
-      completedAtMs = maxTimestamp(completedAtMs, terminalAt);
-      continue;
+      if (isStopMessage(message)) {
+        stopCompletedAtMs = maxTimestamp(stopCompletedAtMs, terminalAt);
+      } else {
+        completedAtMs = maxTimestamp(completedAtMs, terminalAt);
+      }
     }
 
     const ambiguousStatus = resolveAmbiguousStepFinishStatus(message);
@@ -154,13 +166,19 @@ export const analyzeMessages = (messages: readonly unknown[]): MessageActivity =
       if (!partAmbiguous) continue;
 
       const partTerminalAt =
-        messageTime(part, 'completed', 'end', 'ended', 'updated', 'created') ?? messageActivityAt(part);
+        messageTime(part, 'completed', 'end', 'ended', 'updated', 'created') ??
+        messageActivityAt(part) ??
+        messageActivityAt(message);
       if (partAmbiguous === 'error' && partTerminalAt) {
         ambiguousErrorAtMs = maxTimestamp(ambiguousErrorAtMs, partTerminalAt);
       } else if (partAmbiguous === 'done' && partTerminalAt) {
         ambiguousCompletedAtMs = maxTimestamp(ambiguousCompletedAtMs, partTerminalAt);
       }
     }
+  }
+
+  if (stopCompletedAtMs >= Math.max(latestLiveActivityMs, latestStepStartAtMs)) {
+    completedAtMs = Math.max(completedAtMs, stopCompletedAtMs);
   }
 
   const ambiguousAtMs = Math.max(ambiguousCompletedAtMs, ambiguousErrorAtMs);
@@ -170,7 +188,7 @@ export const analyzeMessages = (messages: readonly unknown[]): MessageActivity =
       ? { status: 'error', endedAt: latestISOString(errorAtMs) }
       : completedAtMs > 0
         ? { status: 'done', endedAt: latestISOString(completedAtMs) }
-        : ambiguousAtMs > 0 && ambiguousAtMs >= latestStepStartAtMs
+        : ambiguousAtMs > 0 && ambiguousAtMs >= Math.max(latestLiveActivityMs, latestStepStartAtMs)
           ? { status: ambiguousStatus, endedAt: latestISOString(ambiguousAtMs), evidence: 'ambiguous' }
           : {};
 

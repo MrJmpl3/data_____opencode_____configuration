@@ -532,6 +532,40 @@ describe('status hydration', () => {
     });
   });
 
+  it('does not summarize a historical finish stop as done after newer live activity', () => {
+    expect(
+      analyzeMessages([
+        {
+          finish: 'stop',
+          time: { completed: '2026-06-04T12:01:30.000Z' },
+        },
+        {
+          status: 'running',
+          time: { updated: '2026-06-04T12:02:00.000Z' },
+        },
+      ]).summary,
+    ).toEqual({});
+  });
+
+  it('does not summarize an untimestamped part step-finish after newer live activity', () => {
+    expect(
+      analyzeMessages([
+        {
+          finish: 'stop',
+          time: { completed: '2026-06-04T12:01:30.000Z' },
+        },
+        {
+          parts: [{ type: 'step-finish', reason: 'stop' }],
+          time: { updated: '2026-06-04T12:02:00.000Z' },
+        },
+        {
+          status: 'running',
+          time: { updated: '2026-06-04T12:03:00.000Z' },
+        },
+      ]).summary,
+    ).toEqual({});
+  });
+
   it('keeps step-finish stop ambiguous when a newer step starts later', () => {
     expect(
       analyzeMessages([
@@ -543,6 +577,32 @@ describe('status hydration', () => {
         {
           type: 'step-start',
           time: { start: '2026-06-04T12:02:00.000Z' },
+        },
+      ]).summary,
+    ).toEqual({});
+  });
+
+  it('does not summarize explicit finish stop after a newer step starts', () => {
+    expect(
+      analyzeMessages([
+        {
+          finish: 'stop',
+          time: { completed: '2026-06-04T12:01:30.000Z' },
+        },
+        {
+          type: 'step-start',
+          time: { start: '2026-06-04T12:02:00.000Z' },
+        },
+      ]).summary,
+    ).toEqual({});
+  });
+
+  it('inspects parts after an explicit stop wrapper and rejects a later nested step start', () => {
+    expect(
+      analyzeMessages([
+        {
+          info: { finish: 'stop', time: { completed: '2026-06-04T12:01:30.000Z' } },
+          parts: [{ type: 'step-start', time: { start: '2026-06-04T12:02:00.000Z' } }],
         },
       ]).summary,
     ).toEqual({});
@@ -1153,7 +1213,106 @@ describe('characterization: shared hydration logic (pre-refactor baseline)', () 
     expect(runningEv.has('ses_child')).toBe(false);
   });
 
+  it('keeps a newer TUI step-start running across a stale client stop, then accepts a newer stop', async () => {
+    const state = createEmptyState();
+    state.children.ses_child = { ...baseChild };
+    const runningEv = new Set<string>();
+
+    hydrateChildStatusesFromTuiState(
+      createApi({
+        tuiStatus: { type: 'idle' },
+        tuiMessages: [{ type: 'step-start', time: { start: '2026-06-04T12:02:00.000Z' } }],
+      }),
+      state,
+      ['ses_child'],
+      runningEv,
+    );
+
+    await hydrateChildStatusesFromClient(
+      createApi({
+        tuiStatus: { type: 'idle' },
+        tuiMessages: [{ type: 'step-start', time: { start: '2026-06-04T12:02:00.000Z' } }],
+        clientStatus: { ses_child: { type: 'idle' } },
+        clientMessages: [{ type: 'step-finish', reason: 'stop', time: { end: '2026-06-04T12:01:00.000Z' } }],
+      }),
+      state,
+      ['ses_child'],
+      runningEv,
+    );
+
+    expect(state.children.ses_child).toMatchObject({ status: 'running', color: 'yellow' });
+
+    await hydrateChildStatusesFromClient(
+      createApi({
+        tuiStatus: { type: 'idle' },
+        tuiMessages: [],
+        clientStatus: { ses_child: { type: 'idle' } },
+        clientMessages: [{ type: 'step-finish', reason: 'stop', time: { end: '2026-06-04T12:03:00.000Z' } }],
+      }),
+      state,
+      ['ses_child'],
+      new Set<string>(),
+    );
+
+    expect(state.children.ses_child).toMatchObject({
+      status: 'done',
+      color: 'green',
+      endedAt: '2026-06-04T12:03:00.000Z',
+    });
+  });
+
   describe('analyzeMessages with nested parts[]', () => {
+    it('recognizes step-start as live activity', () => {
+      expect(
+        analyzeMessages([{ type: 'step-start', time: { start: '2026-06-04T12:02:00.000Z' } }]).latestLiveActivityAt,
+      ).toBe('2026-06-04T12:02:00.000Z');
+    });
+
+    it('recognizes a real OpenCode completed assistant message', () => {
+      const result = analyzeMessages([
+        {
+          info: {
+            finish: 'stop',
+            time: { completed: '2026-06-04T12:01:30.000Z' },
+          },
+        },
+      ]);
+
+      expect(result.summary).toEqual({
+        status: 'done',
+        endedAt: '2026-06-04T12:01:30.000Z',
+      });
+    });
+
+    it('uses the message completion time for a step-finish without its own time', () => {
+      const result = analyzeMessages([
+        {
+          time: { completed: '2026-06-04T12:01:30.000Z' },
+          parts: [{ type: 'step-finish', reason: 'stop' }],
+        },
+      ]);
+
+      expect(result.summary).toEqual({
+        status: 'done',
+        endedAt: '2026-06-04T12:01:30.000Z',
+        evidence: 'ambiguous',
+      });
+    });
+
+    it('ignores a step-finish when a later step-start follows it', () => {
+      const result = analyzeMessages([
+        {
+          time: { completed: '2026-06-04T12:01:30.000Z' },
+          parts: [
+            { type: 'step-finish', reason: 'stop' },
+            { type: 'step-start', time: { start: '2026-06-04T12:02:00.000Z' } },
+          ],
+        },
+      ]);
+
+      expect(result.summary).toEqual({});
+    });
+
     it('recognizes step-finish reason stop in parts[] as ambiguous done', () => {
       const result = analyzeMessages([
         {

@@ -76,7 +76,22 @@ export const createMergeEventState = (input: MergeEventStateInput) => {
     if (!normalizedEvent) return;
 
     const eventSessionId = extractSessionId(normalizedEvent);
-    if (input.getCurrentSessionId() && eventSessionId && eventSessionId !== input.getCurrentSessionId()) return;
+    const currentSessionId = input.getCurrentSessionId();
+    const currentState = input.getCurrentState();
+    const eventInfo = normalizedEvent.properties?.info;
+    const eventParentId = typeof eventInfo?.parentID === 'string' ? eventInfo.parentID : undefined;
+    const relatedSessionIds = new Set(
+      Object.values(currentState.children).flatMap((child) => [child.id, child.targetSessionID].filter(Boolean)),
+    );
+    const isParentScopedSessionEvent =
+      (normalizedEvent.type === 'session.created' || normalizedEvent.type === 'session.updated') &&
+      eventParentId === currentSessionId;
+    const isRelated =
+      !currentSessionId ||
+      eventSessionId === currentSessionId ||
+      (eventSessionId ? relatedSessionIds.has(eventSessionId) : false) ||
+      isParentScopedSessionEvent;
+    if (currentSessionId && !isRelated) return;
     if (!input.getCurrentSessionId() && eventSessionId) {
       if (input.isBufferingStartupScopedEvents()) {
         input.bufferStartupScopedEvent(eventSessionId, normalizedEvent);

@@ -19,6 +19,134 @@ const sessionCreatedEvent = (id: string, parentID: string) => ({
 });
 
 describe('mergeEventState race guard', () => {
+  it('processes events for an already monitored child session', async () => {
+    let liveState = createEmptyState();
+    liveState.children.ses_child = {
+      id: 'ses_child',
+      title: 'Child ses_child',
+      parentID: 'ses_parent',
+      source: 'session',
+      status: 'running',
+      color: 'yellow',
+      startedAt: CREATED_AT,
+      updatedAt: CREATED_AT,
+    };
+    const syncState = vi.fn<SyncStateFn>(async (nextState) => {
+      liveState = nextState;
+    });
+    const mergeEvent = createMergeEventState({
+      isDisposed: () => false,
+      getCurrentState: () => liveState,
+      getCurrentSessionId: () => 'ses_parent',
+      isBufferingStartupScopedEvents: () => false,
+      bufferStartupScopedEvent: () => {},
+      syncState,
+      createPersistMeta: (source) => ({ source, lastEventType: 'test', bufferedEventCount: 0 }),
+    });
+
+    await mergeEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'ses_child',
+        status: 'running',
+        info: { time: { updated: '2026-06-05T10:02:00.000Z' } },
+      },
+    });
+
+    expect(syncState).toHaveBeenCalledTimes(1);
+    expect(liveState.children.ses_child).toMatchObject({ status: 'running', updatedAt: '2026-06-05T10:02:00.000Z' });
+  });
+
+  it('ignores events for an unrelated session', async () => {
+    const liveState = createEmptyState();
+    const syncState = vi.fn<SyncStateFn>(async () => {});
+    const mergeEvent = createMergeEventState({
+      isDisposed: () => false,
+      getCurrentState: () => liveState,
+      getCurrentSessionId: () => 'ses_parent',
+      isBufferingStartupScopedEvents: () => false,
+      bufferStartupScopedEvent: () => {},
+      syncState,
+      createPersistMeta: (source) => ({ source, lastEventType: 'test', bufferedEventCount: 0 }),
+    });
+
+    await mergeEvent({
+      type: 'session.created',
+      properties: {
+        sessionID: 'ses_unrelated',
+        info: { id: 'ses_unrelated', parentID: 'ses_other', time: { created: CREATED_AT } },
+      },
+    });
+
+    expect(syncState).not.toHaveBeenCalled();
+    expect(liveState.children).toEqual({});
+  });
+
+  it('ignores an unrelated message part that only identifies its owning session', async () => {
+    const liveState = createEmptyState();
+    const syncState = vi.fn<SyncStateFn>(async () => {});
+    const mergeEvent = createMergeEventState({
+      isDisposed: () => false,
+      getCurrentState: () => liveState,
+      getCurrentSessionId: () => 'ses_parent',
+      isBufferingStartupScopedEvents: () => false,
+      bufferStartupScopedEvent: () => {},
+      syncState,
+      createPersistMeta: (source) => ({ source, lastEventType: 'test', bufferedEventCount: 0 }),
+    });
+
+    await mergeEvent({
+      type: 'message.part.updated',
+      properties: {
+        part: {
+          type: 'subtask',
+          id: 'foreign_part',
+          sessionID: 'ses_foreign',
+          description: 'Foreign task',
+        },
+      },
+    });
+
+    expect(syncState).not.toHaveBeenCalled();
+    expect(liveState.children).toEqual({});
+  });
+
+  it('recovers a missing child from a direct session.updated event', async () => {
+    let liveState = createEmptyState();
+    const syncState = vi.fn<SyncStateFn>(async (nextState) => {
+      liveState = nextState;
+    });
+    const mergeEvent = createMergeEventState({
+      isDisposed: () => false,
+      getCurrentState: () => liveState,
+      getCurrentSessionId: () => 'ses_parent',
+      isBufferingStartupScopedEvents: () => false,
+      bufferStartupScopedEvent: () => {},
+      syncState,
+      createPersistMeta: (source) => ({ source, lastEventType: 'test', bufferedEventCount: 0 }),
+    });
+
+    await mergeEvent({
+      type: 'session.updated',
+      properties: {
+        info: {
+          id: 'ses_recovered',
+          parentID: 'ses_parent',
+          title: 'Recovered child',
+          time: { updated: '2026-06-05T10:02:00.000Z' },
+        },
+      },
+    });
+
+    expect(syncState).toHaveBeenCalledTimes(1);
+    expect(liveState.children.ses_recovered).toMatchObject({
+      id: 'ses_recovered',
+      parentID: 'ses_parent',
+      title: 'Recovered child',
+      status: 'running',
+    });
+  });
+
   it('persists the event normally when live state does not change during processing', async () => {
     let liveState: SubagentState = createEmptyState();
     const syncState = vi.fn<SyncStateFn>(async (nextState) => {

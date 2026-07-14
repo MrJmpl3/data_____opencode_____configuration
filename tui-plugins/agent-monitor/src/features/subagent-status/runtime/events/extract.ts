@@ -26,9 +26,11 @@ export const firstDistinctSummary = (candidates: unknown[], title: string | unde
 };
 
 export const extractEventTimestamp = (event: EventLike, keys: string[]): string | undefined => {
+  const properties = isRecord(event.properties) ? (event.properties as Record<string, unknown>) : undefined;
   const part = isRecord(event.properties?.part) ? event.properties.part : undefined;
   const state = isRecord(part?.state) ? part.state : undefined;
-  const sources = [
+  const sources: unknown[] = [
+    properties?.time,
     isRecord(event.properties?.info?.time) ? event.properties.info.time : undefined,
     isRecord(part?.time) ? part.time : undefined,
     isRecord(state?.time) ? state.time : undefined,
@@ -37,6 +39,9 @@ export const extractEventTimestamp = (event: EventLike, keys: string[]): string 
   ];
   for (const source of sources) {
     if (!source) continue;
+    const direct = timestampFromUnknown(source);
+    if (direct) return direct;
+    if (!isRecord(source)) continue;
     for (const key of keys) {
       const candidate = timestampFromUnknown(source[key]);
       if (candidate) return candidate;

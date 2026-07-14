@@ -505,10 +505,8 @@ describe('events', () => {
             type: 'step-finish',
             reason: 'stop',
           },
-          info: {
-            time: {
-              completed: DONE_AT,
-            },
+          time: {
+            completed: DONE_AT,
           },
         },
       }),
@@ -518,6 +516,39 @@ describe('events', () => {
       status: 'done',
       endedAt: DONE_AT,
     });
+  });
+
+  it('reads scalar properties.time and preserves the exact endedAt timestamp', () => {
+    const state = seedChildSession();
+
+    expect(
+      applySubagentEvent(state, {
+        type: 'message.part.updated',
+        properties: {
+          sessionID: 'ses_child',
+          part: { type: 'step-finish', reason: 'stop' },
+          time: Date.parse(DONE_AT),
+        },
+      }),
+    ).toBe(true);
+
+    expect(state.children.ses_child).toMatchObject({ status: 'done', endedAt: DONE_AT });
+  });
+
+  it('accepts a child step-finish event when the current session is its parent', () => {
+    const state = seedChildSession();
+
+    expect(
+      applySubagentEvent(state, {
+        type: 'message.part.updated',
+        properties: {
+          sessionID: 'ses_child',
+          part: { type: 'step-finish', reason: 'stop' },
+          info: { time: { completed: DONE_AT } },
+        },
+      }),
+    ).toBe(true);
+    expect(state.children.ses_child).toMatchObject({ status: 'done', endedAt: DONE_AT });
   });
 
   it('does NOT mark done from step-finish/tool-calls (intermediate signal)', () => {
