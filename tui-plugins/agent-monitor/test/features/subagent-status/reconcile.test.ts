@@ -564,6 +564,153 @@ describe('reconcile', () => {
     });
   });
 
+  it('uses terminal synthetic target evidence instead of stale running session data', () => {
+    const initial = createEmptyState();
+    initial.children.ses_child = {
+      id: 'ses_child',
+      title: 'Child',
+      parentID: 'ses_parent',
+      source: 'session',
+      status: 'running',
+      startedAt: '2026-06-04T11:55:00.000Z',
+      updatedAt: '2026-06-04T11:56:00.000Z',
+    };
+
+    const result = reconcileChildrenState(initial, {
+      data: [
+        {
+          id: 'tool:delegate',
+          title: 'Delegation',
+          parentID: 'ses_parent',
+          source: 'tool',
+          targetSessionID: 'ses_child',
+          status: 'done',
+          startedAt: '2026-06-04T11:55:00.000Z',
+          updatedAt: '2026-06-04T11:57:00.000Z',
+          endedAt: '2026-06-04T11:57:00.000Z',
+        },
+        {
+          id: 'ses_child',
+          title: 'Child',
+          parentID: 'ses_parent',
+          source: 'session',
+          status: 'running',
+          startedAt: '2026-06-04T11:55:00.000Z',
+          updatedAt: '2026-06-04T11:56:30.000Z',
+        },
+      ],
+    });
+
+    expect(result.nextState.children.ses_child).toMatchObject({ status: 'done', endedAt: '2026-06-04T11:57:00.000Z' });
+  });
+
+  it('keeps a newer running session ahead of older terminal synthetic evidence', () => {
+    const result = reconcileChildrenState(createEmptyState(), {
+      data: [
+        {
+          id: 'tool:old',
+          title: 'Old terminal',
+          parentID: 'ses_parent',
+          source: 'tool',
+          targetSessionID: 'ses_child',
+          status: 'done',
+          startedAt: '2026-06-04T11:55:00.000Z',
+          updatedAt: '2026-06-04T11:57:00.000Z',
+          endedAt: '2026-06-04T11:57:00.000Z',
+        },
+        {
+          id: 'ses_child',
+          title: 'Child',
+          parentID: 'ses_parent',
+          source: 'session',
+          status: 'running',
+          startedAt: '2026-06-04T11:55:00.000Z',
+          updatedAt: '2026-06-04T11:58:00.000Z',
+        },
+      ],
+    });
+
+    expect(result.nextState.children.ses_child).toMatchObject({
+      status: 'running',
+      updatedAt: '2026-06-04T11:58:00.000Z',
+    });
+  });
+
+  it('selects the same terminal synthetic evidence regardless of equal-time permutation', () => {
+    const terminals = [
+      {
+        id: 'tool:a',
+        title: 'Done terminal',
+        parentID: 'ses_parent',
+        source: 'tool' as const,
+        targetSessionID: 'ses_child',
+        status: 'done' as const,
+        startedAt: '2026-06-04T11:55:00.000Z',
+        updatedAt: '2026-06-04T11:57:00.000Z',
+        endedAt: '2026-06-04T11:57:00.000Z',
+      },
+      {
+        id: 'tool:z',
+        title: 'Error terminal',
+        parentID: 'ses_parent',
+        source: 'tool' as const,
+        targetSessionID: 'ses_child',
+        status: 'error' as const,
+        startedAt: '2026-06-04T11:55:00.000Z',
+        updatedAt: '2026-06-04T11:57:00.000Z',
+        endedAt: '2026-06-04T11:57:00.000Z',
+      },
+    ];
+    const states = [terminals, [...terminals].reverse()].map(
+      (data) =>
+        reconcileChildrenState(createEmptyState(), {
+          data: [
+            ...data,
+            {
+              id: 'ses_child',
+              title: 'Child',
+              parentID: 'ses_parent',
+              source: 'session' as const,
+              status: 'running' as const,
+              startedAt: '2026-06-04T11:55:00.000Z',
+              updatedAt: '2026-06-04T11:56:00.000Z',
+            },
+          ],
+        }).nextState,
+    );
+
+    expect(states[0].children.ses_child?.status).toBe('error');
+    expect(states[1].children.ses_child?.status).toBe('error');
+  });
+
+  it('does not use an un-targeted synthetic terminal row as session evidence', () => {
+    const result = reconcileChildrenState(createEmptyState(), {
+      data: [
+        {
+          id: 'subtask:delegate',
+          title: 'Delegation',
+          parentID: 'ses_parent',
+          source: 'subtask',
+          status: 'done',
+          startedAt: '2026-06-04T11:55:00.000Z',
+          updatedAt: '2026-06-04T11:57:00.000Z',
+          endedAt: '2026-06-04T11:57:00.000Z',
+        },
+        {
+          id: 'ses_child',
+          title: 'Child',
+          parentID: 'ses_parent',
+          source: 'session',
+          status: 'running',
+          startedAt: '2026-06-04T11:55:00.000Z',
+          updatedAt: '2026-06-04T11:56:30.000Z',
+        },
+      ],
+    });
+
+    expect(result.nextState.children.ses_child).toMatchObject({ status: 'running' });
+  });
+
   it('excludes delegation-style rows from execution totals', () => {
     const result = reconcileChildrenState(createEmptyState(), {
       data: [

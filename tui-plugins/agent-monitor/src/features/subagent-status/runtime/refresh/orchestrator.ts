@@ -9,7 +9,8 @@ import type { TuiPluginApi } from '@opencode-ai/plugin/tui';
 
 import { cloneState } from '../../../../kit/clone.ts';
 import { isRealSessionChild } from '../../domain/state/core.ts';
-import { isTerminalStatus, pruneTerminalChildren } from '../../domain/state/maintenance.ts';
+import { childEvidenceTimestampMs, isTerminalStatus, pruneTerminalChildren } from '../../domain/state/maintenance.ts';
+import { markChildStatus, upsertRunningChild } from '../../domain/state/mutations.ts';
 import type { SubagentChild, SubagentState } from '../../domain/types.ts';
 import { hydrateStateFromRecoverySources } from '../../infrastructure/recovery.ts';
 import type { RecoveryResult, RecoverySource } from '../../infrastructure/recovery.ts';
@@ -60,7 +61,8 @@ const resolveTerminalRecoverySessionIDs = (
   const terminalSessionIDs = new Set<string>();
 
   for (const child of Object.values(state.children)) {
-    if (!isRealSessionChild(child) || !isTerminalStatus(child.status)) continue;
+    if (!isTerminalStatus(child.status)) continue;
+    if (!isRealSessionChild(child) && !child.targetSessionID) continue;
 
     const sessionId = resolveSessionRowSessionId(child);
     if (sessionId && authoritativeSessionIDs.has(sessionId)) {
@@ -69,6 +71,81 @@ const resolveTerminalRecoverySessionIDs = (
   }
 
   return terminalSessionIDs;
+};
+
+export const mergeRefreshStatus = (
+  state: SubagentState,
+  baseState: SubagentState,
+  refreshState: SubagentState,
+  authoritativeTerminalSessionIDs: ReadonlySet<string> = new Set(),
+): boolean => {
+  let changed = false;
+  for (const [id, refreshChild] of Object.entries(refreshState.children)) {
+    const liveChild = state.children[id];
+    if (!liveChild) {
+      changed = upsertRunningChild(state, refreshChild) || changed;
+      if (isTerminalStatus(refreshChild.status)) {
+        const terminalRecovery = authoritativeTerminalSessionIDs.has(refreshChild.targetSessionID ?? refreshChild.id);
+        changed =
+          markChildStatus(
+            state,
+            refreshChild.targetSessionID ?? refreshChild.id,
+            refreshChild.status,
+            refreshChild.endedAt ?? refreshChild.updatedAt,
+            { allowOlderTerminalEvidence: terminalRecovery },
+          ) || changed;
+      }
+      continue;
+    }
+    const baseChild = baseState.children[id];
+    const refreshChanged =
+      !baseChild ||
+      refreshChild.status !== baseChild.status ||
+      refreshChild.updatedAt !== baseChild.updatedAt ||
+      refreshChild.endedAt !== baseChild.endedAt;
+    if (!refreshChanged) continue;
+    const terminalRecovery =
+      isTerminalStatus(refreshChild.status) &&
+      authoritativeTerminalSessionIDs.has(refreshChild.targetSessionID ?? refreshChild.id);
+    if (isTerminalStatus(refreshChild.status)) {
+      if (
+        !terminalRecovery &&
+        liveChild.status !== 'running' &&
+        childEvidenceTimestampMs(refreshChild) <= childEvidenceTimestampMs(liveChild)
+      )
+        continue;
+      if (
+        !terminalRecovery &&
+        liveChild.status === 'running' &&
+        childEvidenceTimestampMs(refreshChild) < childEvidenceTimestampMs(liveChild)
+      )
+        continue;
+      changed =
+        markChildStatus(
+          state,
+          refreshChild.targetSessionID ?? refreshChild.id,
+          refreshChild.status,
+          refreshChild.endedAt ?? refreshChild.updatedAt,
+          { allowOlderTerminalEvidence: terminalRecovery },
+        ) || changed;
+    } else if (
+      liveChild.status !== 'running' ||
+      childEvidenceTimestampMs(refreshChild) <= childEvidenceTimestampMs(liveChild)
+    ) {
+      continue;
+    }
+    if (!state.children[id]) continue;
+    state.children[id] = {
+      ...state.children[id],
+      status: refreshChild.status,
+      updatedAt: refreshChild.updatedAt,
+      endedAt: refreshChild.endedAt,
+      color: refreshChild.color,
+      elapsedMs: refreshChild.elapsedMs,
+    };
+    changed = true;
+  }
+  return changed;
 };
 
 const hydrateRecoverySourcesSafely = async (input: {
@@ -154,11 +231,11 @@ export const createTuiRuntimeRefresh = (
     // when the inner try block throws — keeping the flag consistent with the
     // actual sync state on disk.
     let nextState: SubagentState | undefined;
-    let stateUpdatedAtAtCloneTime: string | undefined;
+    let baseStateAtCloneTime: SubagentState | undefined;
 
     try {
-      nextState = cloneState(input.state.getState());
-      stateUpdatedAtAtCloneTime = nextState.updatedAt;
+      baseStateAtCloneTime = input.state.getState();
+      nextState = cloneState(baseStateAtCloneTime);
       nextState.recovering = true;
       const directory = api.state.path.directory;
       const recovered = await hydrateRecoverySourcesSafely({
@@ -268,7 +345,7 @@ export const createTuiRuntimeRefresh = (
       // must not be overwritten by stale listChildren data. We still persist
       // children that were added by recovery (not present in the live state)
       // and clear the `recovering` flag.
-      if (stateUpdatedAtAtCloneTime != null && input.state.getState().updatedAt !== stateUpdatedAtAtCloneTime) {
+      if (baseStateAtCloneTime != null && input.state.getState() !== baseStateAtCloneTime) {
         if (
           recovered.changed ||
           changed ||
@@ -278,12 +355,24 @@ export const createTuiRuntimeRefresh = (
           pruned
         ) {
           const mergedState = cloneState(input.state.getState());
-          for (const [id, child] of Object.entries(nextState.children)) {
-            if (!mergedState.children[id]) mergedState.children[id] = child;
-          }
+          const mergedRefreshStatus = mergeRefreshStatus(
+            mergedState,
+            baseStateAtCloneTime,
+            nextState,
+            protectedRecoverySessionIDs,
+          );
           mergedState.recovering = false;
           nextState = undefined;
-          await input.syncState(mergedState, input.createPersistMeta('refresh'));
+          if (
+            mergedRefreshStatus ||
+            recovered.changed ||
+            changed ||
+            tuiStatusHydrated ||
+            clientStatusHydrated ||
+            staleRunningSettled ||
+            pruned
+          )
+            await input.syncState(mergedState, input.createPersistMeta('refresh'));
         }
         return;
       }

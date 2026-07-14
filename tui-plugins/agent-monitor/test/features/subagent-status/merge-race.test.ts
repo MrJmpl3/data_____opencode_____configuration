@@ -4,6 +4,7 @@ import { createEmptyState } from '../../../src/features/subagent-status/domain/s
 import type { SubagentState } from '../../../src/features/subagent-status/domain/types.ts';
 import { createMergeEventState } from '../../../src/features/subagent-status/runtime/events/merge.ts';
 import type { PersistSnapshotMeta } from '../../../src/features/subagent-status/runtime/snapshot.ts';
+import { mergeRefreshStatus } from '../../../src/features/subagent-status/runtime/refresh/orchestrator.ts';
 
 const CREATED_AT = '2026-06-05T10:00:00.000Z';
 
@@ -136,6 +137,34 @@ describe('mergeEventState race guard', () => {
 
     // The live terminal "done" must be preserved through the merge
     expect(persistedState?.children?.ses_child).toMatchObject({ status: 'done' });
+  });
+
+  it('does not reapply an older terminal synthetic clone over a newer live reopening', () => {
+    const liveState = createEmptyState();
+    liveState.children.ses_child = {
+      id: 'ses_child',
+      title: 'Reopened child',
+      parentID: 'ses_parent',
+      source: 'session',
+      status: 'running',
+      startedAt: CREATED_AT,
+      updatedAt: '2026-06-05T10:02:00.000Z',
+    };
+    const clonedState = createEmptyState();
+    clonedState.children.tool_delegate = {
+      id: 'tool_delegate',
+      title: 'Delegation',
+      parentID: 'ses_parent',
+      source: 'tool',
+      targetSessionID: 'ses_child',
+      status: 'done',
+      startedAt: CREATED_AT,
+      updatedAt: '2026-06-05T10:01:00.000Z',
+      endedAt: '2026-06-05T10:01:00.000Z',
+    };
+
+    expect(mergeRefreshStatus(liveState, createEmptyState(), clonedState)).toBe(true);
+    expect(liveState.children.ses_child).toMatchObject({ status: 'running', updatedAt: '2026-06-05T10:02:00.000Z' });
   });
 
   it('calls syncState exactly once per event', async () => {

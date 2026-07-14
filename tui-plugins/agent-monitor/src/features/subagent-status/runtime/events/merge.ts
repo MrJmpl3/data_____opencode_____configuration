@@ -6,6 +6,7 @@ import type { PersistSnapshotMeta } from '../snapshot.ts';
 import type { SubagentState } from '../../domain/types.ts';
 import { normalizeEventPayload } from './event-payload.ts';
 import { isTerminalStatus, pruneTerminalChildren } from '../../domain/state/maintenance.ts';
+import { upsertRunningChild } from '../../domain/state/mutations.ts';
 
 export type MergeEventStateInput = {
   isDisposed: () => boolean;
@@ -28,14 +29,14 @@ export type MergeEventStateInput = {
  * precedence and only new (absent) children from the event are merged in.
  */
 const createVersionGuardedSyncState = (input: MergeEventStateInput) => {
-  let snapshotVersion: string | undefined;
+  let snapshotBaseState: SubagentState | undefined;
 
-  const captureVersion = (version: string): void => {
-    snapshotVersion = version;
+  const captureBaseState = (baseState: SubagentState): void => {
+    snapshotBaseState = baseState;
   };
 
   const guard = async (nextState: SubagentState, meta: PersistSnapshotMeta): Promise<void> => {
-    if (!snapshotVersion || input.getCurrentState().updatedAt === snapshotVersion) {
+    if (!snapshotBaseState || input.getCurrentState() === snapshotBaseState) {
       await input.syncState(nextState, meta);
       return;
     }
@@ -44,7 +45,7 @@ const createVersionGuardedSyncState = (input: MergeEventStateInput) => {
     // nextState into the live state rather than overwriting it.
     const liveState = cloneState(input.getCurrentState());
     for (const [id, child] of Object.entries(nextState.children)) {
-      if (!liveState.children[id]) liveState.children[id] = child;
+      if (!liveState.children[id]) upsertRunningChild(liveState, child);
     }
     if (nextState.updatedAt > liveState.updatedAt) {
       liveState.updatedAt = nextState.updatedAt;
@@ -52,7 +53,7 @@ const createVersionGuardedSyncState = (input: MergeEventStateInput) => {
     await input.syncState(liveState, meta);
   };
 
-  return { captureVersion, guard };
+  return { captureBaseState, guard };
 };
 
 /**
@@ -66,7 +67,7 @@ const createVersionGuardedSyncState = (input: MergeEventStateInput) => {
  * overwritten mutations.
  */
 export const createMergeEventState = (input: MergeEventStateInput) => {
-  const { captureVersion, guard } = createVersionGuardedSyncState(input);
+  const { captureBaseState, guard } = createVersionGuardedSyncState(input);
 
   const mergeEvent = async (event: unknown): Promise<void> => {
     if (input.isDisposed()) return;
@@ -84,14 +85,14 @@ export const createMergeEventState = (input: MergeEventStateInput) => {
     }
 
     let nextState: SubagentState;
-    let snapshotVersion: string | undefined;
+    let snapshotBaseState: SubagentState | undefined;
     try {
       // Capture the live state version BEFORE we clone so that any
       // interleaving modification (e.g. from the refresh path) between
       // clone and persist can be detected as a version mismatch and
       // handled by the merge guard.
-      snapshotVersion = input.getCurrentState().updatedAt;
-      nextState = cloneState(input.getCurrentState());
+      snapshotBaseState = input.getCurrentState();
+      nextState = cloneState(snapshotBaseState);
     } catch (e) {
       // Format: "[agent-monitor] <message> — sessionId=<id>: <error>" so a
       // single grep on `sessionId=` correlates every failure to its session.
@@ -107,7 +108,7 @@ export const createMergeEventState = (input: MergeEventStateInput) => {
     if (!changed) return;
 
     pruneTerminalChildren(nextState);
-    captureVersion(snapshotVersion);
+    captureBaseState(snapshotBaseState);
     await guard(nextState, input.createPersistMeta('event'));
   };
 

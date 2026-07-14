@@ -1,6 +1,7 @@
 import { clearPurgedSession, isRealSessionChild } from '../state/core.ts';
 import { cloneState } from '../../../../kit/clone.ts';
 import {
+  childEvidenceTimestampMs,
   isTerminalStatus,
   normalizeChild,
   pruneOrphanedSyntheticRunningChildren,
@@ -17,24 +18,40 @@ type ReconcileChildrenStateOptions = {
 };
 
 const resolveRealSessionID = (child: SubagentChild): string | undefined => {
-  if (!isRealSessionChild(child)) return undefined;
-  return child.targetSessionID ?? (child.id.startsWith('ses_') ? child.id : undefined);
+  return child.targetSessionID ?? (isRealSessionChild(child) && child.id.startsWith('ses_') ? child.id : undefined);
 };
 
 const collectTerminalRecoveryChildren = (
   state: SubagentState,
   terminalRecoverySessionIDs: ReadonlySet<string> | undefined,
-): Map<string, SubagentChild> => {
-  const terminalRecoveryChildren = new Map<string, SubagentChild>();
+): SubagentChild[] => {
+  const terminalRecoveryChildren: SubagentChild[] = [];
   if (!terminalRecoverySessionIDs?.size) return terminalRecoveryChildren;
   for (const child of Object.values(state.children)) {
-    if (!isRealSessionChild(child) || !isTerminalStatus(child.status)) continue;
+    if ((!isRealSessionChild(child) && !child.targetSessionID) || !isTerminalStatus(child.status)) continue;
     const sessionID = resolveRealSessionID(child);
     if (!sessionID || !terminalRecoverySessionIDs.has(sessionID)) continue;
-    if (!terminalRecoveryChildren.has(sessionID) || child.id === sessionID)
-      terminalRecoveryChildren.set(sessionID, child);
+    terminalRecoveryChildren.push(child);
   }
   return terminalRecoveryChildren;
+};
+
+export const selectLatestTerminalEvidence = (children: readonly SubagentChild[]): Map<string, SubagentChild> => {
+  const terminalChildren = new Map<string, SubagentChild>();
+  for (const child of children) {
+    if (!isTerminalStatus(child.status)) continue;
+    const sessionID = resolveRealSessionID(child);
+    if (!sessionID) continue;
+    const current = terminalChildren.get(sessionID);
+    if (
+      !current ||
+      childEvidenceTimestampMs(child) > childEvidenceTimestampMs(current) ||
+      (childEvidenceTimestampMs(child) === childEvidenceTimestampMs(current) && child.id > current.id)
+    ) {
+      terminalChildren.set(sessionID, child);
+    }
+  }
+  return terminalChildren;
 };
 
 const inheritTerminalRecoveryStatus = (child: SubagentChild, terminalChild: SubagentChild): SubagentChild => {
@@ -50,6 +67,11 @@ const resolveIncomingChild = (
   const sessionID = resolveRealSessionID(child);
   const terminalRecoveryChild = sessionID ? terminalRecoveryChildren.get(sessionID) : undefined;
   if (child.status !== 'running' || !terminalRecoveryChild)
+    return { child, inheritedTerminalRecovery: false, sessionID };
+  if (
+    (terminalRecoveryChild.source === 'tool' || terminalRecoveryChild.source === 'subtask') &&
+    childEvidenceTimestampMs(terminalRecoveryChild) < childEvidenceTimestampMs(child)
+  )
     return { child, inheritedTerminalRecovery: false, sessionID };
   return {
     child: inheritTerminalRecoveryStatus(child, terminalRecoveryChild),
@@ -120,6 +142,11 @@ const applyTerminalRecoveryToExistingAliases = (
     const terminalChild = terminalRecoveryChildren.get(sessionID);
     if (!terminalChild) continue;
     const endedAt = terminalChild.endedAt ?? terminalChild.updatedAt;
+    if (
+      (terminalChild.source === 'tool' || terminalChild.source === 'subtask') &&
+      childEvidenceTimestampMs(terminalChild) < childEvidenceTimestampMs(child)
+    )
+      continue;
     const next = normalizeChild(inheritTerminalRecoveryStatus(child, terminalChild), normalizeAt(endedAt));
     if (sameChild(child, next)) continue;
     state.children[child.id] = next;
@@ -135,7 +162,17 @@ export const reconcileNormalizedChildrenState = (
 ): { changed: boolean; nextState: SubagentState } => {
   const nextState = cloneState(state);
   const incomingIDs = new Set(incomingChildren.map((child) => child.id));
-  const terminalRecoveryChildren = collectTerminalRecoveryChildren(nextState, options.terminalRecoverySessionIDs);
+  const persistedTerminalRecoveryChildren = collectTerminalRecoveryChildren(
+    nextState,
+    options.terminalRecoverySessionIDs,
+  );
+  const incomingTerminalEvidence = incomingChildren.filter(
+    (child) => isTerminalStatus(child.status) && (child.source === 'tool' || child.source === 'subtask'),
+  );
+  const terminalRecoveryChildren = selectLatestTerminalEvidence([
+    ...persistedTerminalRecoveryChildren,
+    ...incomingTerminalEvidence,
+  ]);
   const hadRealSessionChildren = Object.values(state.children).some(
     (child) => child.source === 'session' || child.id.startsWith('ses_'),
   );
@@ -154,12 +191,19 @@ export const reconcileNormalizedChildrenState = (
       options.terminalRecoverySessionIDs,
     );
     changed = upsertRunningChild(nextState, child, { allowTerminalReopen }) || changed;
-    if (isTerminalStatus(child.status))
+    if (isTerminalStatus(child.status) && !child.targetSessionID)
       changed =
         markChildStatus(nextState, child.id, child.status, child.endedAt ?? child.updatedAt, {
           allowOlderTerminalEvidence: inheritedTerminalRecovery,
         }) || changed;
     if (!sameChild(before, nextState.children[child.id])) changed = true;
+  }
+  for (const [sessionID, terminalChild] of terminalRecoveryChildren) {
+    if (!terminalChild.targetSessionID || !isTerminalStatus(terminalChild.status)) continue;
+    changed =
+      markChildStatus(nextState, sessionID, terminalChild.status, terminalChild.endedAt ?? terminalChild.updatedAt, {
+        allowOlderTerminalEvidence: terminalChild.source !== 'tool' && terminalChild.source !== 'subtask',
+      }) || changed;
   }
   changed = applyTerminalRecoveryToExistingAliases(nextState, terminalRecoveryChildren) || changed;
   for (const existing of Object.values(state.children)) {
