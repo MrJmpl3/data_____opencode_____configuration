@@ -1,0 +1,132 @@
+{
+  "$schema": "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json",
+  "preset": "openai",
+  "presets": {
+    "openai": {
+      "designer": {
+        "mcps": [],
+        "model": "openai/gpt-5.6-luna",
+        "skills": [],
+        "variant": "medium"
+      },
+      "explorer": {
+        "mcps": [],
+        "model": "openai/gpt-5.6-luna",
+        "skills": [],
+        "variant": "low"
+      },
+      "fixer": {
+        "mcps": [],
+        "model": "openai/gpt-5.6-luna",
+        "skills": [],
+        "variant": "medium"
+      },
+      "librarian": {
+        "mcps": ["websearch", "context7", "gh_grep"],
+        "model": "openai/gpt-5.6-luna",
+        "skills": [],
+        "variant": "low"
+      },
+      "oracle": {
+        "mcps": [],
+        "model": "openai/gpt-5.6-sol",
+        "skills": ["simplify"],
+        "variant": "high"
+      },
+      "orchestrator": {
+        "mcps": ["*", "!context7"],
+        "model": "openai/gpt-5.6-terra",
+        "skills": ["*"],
+        "variant": "medium"
+      }
+    },
+    "opencode-go": {
+      "designer": {
+        "mcps": [],
+        "model": "opencode-go/kimi-k2.7-code",
+        "skills": [],
+        "variant": "medium"
+      },
+      "explorer": {
+        "mcps": [],
+        "model": "opencode-go/deepseek-v4-flash",
+        "skills": []
+      },
+      "fixer": {
+        "mcps": [],
+        "model": "opencode-go/deepseek-v4-flash",
+        "skills": [],
+        "variant": "high"
+      },
+      "librarian": {
+        "mcps": ["websearch", "context7", "gh_grep"],
+        "model": "opencode-go/deepseek-v4-flash",
+        "skills": []
+      },
+      "observer": {
+        "mcps": [],
+        "model": "opencode-go/kimi-k2.6",
+        "skills": []
+      },
+      "oracle": {
+        "mcps": [],
+        "model": "opencode-go/qwen3.7-max",
+        "skills": ["simplify"],
+        "variant": "max"
+      },
+      "orchestrator": {
+        "mcps": ["*", "!context7"],
+        "model": "opencode-go/glm-5.2",
+        "skills": ["*"]
+      }
+    },
+    "opencode-zen-free": {
+      "designer": {
+        "mcps": [],
+        "model": "opencode/mimo-v2.5-free",
+        "skills": [],
+        "temperature": 0.3,
+        "variant": "medium"
+      },
+      "explorer": {
+        "mcps": [],
+        "model": "opencode/north-mini-code-free",
+        "skills": [],
+        "temperature": 0.2
+      },
+      "fixer": {
+        "mcps": [],
+        "model": "opencode/deepseek-v4-flash-free",
+        "skills": [],
+        "temperature": 0.2,
+        "variant": "high"
+      },
+      "librarian": {
+        "mcps": ["websearch", "context7", "gh_grep"],
+        "model": "opencode/deepseek-v4-flash-free",
+        "skills": [],
+        "temperature": 0.2
+      },
+      "observer": {
+        "mcps": [],
+        "model": "opencode/mimo-v2.5-free",
+        "skills": [],
+        "temperature": 0.2,
+        "variant": "low"
+      },
+      "oracle": {
+        "mcps": [],
+        "model": "opencode/big-pickle",
+        "skills": ["simplify"],
+        "temperature": 0.4,
+        "variant": "max"
+      },
+      "orchestrator": {
+        "mcps": ["*", "!context7"],
+        "model": "opencode/hy3-free",
+        "skills": ["*"],
+        "temperature": 0.4
+      }
+    }
+  }
+}
