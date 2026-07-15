@@ -546,6 +546,167 @@ describe('events', () => {
     });
   });
 
+  it('does not reopen a terminal child from a later session.updated without status', () => {
+    const state = seedChildSession();
+
+    expect(
+      applySubagentEvent(state, {
+        type: 'message.part.updated',
+        properties: {
+          sessionID: 'ses_child',
+          part: { type: 'step-finish', reason: 'stop' },
+          info: { time: { completed: DONE_AT } },
+        },
+      }),
+    ).toBe(true);
+    const childBeforeUpdate = { ...state.children.ses_child };
+
+    applySubagentEvent(state, {
+      type: 'session.updated',
+      properties: {
+        info: {
+          id: 'ses_child',
+          parentID: 'ses_parent',
+          title: 'Delegated child',
+          time: { updated: '2026-06-05T10:03:00.000Z' },
+        },
+      },
+    });
+
+    expect(state.children.ses_child).toMatchObject({
+      status: 'done',
+      startedAt: CREATED_AT,
+      updatedAt: DONE_AT,
+      endedAt: DONE_AT,
+      elapsedMs: Date.parse(DONE_AT) - Date.parse(CREATED_AT),
+    });
+    expect(state.children.ses_child).toMatchObject({
+      status: childBeforeUpdate.status,
+      startedAt: childBeforeUpdate.startedAt,
+      updatedAt: childBeforeUpdate.updatedAt,
+      endedAt: childBeforeUpdate.endedAt,
+      elapsedMs: childBeforeUpdate.elapsedMs,
+    });
+  });
+
+  it('reopens a terminal child from a later explicit session.created event', () => {
+    const state = seedChildSession();
+
+    applySubagentEvent(state, {
+      type: 'message.part.updated',
+      properties: {
+        sessionID: 'ses_child',
+        part: { type: 'step-finish', reason: 'stop' },
+        info: { time: { completed: DONE_AT } },
+      },
+    });
+
+    const reopenedAt = '2026-06-05T10:04:00.000Z';
+    expect(
+      applySubagentEvent(state, {
+        type: 'session.created',
+        properties: {
+          info: {
+            id: 'ses_child',
+            parentID: 'ses_parent',
+            title: 'Delegated child',
+            status: 'busy',
+            time: { created: reopenedAt },
+          },
+        },
+      }),
+    ).toBe(true);
+
+    expect(state.children.ses_child).toMatchObject({
+      status: 'running',
+      startedAt: reopenedAt,
+      updatedAt: reopenedAt,
+      endedAt: undefined,
+    });
+  });
+
+  it('does not create a session row when only a terminal synthetic alias targets it', () => {
+    const state = createEmptyState();
+    state.children['tool:ses_child'] = {
+      id: 'tool:ses_child',
+      title: 'Delegated child',
+      parentID: 'ses_parent',
+      source: 'tool',
+      targetSessionID: 'ses_child',
+      status: 'done',
+      color: 'green',
+      startedAt: CREATED_AT,
+      updatedAt: DONE_AT,
+      endedAt: DONE_AT,
+      elapsedMs: Date.parse(DONE_AT) - Date.parse(CREATED_AT),
+    };
+
+    applySubagentEvent(state, {
+      type: 'session.updated',
+      session_id: 'ses_child',
+      info: {
+        id: 'ses_child',
+        parentID: 'ses_parent',
+        title: 'Delegated child',
+        time: { updated: '2026-06-05T10:03:00.000Z' },
+      },
+    });
+
+    expect(state.children.ses_child).toBeUndefined();
+    expect(state.children['tool:ses_child']).toMatchObject({
+      status: 'done',
+      startedAt: CREATED_AT,
+      updatedAt: DONE_AT,
+      endedAt: DONE_AT,
+      elapsedMs: Date.parse(DONE_AT) - Date.parse(CREATED_AT),
+    });
+  });
+
+  it('reopens a terminal child from explicit busy session.updated status', () => {
+    const state = seedChildSession();
+    state.children.ses_child.status = 'done';
+    state.children.ses_child.updatedAt = DONE_AT;
+    state.children.ses_child.endedAt = DONE_AT;
+
+    expect(
+      applySubagentEvent(state, {
+        type: 'session.updated',
+        properties: {
+          session_id: 'ses_child',
+          status: { type: 'busy' },
+          info: { time: { updated: '2026-06-05T10:04:00.000Z' } },
+        },
+      }),
+    ).toBe(true);
+
+    expect(state.children.ses_child).toMatchObject({
+      status: 'running',
+      updatedAt: '2026-06-05T10:04:00.000Z',
+      endedAt: undefined,
+    });
+  });
+
+  it('inserts an unknown child as running from session.updated without status', () => {
+    const state = createEmptyState();
+
+    expect(
+      applySubagentEvent(state, {
+        type: 'session.updated',
+        session_id: 'ses_child_unknown',
+        info: {
+          id: 'ses_child_unknown',
+          parentID: 'ses_parent',
+          title: 'Unknown child',
+        },
+      }),
+    ).toBe(true);
+
+    expect(state.children.ses_child_unknown).toMatchObject({
+      status: 'running',
+      parentID: 'ses_parent',
+    });
+  });
+
   it('marks a child done from raw top-level step-finish/stop event fields', () => {
     const state = seedChildSession();
 

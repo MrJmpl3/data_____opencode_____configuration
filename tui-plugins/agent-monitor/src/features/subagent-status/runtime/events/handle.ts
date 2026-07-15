@@ -1,5 +1,6 @@
 import { markChildRunning, markChildStatus, upsertRunningChild } from '../../domain/state/mutations.ts';
 import { upsertChildDetails } from '../../domain/state/mutate-details.ts';
+import { isTerminalStatus } from '../../domain/state/maintenance.ts';
 import type { SubagentState } from '../../domain/types.ts';
 import { asString } from '../../../../kit/coercion.ts';
 import { normalizeEventPayload } from '../events/event-payload.ts';
@@ -52,7 +53,7 @@ const handleStepFinish = (state: SubagentState, event: EventLike): boolean => {
   return false;
 };
 
-const handleSessionCreated = (state: SubagentState, event: EventLike): boolean => {
+const handleSessionCreated = (state: SubagentState, event: EventLike, allowTerminalReopen = true): boolean => {
   const created = extractCreatedChild(event);
   if (!created) return false;
 
@@ -63,7 +64,7 @@ const handleSessionCreated = (state: SubagentState, event: EventLike): boolean =
       source: 'session',
       targetSessionID: created.id,
     },
-    { allowTerminalReopen: true },
+    { allowTerminalReopen },
   );
 };
 
@@ -107,8 +108,20 @@ const handleSessionStatus = (state: SubagentState, event: EventLike): boolean =>
 };
 
 const handleSessionUpdated = (state: SubagentState, event: EventLike): boolean => {
-  const changed = handleSessionCreated(state, event);
   const status = extractOpenCodeEventSessionStatus(event);
+  const sessionId = extractSessionId(event);
+  const existing = sessionId ? state.children[sessionId] : undefined;
+  const terminalRepresentation = sessionId
+    ? Object.values(state.children).find(
+        (child) => (child.id === sessionId || child.targetSessionID === sessionId) && isTerminalStatus(child.status),
+      )
+    : undefined;
+
+  if (!status && terminalRepresentation) {
+    return existing && sessionId ? upsertChildDetails(state, sessionId, extractChildDetails(event)) : false;
+  }
+
+  const changed = handleSessionCreated(state, event, false);
 
   if (!status) return changed;
 
