@@ -75,6 +75,8 @@ const normalizeTopLevelEventProperties = (input: Record<string, unknown>): Event
 export const normalizeEventPayload = (input: unknown): EventLike | undefined => {
   if (!isRecord(input)) return undefined;
   const properties =
-    input.properties === undefined ? normalizeTopLevelEventProperties(input) : normalizeEventProperties(input.properties);
+    input.properties === undefined
+      ? normalizeTopLevelEventProperties(input)
+      : normalizeEventProperties(input.properties);
   return { ...input, properties };
 };
