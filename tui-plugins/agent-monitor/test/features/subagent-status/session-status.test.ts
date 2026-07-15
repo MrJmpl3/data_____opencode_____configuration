@@ -12,6 +12,12 @@ describe('session status classification', () => {
     expect(deriveSessionStatus({ error: { message: 'boom' } })).toBe('error');
   });
 
+  it('classifies discriminated session.status objects without inspecting unrelated nested state', () => {
+    expect(deriveSessionStatus({ status: { type: 'busy' } })).toBe('running');
+    expect(deriveSessionStatus({ status: { type: 'retry', attempt: 2 } })).toBe('running');
+    expect(deriveSessionStatus({ part: { state: { status: { type: 'busy' } } } })).toBeUndefined();
+  });
+
   it('treats idle as non-terminal (undefined)', () => {
     expect(deriveSessionStatus('idle')).toBeUndefined();
     expect(deriveSessionStatus({ type: 'idle' })).toBeUndefined();

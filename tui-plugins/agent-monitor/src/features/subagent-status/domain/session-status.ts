@@ -35,7 +35,8 @@ const collectSessionStatusValues = (value: unknown): string[] => {
   const record = isRecord(value) ? value : undefined;
   if (!record) return [];
 
-  const statuses = [record.type, record.status, record.state, record.phase, record.result]
+  const nestedStatusType = isRecord(record.status) ? record.status.type : undefined;
+  const statuses = [record.type, record.status, nestedStatusType, record.state, record.phase, record.result]
     .map(normalizedString)
     .filter((candidate): candidate is string => Boolean(candidate));
 

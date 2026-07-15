@@ -49,7 +49,32 @@ const normalizeEventProperties = (input: unknown): EventLike['properties'] | und
   return { ...input, info: normalizeEventInfo(input.info), part: isRecord(input.part) ? input.part : undefined };
 };
 
+const TOP_LEVEL_EVENT_PROPERTY_KEYS = [
+  'id',
+  'sessionID',
+  'session_id',
+  'sessionId',
+  'title',
+  'name',
+  'parentID',
+  'status',
+  'state',
+  'info',
+  'part',
+  'time',
+] as const;
+
+const normalizeTopLevelEventProperties = (input: Record<string, unknown>): EventLike['properties'] => {
+  const properties: Record<string, unknown> = {};
+  for (const key of TOP_LEVEL_EVENT_PROPERTY_KEYS) {
+    if (key in input) properties[key] = input[key];
+  }
+  return normalizeEventProperties(properties) ?? {};
+};
+
 export const normalizeEventPayload = (input: unknown): EventLike | undefined => {
   if (!isRecord(input)) return undefined;
-  return { ...input, properties: normalizeEventProperties(input.properties) };
+  const properties =
+    input.properties === undefined ? normalizeTopLevelEventProperties(input) : normalizeEventProperties(input.properties);
+  return { ...input, properties };
 };

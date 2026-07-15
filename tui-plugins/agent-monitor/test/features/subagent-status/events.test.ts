@@ -463,6 +463,34 @@ describe('events', () => {
     });
   });
 
+  it('applies discriminated busy and retry session.status events as running', () => {
+    const state = seedChildSession();
+
+    expect(
+      applySubagentEvent(state, {
+        type: 'session.status',
+        properties: {
+          sessionID: 'ses_child',
+          status: { type: 'busy' },
+          info: { time: { updated: '2026-06-05T10:01:01.000Z' } },
+        },
+      }),
+    ).toBe(true);
+    expect(state.children.ses_child).toMatchObject({ status: 'running' });
+
+    expect(
+      applySubagentEvent(state, {
+        type: 'session.status',
+        properties: {
+          sessionID: 'ses_child',
+          status: { type: 'retry', attempt: 2 },
+          info: { time: { updated: '2026-06-05T10:01:02.000Z' } },
+        },
+      }),
+    ).toBe(true);
+    expect(state.children.ses_child).toMatchObject({ status: 'running' });
+  });
+
   it('does not reopen a terminal child from stale session.status running evidence', () => {
     const state = seedChildSession();
     state.children.ses_child.status = 'error';
@@ -509,6 +537,24 @@ describe('events', () => {
             completed: DONE_AT,
           },
         },
+      }),
+    ).toBe(true);
+
+    expect(state.children.ses_child).toMatchObject({
+      status: 'done',
+      endedAt: DONE_AT,
+    });
+  });
+
+  it('marks a child done from raw top-level step-finish/stop event fields', () => {
+    const state = seedChildSession();
+
+    expect(
+      applySubagentEvent(state, {
+        type: 'message.part.updated',
+        sessionID: 'ses_child',
+        part: { type: 'step-finish', reason: 'stop' },
+        info: { time: { completed: DONE_AT } },
       }),
     ).toBe(true);
 
@@ -570,6 +616,20 @@ describe('events', () => {
     expect(state.children.ses_child).toMatchObject({
       status: 'running',
     });
+  });
+
+  it('keeps raw top-level step-finish/tool-calls non-terminal', () => {
+    const state = seedChildSession();
+
+    expect(
+      applySubagentEvent(state, {
+        type: 'message.part.updated',
+        sessionID: 'ses_child',
+        part: { type: 'step-finish', reason: 'tool-calls' },
+      }),
+    ).toBe(false);
+
+    expect(state.children.ses_child).toMatchObject({ status: 'running' });
   });
 
   it('preserves failed subtask recency when a later matching task message arrives', () => {
