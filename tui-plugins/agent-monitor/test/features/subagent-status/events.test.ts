@@ -166,6 +166,18 @@ describe('events', () => {
     const state = createEmptyState();
 
     applySubagentEvent(state, {
+      type: 'session.created',
+      properties: {
+        info: {
+          id: 'ses_child_1',
+          parentID: 'ses_parent',
+          title: 'Delegated child',
+          time: { created: '2026-06-04T12:00:00.000Z' },
+        },
+      },
+    });
+
+    applySubagentEvent(state, {
       type: 'message.part.updated',
       properties: {
         sessionID: 'ses_parent',
@@ -211,6 +223,10 @@ describe('events', () => {
     expect(state.children['subtask:part_1']).toMatchObject({
       status: 'done',
       targetSessionID: 'ses_child_1',
+      endedAt: '2026-06-04T12:10:00.000Z',
+    });
+    expect(state.children.ses_child_1).toMatchObject({
+      status: 'done',
       endedAt: '2026-06-04T12:10:00.000Z',
     });
   });

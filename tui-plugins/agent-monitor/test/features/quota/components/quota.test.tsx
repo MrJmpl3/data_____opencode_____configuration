@@ -26,6 +26,7 @@ vi.mock(import('../../../../src/features/quota/ui/components/quota-section.tsx')
 // ---------------------------------------------------------------------------
 
 import { collectProviderLines } from '../../../../src/features/quota/ui/components/quota-section.tsx';
+import { subscribeRefreshTriggers } from '../../../../src/features/quota/runtime.tsx';
 import {
   defaultQuotaSectionOptions,
   resolveVisibleProviderIdsWithDiagnostics,
@@ -207,6 +208,33 @@ describe('collectProviderLines error handling (B3)', () => {
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({ kind: 'detail', text: 'OK', tone: 'neutral' });
     expect(result[1]).toEqual({ kind: 'detail', text: 'Provider failed', tone: 'error' });
+  });
+});
+
+describe('quota refresh trigger orchestration', () => {
+  it('dispatches event names and normalized session ids, then unsubscribes on disposal', () => {
+    const handlers = new Map<string, (payload: unknown) => void>();
+    const unsubscribe = vi.fn();
+    const onDispose = vi.fn<(dispose: () => void) => void>();
+    const onTrigger = vi.fn();
+    const result = subscribeRefreshTriggers({
+      events: {
+        on: (name: string, handler: (payload: unknown) => void) => {
+          handlers.set(name, handler);
+          return unsubscribe;
+        },
+      } as any,
+      lifecycle: { onDispose } as any,
+      eventNames: ['session.idle', 'session.error'],
+      onTrigger,
+    });
+
+    handlers.get('session.idle')?.({ properties: { sessionID: 'ses_123' } });
+    expect(onTrigger).toHaveBeenCalledWith('session.idle', 'ses_123');
+
+    result.unsubscribe();
+    expect(unsubscribe).toHaveBeenCalledTimes(2);
+    expect(onDispose).toHaveBeenCalledWith(expect.any(Function));
   });
 });
 

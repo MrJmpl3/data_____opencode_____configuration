@@ -295,6 +295,32 @@ describe('mergeEventState race guard', () => {
     expect(liveState.children.ses_child).toMatchObject({ status: 'running', updatedAt: '2026-06-05T10:02:00.000Z' });
   });
 
+  it('does not let heuristic stale error overwrite a concurrent terminal event', () => {
+    const liveState = createEmptyState();
+    liveState.children.ses_child = {
+      id: 'ses_child',
+      title: 'Completed child',
+      parentID: 'ses_parent',
+      source: 'session',
+      status: 'done',
+      startedAt: CREATED_AT,
+      updatedAt: '2026-06-05T10:01:00.000Z',
+      endedAt: '2026-06-05T10:01:00.000Z',
+    };
+    const staleState = createEmptyState();
+    staleState.children.ses_child = {
+      ...liveState.children.ses_child,
+      status: 'error',
+      updatedAt: '2026-06-05T10:05:00.000Z',
+      endedAt: '2026-06-05T10:05:00.000Z',
+    };
+
+    expect(mergeRefreshStatus(liveState, createEmptyState(), staleState, new Set(), new Set(['ses_child']))).toBe(
+      false,
+    );
+    expect(liveState.children.ses_child).toMatchObject({ status: 'done', endedAt: '2026-06-05T10:01:00.000Z' });
+  });
+
   it('calls syncState exactly once per event', async () => {
     let liveState: SubagentState = createEmptyState();
     const syncState = vi.fn<SyncStateFn>(async (nextState) => {

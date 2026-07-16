@@ -39,6 +39,7 @@ export const hydrateChildStatusesFromClient = async (
   if (targetsBySessionID.size === 0) return false;
 
   let statusBySessionID: Record<string, unknown> = {};
+  let statusFetchFailed = false;
 
   try {
     statusBySessionID = await sessionClient.readStatusMap();
@@ -48,6 +49,7 @@ export const hydrateChildStatusesFromClient = async (
       e instanceof Error ? e.message : String(e),
     );
     statusBySessionID = {};
+    statusFetchFailed = true;
   }
 
   let changed = false;
@@ -56,6 +58,7 @@ export const hydrateChildStatusesFromClient = async (
   await Promise.all(
     [...targetsBySessionID.entries()].map(async ([sessionId, children]) => {
       const clientSessionStatus = statusBySessionID[sessionId];
+      if (statusFetchFailed) runningEvidenceSessionIDs?.add(sessionId);
       const clientStatus = deriveSessionStatus(clientSessionStatus);
       const blockRunningEvidence = isRecoveryProtectedFromRunning(sessionId, options);
       const clientTerminalStatus = deriveTerminalSessionStatus(clientSessionStatus);
@@ -76,7 +79,17 @@ export const hydrateChildStatusesFromClient = async (
             `[agent-monitor] Failed to read messages for session ${sessionId}:`,
             e instanceof Error ? e.message : String(e),
           );
+          runningEvidenceSessionIDs?.add(sessionId);
           clientActivity = emptyMessageActivity();
+        }
+
+        if (clientActivity.summary.evidence !== 'ambiguous' && clientActivity.summary.status) {
+          for (const child of children) {
+            changed =
+              markChildStatus(state, child.id, clientActivity.summary.status, clientActivity.summary.endedAt) ||
+              changed;
+          }
+          return;
         }
 
         const latestActivityAt =
@@ -100,6 +113,7 @@ export const hydrateChildStatusesFromClient = async (
           `[agent-monitor] Failed to read messages for session ${sessionId}:`,
           e instanceof Error ? e.message : String(e),
         );
+        runningEvidenceSessionIDs?.add(sessionId);
         clientActivity = emptyMessageActivity();
       }
 

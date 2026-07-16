@@ -78,6 +78,7 @@ export const mergeRefreshStatus = (
   baseState: SubagentState,
   refreshState: SubagentState,
   authoritativeTerminalSessionIDs: ReadonlySet<string> = new Set(),
+  heuristicTerminalSessionIDs: ReadonlySet<string> = new Set(),
 ): boolean => {
   let changed = false;
   for (const [id, refreshChild] of Object.entries(refreshState.children)) {
@@ -108,6 +109,8 @@ export const mergeRefreshStatus = (
       isTerminalStatus(refreshChild.status) &&
       authoritativeTerminalSessionIDs.has(refreshChild.targetSessionID ?? refreshChild.id);
     if (isTerminalStatus(refreshChild.status)) {
+      const refreshSessionID = refreshChild.targetSessionID ?? refreshChild.id;
+      if (heuristicTerminalSessionIDs.has(refreshSessionID) && isTerminalStatus(liveChild.status)) continue;
       if (
         !terminalRecovery &&
         liveChild.status !== 'running' &&
@@ -121,13 +124,9 @@ export const mergeRefreshStatus = (
       )
         continue;
       changed =
-        markChildStatus(
-          state,
-          refreshChild.targetSessionID ?? refreshChild.id,
-          refreshChild.status,
-          refreshChild.endedAt ?? refreshChild.updatedAt,
-          { allowOlderTerminalEvidence: terminalRecovery },
-        ) || changed;
+        markChildStatus(state, refreshSessionID, refreshChild.status, refreshChild.endedAt ?? refreshChild.updatedAt, {
+          allowOlderTerminalEvidence: terminalRecovery,
+        }) || changed;
     } else if (
       liveChild.status !== 'running' ||
       childEvidenceTimestampMs(refreshChild) <= childEvidenceTimestampMs(liveChild)
@@ -312,6 +311,7 @@ export const createTuiRuntimeRefresh = (
       const hydrationTargetSessionIDs = [...new Set([...staleRunningProbeTargets, ...apiRunningSessionIDs])];
 
       const runningEvidenceSessionIDs = new Set<string>();
+      const heuristicTerminalSessionIDs = new Set<string>();
       const tuiStatusHydrated = hydrateChildStatusesFromTuiState(
         api,
         nextState,
@@ -333,6 +333,7 @@ export const createTuiRuntimeRefresh = (
         {
           authoritativeSessionIDs,
           runningEvidenceSessionIDs,
+          heuristicTerminalSessionIDs,
           policy: input.staleRunningProbePolicy,
           nowMs: Date.now(),
         },
@@ -360,6 +361,7 @@ export const createTuiRuntimeRefresh = (
             baseStateAtCloneTime,
             nextState,
             protectedRecoverySessionIDs,
+            heuristicTerminalSessionIDs,
           );
           mergedState.recovering = false;
           nextState = undefined;

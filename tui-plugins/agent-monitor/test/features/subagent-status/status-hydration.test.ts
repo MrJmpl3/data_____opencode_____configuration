@@ -897,6 +897,40 @@ describe('characterization: shared hydration logic (pre-refactor baseline)', () 
     });
   });
 
+  it('prefers newer explicit message completion over a stale client running status', async () => {
+    const state = createEmptyState();
+    state.children.ses_child = { ...baseChild };
+
+    const changed = await hydrateChildStatusesFromClient(
+      createApi({
+        clientStatus: { ses_child: { type: 'busy' } },
+        clientMessages: [{ type: 'completed', time: { completed: '2026-06-04T12:02:00.000Z' } }],
+      }),
+      state,
+      ['ses_child'],
+    );
+
+    expect(changed).toBe(true);
+    expect(state.children.ses_child).toMatchObject({
+      status: 'done',
+      endedAt: '2026-06-04T12:02:00.000Z',
+      updatedAt: '2026-06-04T12:02:00.000Z',
+    });
+  });
+
+  it('protects stale settlement when client status fetch fails', async () => {
+    const state = createEmptyState();
+    state.children.ses_child = { ...baseChild };
+    const runningEvidence = new Set<string>();
+    const api = createApi({});
+    vi.mocked(api.client.session.status).mockRejectedValueOnce(new Error('temporary failure'));
+
+    await hydrateChildStatusesFromClient(api, state, ['ses_child'], runningEvidence);
+
+    expect(runningEvidence.has('ses_child')).toBe(true);
+    expect(state.children.ses_child.status).toBe('running');
+  });
+
   /**
    * Scenario 3: Terminal via terminal session status (no message needed).
    * TUI: status === 'error' takes early error path. Client: falls through to nextStatus.

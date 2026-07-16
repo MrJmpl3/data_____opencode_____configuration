@@ -102,6 +102,7 @@ export const resolveStaleRunningProbeTargets = (
 export type SettleStaleProbeContext = {
   authoritativeSessionIDs: ReadonlySet<string>;
   runningEvidenceSessionIDs: ReadonlySet<string>;
+  heuristicTerminalSessionIDs?: Set<string>;
   policy: StaleRunningProbePolicy;
   nowMs: number;
 };
@@ -112,7 +113,7 @@ export const settleStaleRunningProbeTargets = (
   sessionIds: string[],
   context: SettleStaleProbeContext,
 ): boolean => {
-  const { authoritativeSessionIDs, runningEvidenceSessionIDs, policy, nowMs } = context;
+  const { authoritativeSessionIDs, runningEvidenceSessionIDs, heuristicTerminalSessionIDs, policy, nowMs } = context;
   let changed = false;
 
   for (const sessionId of sessionIds) {
@@ -151,6 +152,7 @@ export const settleStaleRunningProbeTargets = (
       const marked = markChildStatus(state, child.id, 'error', errorAt);
 
       if (marked) {
+        heuristicTerminalSessionIDs?.add(sessionId);
         probeStateBySessionId.delete(sessionId);
         changed = true;
         continue;

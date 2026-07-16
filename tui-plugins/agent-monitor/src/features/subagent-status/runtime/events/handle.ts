@@ -171,6 +171,10 @@ const handleMessagePartUpdated = (state: SubagentState, event: EventLike): boole
     return changed;
   }
 
+  if (targetSessionID) {
+    changed = markChildStatus(state, targetSessionID, tool.status, tool.endedAt ?? tool.updatedAt) || changed;
+  }
+
   const subtaskID = mapTaskToolToSubtaskID(state, {
     parentID: tool.parentID,
     messageID: tool.messageID,
