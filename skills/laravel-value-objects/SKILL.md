@@ -11,8 +11,7 @@ Value objects are **simple, immutable objects** representing domain concepts.
 
 **Related guides:**
 
-- [DTOs](../laravel-dtos/SKILL.md) - DTOs are for data transfer, value objects for domain
-  concepts
+- [DTOs](../laravel-dtos/SKILL.md) - DTOs are for data transfer, value objects for domain concepts
 
 ## When to Use
 

@@ -270,8 +270,8 @@ patterns**
 - Can change freely
 - Private contract
 
-**See [structure.md](structure.md) and [Controllers](../../laravel-controllers/SKILL.md) for
-routing details**
+**See [structure.md](structure.md) and [Controllers](../../laravel-controllers/SKILL.md) for routing
+details**
 
 ## Namespace Organization
 

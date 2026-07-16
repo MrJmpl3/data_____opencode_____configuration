@@ -9,8 +9,8 @@ Complete project organization following action-oriented architecture.
 - [Controllers](../../laravel-controllers/SKILL.md) - HTTP layer organization
 - [Models](../../laravel-models/SKILL.md) - Model structure and custom builders
 - [Multi-tenancy](../../laravel-multi-tenancy/SKILL.md) - Multi-tenant directory organization
-- [validation-testing.md](../../laravel-validation/references/validation-testing.md) - Test
-  datasets for validation testing
+- [validation-testing.md](../../laravel-validation/references/validation-testing.md) - Test datasets
+  for validation testing
 
 ## Full Structure Created
 

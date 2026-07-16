@@ -2,8 +2,6 @@
   "$schema": "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json",
   "agents": {
     "review-readability": {
-      "mcps": [],
-      "model": "openai/gpt-5.6-sol",
       "orchestratorPrompt": "@review-readability\n- Role: Read-only maintainability reviewer.\n- Delegate when: reviewing naming, complexity, duplication, dead code, contracts, or structural clarity.\n- Do not delegate for: a mechanical one-line change unless its intent is ambiguous.",
       "permission": {
         "bash": "allow",
@@ -14,13 +12,9 @@
         "read": "allow",
         "task": "deny"
       },
-      "prompt": "You are R2 Readability, a read-only reviewer. Review the supplied diff and relevant context for concrete maintainability defects: obscured intent, misleading naming, unnecessary complexity, duplication, dead code, unclear contracts, and review-hostile structure. Do not modify files and do not delegate. Do not report personal style preferences. Report only findings you can defend with code evidence and concrete maintenance impact. Emit one row per finding: id R2-NNN, lens readability, location, severity BLOCKER | CRITICAL | WARNING | SUGGESTION, and evidence. If clean, say exactly: No findings.",
-      "skills": [],
-      "variant": "high"
+      "prompt": "You are R2 Readability, a read-only reviewer. Review the supplied diff and relevant context for concrete maintainability defects: obscured intent, misleading naming, unnecessary complexity, duplication, dead code, unclear contracts, and review-hostile structure. Do not modify files and do not delegate. Do not report personal style preferences. Report only findings you can defend with code evidence and concrete maintenance impact. Emit one row per finding: id R2-NNN, lens readability, location, severity BLOCKER | CRITICAL | WARNING | SUGGESTION, and evidence. If clean, say exactly: No findings."
     },
     "review-refuter": {
-      "mcps": [],
-      "model": "openai/gpt-5.6-sol",
       "orchestratorPrompt": "@review-refuter\n- Role: Adversarial validator of consolidated BLOCKER and CRITICAL review findings.\n- Delegate only after one or more reviewers report a BLOCKER or CRITICAL finding; provide the complete consolidated finding list.\n- Treat missing or malformed verdicts as stands.",
       "permission": {
         "bash": "deny",
@@ -31,13 +25,9 @@
         "read": "allow",
         "task": "deny"
       },
-      "prompt": "You are a read-only review refuter. You receive a consolidated list of BLOCKER and CRITICAL findings with IDs, locations, summaries, and evidence. Do not modify files, do not delegate, and do not introduce new findings. Test every supplied finding against the code and return a verdict for each: refuted or stands, with concrete evidence. Default inconclusive findings to stands; never omit a finding.",
-      "skills": [],
-      "variant": "high"
+      "prompt": "You are a read-only review refuter. You receive a consolidated list of BLOCKER and CRITICAL findings with IDs, locations, summaries, and evidence. Do not modify files, do not delegate, and do not introduce new findings. Test every supplied finding against the code and return a verdict for each: refuted or stands, with concrete evidence. Default inconclusive findings to stands; never omit a finding."
     },
     "review-reliability": {
-      "mcps": [],
-      "model": "openai/gpt-5.6-sol",
       "orchestratorPrompt": "@review-reliability\n- Role: Read-only behavior and regression reviewer.\n- Delegate when: behavior, tests, contracts, error paths, async logic, or regressions are at risk.\n- Do not delegate for: documentation-only or whitespace-only changes.",
       "permission": {
         "bash": "allow",
@@ -48,13 +38,9 @@
         "read": "allow",
         "task": "deny"
       },
-      "prompt": "You are R3 Reliability, a read-only reviewer. Review the supplied diff and relevant call paths for concrete behavior and regression risks: broken contracts, missing high-value tests, invalid or boundary inputs, failure paths, nondeterminism, unsafe async behavior, and regressions. Do not modify files and do not delegate. Report only findings you can defend with code evidence and user impact. Emit one row per finding: id R3-NNN, lens reliability, location, severity BLOCKER | CRITICAL | WARNING | SUGGESTION, and evidence. If clean, say exactly: No findings.",
-      "skills": [],
-      "variant": "high"
+      "prompt": "You are R3 Reliability, a read-only reviewer. Review the supplied diff and relevant call paths for concrete behavior and regression risks: broken contracts, missing high-value tests, invalid or boundary inputs, failure paths, nondeterminism, unsafe async behavior, and regressions. Do not modify files and do not delegate. Report only findings you can defend with code evidence and user impact. Emit one row per finding: id R3-NNN, lens reliability, location, severity BLOCKER | CRITICAL | WARNING | SUGGESTION, and evidence. If clean, say exactly: No findings."
     },
     "review-resilience": {
-      "mcps": [],
-      "model": "openai/gpt-5.6-sol",
       "orchestratorPrompt": "@review-resilience\n- Role: Read-only operational-failure reviewer.\n- Delegate when: retries, fallbacks, recovery, observability, rollback, load, or performance behavior changes.\n- Do not delegate for: isolated pure logic with no operational boundary.",
       "permission": {
         "bash": "allow",
@@ -65,13 +51,9 @@
         "read": "allow",
         "task": "deny"
       },
-      "prompt": "You are R4 Resilience, a read-only reviewer. Review the supplied diff and relevant operational context for concrete failure-mode risks: missing retries or fallbacks where needed, unsafe partial failure, unrecoverable state, missing observability, rollback gaps, capacity risks, and user-visible performance regressions. Do not modify files and do not delegate. Do not invent SLOs or generic hypothetical risks. Report only findings you can defend with code evidence and user impact. Emit one row per finding: id R4-NNN, lens resilience, location, severity BLOCKER | CRITICAL | WARNING | SUGGESTION, and evidence. If clean, say exactly: No findings.",
-      "skills": [],
-      "variant": "high"
+      "prompt": "You are R4 Resilience, a read-only reviewer. Review the supplied diff and relevant operational context for concrete failure-mode risks: missing retries or fallbacks where needed, unsafe partial failure, unrecoverable state, missing observability, rollback gaps, capacity risks, and user-visible performance regressions. Do not modify files and do not delegate. Do not invent SLOs or generic hypothetical risks. Report only findings you can defend with code evidence and user impact. Emit one row per finding: id R4-NNN, lens resilience, location, severity BLOCKER | CRITICAL | WARNING | SUGGESTION, and evidence. If clean, say exactly: No findings."
     },
     "review-risk": {
-      "mcps": [],
-      "model": "openai/gpt-5.6-sol",
       "orchestratorPrompt": "@review-risk\n- Role: Read-only security reviewer.\n- Delegate when: auth, permissions, secrets, data exposure, dependency, or security-sensitive changes are involved.\n- Do not delegate for: ordinary formatting, UI polish, or unrelated maintenance.",
       "permission": {
         "bash": "allow",
@@ -82,137 +64,170 @@
         "read": "allow",
         "task": "deny"
       },
-      "prompt": "You are R1 Risk, a read-only reviewer. Review the supplied diff and relevant call paths for concrete security defects: authorization and privilege boundaries, secrets, unsafe data exposure, injection, authentication and session handling, and evidence-backed dependency risks. Do not modify files and do not delegate. Report only findings you can defend with code evidence and user impact. Emit one row per finding: id R1-NNN, lens risk, location, severity BLOCKER | CRITICAL | WARNING | SUGGESTION, and evidence. If clean, say exactly: No findings.",
-      "skills": [],
-      "variant": "high"
+      "prompt": "You are R1 Risk, a read-only reviewer. Review the supplied diff and relevant call paths for concrete security defects: authorization and privilege boundaries, secrets, unsafe data exposure, injection, authentication and session handling, and evidence-backed dependency risks. Do not modify files and do not delegate. Report only findings you can defend with code evidence and user impact. Emit one row per finding: id R1-NNN, lens risk, location, severity BLOCKER | CRITICAL | WARNING | SUGGESTION, and evidence. If clean, say exactly: No findings."
+    },
+    "skeptic": {
+      "orchestratorPrompt": "Delegate to @skeptic when: the user proposes a new project, feature, or direction with enthusiasm; when an architectural bet precedes implementation; or when assumptions seem to be accelerating faster than verification. Not for: routine debugging, factual queries, or executing approved plans.",
+      "permission": {
+        "bash": "allow",
+        "edit": "deny",
+        "glob": "allow",
+        "grep": "allow",
+        "list": "allow",
+        "read": "allow",
+        "task": "deny"
+      },
+      "prompt": "You are a structured critic. You aren't here to tear things down for sport — you make ideas prove they can survive contact with reality before they earn the greenlight. Before rendering any verdict, you always complete this protocol in order:\n\n1. **Restate** the idea or proposal in its strongest form — steel-man it. If you can't make it sound compelling, you haven't understood it yet.\n\n2. **Failure conditions** — list 2-4 concrete scenarios under which this fails, stalls, or isn't worth pursuing. Reference specific assumptions, edge cases, or implicit bets the proposal is making.\n\n3. **Effort realism** — estimate realistic effort versus what's being assumed. People are systematically optimistic here. Look for the 'three weeks pretending to be three days' pattern. What hidden costs are being ignored? (Setup, onboarding, maintenance, context-switching.)\n\n4. **Required conditions** — what would need to be true for this to succeed? Which of those can be validated cheaply right now? This isn't about belief — it's about testable hypotheses.\n\n5. **Verdict and next step** — based on the above, is this worth pursuing? What's the single most useful thing to do next?\n\nDo not skip steps. Do not disagree for its own sake — if the idea is genuinely sound, say so, but only after completing steps 1-4. Use concrete scenarios and assumptions, not abstract criticism."
     }
   },
-  "preset": "openai",
+  "preset": "mrjmpl3",
+  "disabled_agents": [],
   "presets": {
     "openai": {
       "designer": {
-        "mcps": [],
+        "mcps": ["*"],
         "model": "openai/gpt-5.6-luna",
-        "skills": [],
+        "skills": ["*"],
         "variant": "medium"
       },
       "explorer": {
-        "mcps": [],
+        "mcps": ["*"],
         "model": "openai/gpt-5.6-luna",
-        "skills": [],
+        "skills": ["*"],
         "variant": "low"
       },
       "fixer": {
-        "mcps": [],
+        "mcps": ["*"],
         "model": "openai/gpt-5.6-luna",
-        "skills": [],
+        "skills": ["*"],
         "variant": "medium"
       },
       "librarian": {
-        "mcps": ["websearch", "context7", "gh_grep"],
+        "mcps": ["*"],
         "model": "openai/gpt-5.6-luna",
-        "skills": [],
+        "skills": ["*"],
         "variant": "low"
       },
       "oracle": {
-        "mcps": [],
+        "mcps": ["*"],
         "model": "openai/gpt-5.6-sol",
-        "skills": ["simplify"],
+        "skills": ["*"],
         "variant": "high"
       },
       "orchestrator": {
-        "mcps": ["*", "!context7"],
+        "mcps": ["*"],
         "model": "openai/gpt-5.6-terra",
         "skills": ["*"],
         "variant": "medium"
-      }
-    },
-    "opencode-go": {
-      "designer": {
-        "mcps": [],
-        "model": "opencode-go/kimi-k2.7-code",
-        "skills": [],
-        "variant": "medium"
       },
-      "explorer": {
-        "mcps": [],
-        "model": "opencode-go/deepseek-v4-flash",
-        "skills": []
-      },
-      "fixer": {
-        "mcps": [],
-        "model": "opencode-go/deepseek-v4-flash",
-        "skills": [],
-        "variant": "high"
-      },
-      "librarian": {
-        "mcps": ["websearch", "context7", "gh_grep"],
-        "model": "opencode-go/deepseek-v4-flash",
-        "skills": []
-      },
-      "observer": {
-        "mcps": [],
-        "model": "opencode-go/kimi-k2.6",
-        "skills": []
-      },
-      "oracle": {
-        "mcps": [],
-        "model": "opencode-go/qwen3.7-max",
-        "skills": ["simplify"],
-        "variant": "max"
-      },
-      "orchestrator": {
-        "mcps": ["*", "!context7"],
-        "model": "opencode-go/glm-5.2",
-        "skills": ["*"]
-      }
-    },
-    "opencode-zen-free": {
-      "designer": {
-        "mcps": [],
-        "model": "opencode/mimo-v2.5-free",
-        "skills": [],
-        "temperature": 0.3,
-        "variant": "medium"
-      },
-      "explorer": {
-        "mcps": [],
-        "model": "opencode/north-mini-code-free",
-        "skills": [],
-        "temperature": 0.2
-      },
-      "fixer": {
-        "mcps": [],
-        "model": "opencode/deepseek-v4-flash-free",
-        "skills": [],
-        "temperature": 0.2,
-        "variant": "high"
-      },
-      "librarian": {
-        "mcps": ["websearch", "context7", "gh_grep"],
-        "model": "opencode/deepseek-v4-flash-free",
-        "skills": [],
-        "temperature": 0.2
-      },
-      "observer": {
-        "mcps": [],
-        "model": "opencode/mimo-v2.5-free",
-        "skills": [],
-        "temperature": 0.2,
-        "variant": "low"
-      },
-      "oracle": {
-        "mcps": [],
-        "model": "opencode/big-pickle",
-        "skills": ["simplify"],
-        "temperature": 0.4,
-        "variant": "max"
-      },
-      "orchestrator": {
-        "mcps": ["*", "!context7"],
-        "model": "opencode/hy3-free",
+      "review-readability": {
+        "mcps": ["*"],
+        "model": "openai/gpt-5.6-sol",
         "skills": ["*"],
-        "temperature": 0.4
+        "variant": "high"
+      },
+      "review-refuter": {
+        "mcps": ["*"],
+        "model": "openai/gpt-5.6-sol",
+        "skills": ["*"],
+        "variant": "high"
+      },
+      "review-reliability": {
+        "mcps": ["*"],
+        "model": "openai/gpt-5.6-sol",
+        "skills": ["*"],
+        "variant": "high"
+      },
+      "review-resilience": {
+        "mcps": ["*"],
+        "model": "openai/gpt-5.6-sol",
+        "skills": ["*"],
+        "variant": "high"
+      },
+      "review-risk": {
+        "mcps": ["*"],
+        "model": "openai/gpt-5.6-sol",
+        "skills": ["*"],
+        "variant": "high"
+      },
+      "skeptic": {
+        "mcps": ["*"],
+        "model": "openai/gpt-5.6-sol",
+        "skills": ["*"],
+        "variant": "high"
+      }
+    },
+    "mrjmpl3": {
+      "designer": {
+        "mcps": ["*"],
+        "model": "ollama/kimi-k2.6",
+        "skills": ["*"]
+      },
+      "explorer": {
+        "mcps": ["*"],
+        "model": "ollama/qwen3.5",
+        "skills": ["*"]
+      },
+      "fixer": {
+        "mcps": ["*"],
+        "model": "ollama/glm-5.2",
+        "skills": ["*"]
+      },
+      "librarian": {
+        "mcps": ["*"],
+        "model": "opencode-go/deepseek-v4-flash",
+        "skills": ["*"],
+        "variant": "max"
+      },
+      "observer": {
+        "mcps": ["*"],
+        "model": "opencode-go/deepseek-v4-flash",
+        "skills": ["*"],
+        "variant": "max"
+      },
+      "oracle": {
+        "mcps": ["*"],
+        "model": "ollama/qwen3.5",
+        "skills": ["*"]
+      },
+      "orchestrator": {
+        "mcps": ["*"],
+        "model": "opencode-go/qwen3.7-plus",
+        "skills": ["*"],
+        "variant": "max"
+      },
+      "review-readability": {
+        "mcps": ["*"],
+        "model": "ollama/qwen3.5",
+        "skills": ["*"]
+      },
+      "review-refuter": {
+        "mcps": ["*"],
+        "model": "opencode-go/deepseek-v4-flash",
+        "skills": ["*"],
+        "variant": "max"
+      },
+      "review-reliability": {
+        "mcps": ["*"],
+        "model": "ollama/glm-5.2",
+        "skills": ["*"]
+      },
+      "review-resilience": {
+        "mcps": ["*"],
+        "model": "ollama/minimax-m3",
+        "skills": ["*"]
+      },
+      "review-risk": {
+        "mcps": ["*"],
+        "model": "opencode-go/deepseek-v4-flash",
+        "skills": ["*"],
+        "variant": "max"
+      },
+      "skeptic": {
+        "mcps": ["*"],
+        "model": "opencode-go/deepseek-v4-flash",
+        "skills": ["*"],
+        "variant": "max"
       }
     }
   }

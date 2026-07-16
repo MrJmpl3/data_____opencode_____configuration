@@ -6,8 +6,7 @@ Routes define the HTTP interface. Authorization happens at the route level using
 
 - [Controllers](../../laravel-controllers/SKILL.md) - Controllers handle routes
 - [Policies](../../laravel-policies/SKILL.md) - Policies define authorization logic
-- [structure.md](../../laravel-architecture/references/structure.md) - Web vs API routing
-  structure
+- [structure.md](../../laravel-architecture/references/structure.md) - Web vs API routing structure
 - [bootstrap-booters.md](../../laravel-providers/references/bootstrap-booters.md) - Route
   configuration in bootstrap
 
@@ -152,8 +151,8 @@ Route::prefix('v1')->name('api.v1.')->group(base_path('routes/api/v1.php'));
 Route::prefix('v2')->name('api.v2.')->group(base_path('routes/api/v2.php'));
 ```
 
-See [bootstrap-booters.md](../../laravel-providers/references/bootstrap-booters.md) for
-bootstrap configuration.
+See [bootstrap-booters.md](../../laravel-providers/references/bootstrap-booters.md) for bootstrap
+configuration.
 
 ## Web vs API Differences
 

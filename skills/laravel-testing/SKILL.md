@@ -15,8 +15,8 @@ Testing patterns with Pest: Arrange-Act-Assert, proper mocking, null drivers, de
   ordering
 - [testing-factories.md](references/testing-factories.md) - Declarative factory methods for readable
   tests
-- [validation-testing.md](../laravel-validation/references/validation-testing.md) - Form
-  request validation testing
+- [validation-testing.md](../laravel-validation/references/validation-testing.md) - Form request
+  validation testing
 - [Actions](../laravel-actions/SKILL.md) - Action pattern for unit testing
 - [Controllers](../laravel-controllers/SKILL.md) - Controller patterns for feature testing
 - [DTOs](../laravel-dtos/SKILL.md) - DTO test factories

@@ -118,8 +118,8 @@ database/
 
 **See [DTOs](../../laravel-dtos/SKILL.md) for complete factory examples.**
 
-See [route-binding.md](../../laravel-routing/references/route-binding.md) for route model
-binding configuration including the ConditionalRouteBinder pattern.
+See [route-binding.md](../../laravel-routing/references/route-binding.md) for route model binding
+configuration including the ConditionalRouteBinder pattern.
 
 ## Morph Maps (Required)
 

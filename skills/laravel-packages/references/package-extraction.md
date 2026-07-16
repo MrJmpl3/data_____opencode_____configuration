@@ -7,8 +7,8 @@ guide covers when to extract, how to structure packages, and best practices for 
 
 - [Actions](../../laravel-actions/SKILL.md) - Action pattern for package base classes
 - [DTOs](../../laravel-dtos/SKILL.md) - DTO patterns for package data structures
-- [service-providers.md](../../laravel-providers/references/service-providers.md) - Service
-  provider structure for packages
+- [service-providers.md](../../laravel-providers/references/service-providers.md) - Service provider
+  structure for packages
 - [code-style.md](../../laravel-quality/references/code-style.md) - Code style for package
   consistency
 
@@ -562,7 +562,7 @@ Follow [SemVer](https://semver.org/) strictly:
 **See also:**
 
 - [Actions](../../laravel-actions/SKILL.md) - Action pattern for base classes
-- [service-providers.md](../../laravel-providers/references/service-providers.md) - Service
-  provider structure
+- [service-providers.md](../../laravel-providers/references/service-providers.md) - Service provider
+  structure
 - [code-style.md](../../laravel-quality/references/code-style.md) - Code style guidelines
 - [Quality](../../laravel-quality/SKILL.md) - Testing and quality standards
