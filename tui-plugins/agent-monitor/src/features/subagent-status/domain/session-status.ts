@@ -24,8 +24,6 @@ const ERROR_SESSION_STATUS_VALUES = new Set([
   'aborted',
   'abandoned',
   'orphaned',
-  'stale',
-  'zombie',
 ]);
 
 const collectSessionStatusValues = (value: unknown): string[] => {

@@ -25,7 +25,7 @@ describe('reconcile', () => {
     expect(children[0]?.tokens?.total).toBe(123);
   });
 
-  it('treats idle snapshot status as running with undefined endedAt', () => {
+  it('ignores statusless idle inventory snapshots', () => {
     const children = normalizeChildrenResponse({
       data: [
         {
@@ -41,10 +41,7 @@ describe('reconcile', () => {
       ],
     });
 
-    expect(children[0]?.startedAt).toBe('2024-06-04T12:00:00.000Z');
-    expect(children[0]?.updatedAt).toBe('2024-06-04T12:01:00.000Z');
-    expect(children[0]?.endedAt).toBeUndefined();
-    expect(children[0]?.status).toBe('running');
+    expect(children).toHaveLength(0);
   });
 
   it('reconciles child snapshots without rewriting identical state', () => {

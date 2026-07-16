@@ -625,10 +625,10 @@ describe('state', () => {
       endedAt: '2026-06-04T12:00:00.000Z',
     };
 
-    expect(markChildStatus(state, 'ses_child', 'error', '2026-06-04T12:00:00.000Z')).toBe(true);
+    expect(markChildStatus(state, 'ses_child', 'error', '2026-06-04T12:00:00.000Z')).toBe(false);
     expect(state.children.ses_child).toMatchObject({
-      status: 'error',
-      color: 'red',
+      status: 'done',
+      color: 'green',
       updatedAt: '2026-06-04T12:00:00.000Z',
       endedAt: '2026-06-04T12:00:00.000Z',
     });
@@ -782,12 +782,12 @@ describe('state', () => {
       endedAt: '2026-06-04T12:00:00.000Z',
     };
 
-    expect(markChildStatus(state, 'ses_child', 'done', '2026-06-04T12:01:00.000Z')).toBe(true);
+    expect(markChildStatus(state, 'ses_child', 'done', '2026-06-04T12:01:00.000Z')).toBe(false);
     expect(state.children.ses_child).toMatchObject({
-      status: 'done',
-      color: 'green',
-      updatedAt: '2026-06-04T12:01:00.000Z',
-      endedAt: '2026-06-04T12:01:00.000Z',
+      status: 'error',
+      color: 'red',
+      updatedAt: '2026-06-04T12:00:00.000Z',
+      endedAt: '2026-06-04T12:00:00.000Z',
     });
   });
 

@@ -146,10 +146,10 @@ export const settleStaleRunningProbeTargets = (
       (!hasRunningEvidence && !hasAuthoritativePresenceGuard && missingRunningEvidenceAttempts >= policy.maxAttempts)
     ) {
       console.warn(
-        `[agent-monitor] stale-probe: marking ${sessionId} as error (hardStale=${hasExceededHardStaleAge} inactiveThreshold=${hasExceededInactiveThreshold} runningEvidence=${hasRunningEvidence} authGuard=${hasAuthoritativePresenceGuard} missingAttempts=${missingRunningEvidenceAttempts})`,
+        `[agent-monitor] stale-probe: marking ${sessionId} as stale (hardStale=${hasExceededHardStaleAge} inactiveThreshold=${hasExceededInactiveThreshold} runningEvidence=${hasRunningEvidence} authGuard=${hasAuthoritativePresenceGuard} missingAttempts=${missingRunningEvidenceAttempts})`,
       );
       const errorAt = new Date(Math.max(nowMs, childEvidenceMs)).toISOString();
-      const marked = markChildStatus(state, child.id, 'error', errorAt);
+      const marked = markChildStatus(state, child.id, 'stale', errorAt);
 
       if (marked) {
         heuristicTerminalSessionIDs?.add(sessionId);

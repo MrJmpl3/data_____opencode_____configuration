@@ -35,6 +35,31 @@ const seedChildSession = () => {
 };
 
 describe('events', () => {
+  it('does not close an active child from a completed background task wrapper', () => {
+    const state = seedChildSession();
+
+    applySubagentEvent(state, {
+      type: 'message.part.updated',
+      properties: {
+        sessionID: 'ses_parent',
+        part: {
+          type: 'tool',
+          tool: 'task',
+          id: 'task_background',
+          sessionID: 'ses_parent',
+          messageID: 'msg_background',
+          state: {
+            status: 'completed',
+            input: { background: true },
+            metadata: { sessionId: 'ses_child' },
+          },
+        },
+      },
+    });
+
+    expect(state.children.ses_child.status).toBe('running');
+  });
+
   it('parses subtask events and keeps completed task tool evidence non-terminal', () => {
     const state = createEmptyState();
 
@@ -279,7 +304,7 @@ describe('events', () => {
     });
   });
 
-  it('keeps an existing child running when only session.idle arrives', () => {
+  it('completes a known active child when session.idle arrives', () => {
     const state = seedChildSession();
 
     applySubagentEvent(state, {
@@ -296,26 +321,14 @@ describe('events', () => {
     });
 
     expect(state.children.ses_child).toMatchObject({
-      status: 'running',
-      updatedAt: CREATED_AT,
+      status: 'done',
+      updatedAt: IDLE_AT,
     });
-    expect(state.children.ses_child?.endedAt).toBeUndefined();
+    expect(state.children.ses_child?.endedAt).toBe(IDLE_AT);
   });
 
-  it('marks an idle child done only after explicit session.status completion evidence arrives', () => {
+  it('marks a child done from explicit completion evidence', () => {
     const state = seedChildSession();
-
-    applySubagentEvent(state, {
-      type: 'session.idle',
-      properties: {
-        sessionID: 'ses_child',
-        info: {
-          time: {
-            updated: IDLE_AT,
-          },
-        },
-      },
-    });
 
     expect(
       applySubagentEvent(state, {

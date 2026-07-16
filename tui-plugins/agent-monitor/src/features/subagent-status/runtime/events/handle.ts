@@ -11,7 +11,12 @@ import {
   extractOpenCodeEventSessionStatus,
   extractSessionId,
 } from './extract.ts';
-import { extractCreatedChild, extractSubtaskChild, extractToolChild } from './extract-child.ts';
+import {
+  extractCreatedChild,
+  extractSubtaskChild,
+  extractTaskToolEvidence,
+  extractToolChild,
+} from './extract-child.ts';
 import { mapTaskToolToSubtaskID, resolveSyntheticTargetSessionID } from './resolve.ts';
 
 // Event types that can actually mutate SubagentState. Used by mergeEventState
@@ -81,7 +86,19 @@ const handleSessionIdle = (state: SubagentState, event: EventLike): boolean => {
     return handleSessionStatus(state, event);
   }
 
-  return upsertChildDetails(state, sessionId, extractChildDetails(event));
+  const existing = Object.values(state.children).find(
+    (child) => (child.id === sessionId || child.targetSessionID === sessionId) && child.status === 'running',
+  );
+  const completed = existing
+    ? markChildStatus(
+        state,
+        sessionId,
+        'done',
+        extractEventTimestamp(event, ['completed', 'end', 'ended', 'updated', 'created']) ?? existing.updatedAt,
+      )
+    : false;
+
+  return upsertChildDetails(state, sessionId, extractChildDetails(event)) || completed;
 };
 
 const handleSessionStatus = (state: SubagentState, event: EventLike): boolean => {
@@ -102,6 +119,7 @@ const handleSessionStatus = (state: SubagentState, event: EventLike): boolean =>
           sessionId,
           status,
           extractEventTimestamp(event, ['completed', 'end', 'ended', 'updated', 'created', 'started']),
+          { allowTerminalOverride: status === 'error' },
         );
 
   return upsertChildDetails(state, sessionId, details) || changed;
@@ -170,6 +188,8 @@ const handleMessagePartUpdated = (state: SubagentState, event: EventLike): boole
   if (asString(event.properties?.part?.tool) !== 'task' || (tool.status !== 'done' && tool.status !== 'error')) {
     return changed;
   }
+
+  if (extractTaskToolEvidence(event)?.background) return changed;
 
   if (targetSessionID) {
     changed = markChildStatus(state, targetSessionID, tool.status, tool.endedAt ?? tool.updatedAt) || changed;

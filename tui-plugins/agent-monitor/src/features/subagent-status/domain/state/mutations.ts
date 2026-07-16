@@ -249,7 +249,7 @@ export const markChildStatus = (
   childID: string,
   status: Exclude<SubagentChild['status'], 'running'>,
   endedAt?: string,
-  options: { allowOlderTerminalEvidence?: boolean } = {},
+  options: { allowOlderTerminalEvidence?: boolean; allowTerminalOverride?: boolean } = {},
 ): boolean => {
   let changed = false;
   const resolvedEndedAt = safeTimestamp(endedAt, new Date().toISOString());
@@ -257,16 +257,13 @@ export const markChildStatus = (
 
   for (const child of Object.values(state.children)) {
     if (child.id !== childID && child.targetSessionID !== childID) continue;
+    if (isTerminalStatus(child.status) && !options.allowTerminalOverride) continue;
     if (
       nextEvidenceMs < childEvidenceTimestampMs(child) &&
       !(options.allowOlderTerminalEvidence === true && child.status === 'running')
     ) {
       continue;
     }
-    if (child.status === status) {
-      continue;
-    }
-
     clearPurgedSession(state, resolveSessionIdentity(child) ?? childID);
 
     state.children[child.id] = normalizeChild(

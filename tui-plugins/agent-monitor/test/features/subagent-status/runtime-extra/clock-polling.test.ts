@@ -30,6 +30,19 @@ describe('runtime timers', () => {
     expect(onTick).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps scheduling while inactive and resumes on the next boundary', () => {
+    const [active, setActive] = createSignal(false);
+    const onTick = vi.fn();
+    const dispose = useClockTicker({ active, intervalMs: 1000, onTick });
+
+    vi.advanceTimersByTime(1000);
+    expect(onTick).not.toHaveBeenCalled();
+    setActive(true);
+    vi.advanceTimersByTime(1000);
+    expect(onTick).toHaveBeenCalled();
+    dispose();
+  });
+
   it('polls only while active and releases the interval with Solid cleanup', () => {
     const refetch = vi.fn();
     let setActive!: (value: boolean) => void;

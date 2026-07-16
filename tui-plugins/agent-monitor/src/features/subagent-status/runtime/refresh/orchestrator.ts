@@ -33,6 +33,7 @@ import {
   type StaleRunningProbeState,
 } from './stale.ts';
 import { createTokenBackfillRunner } from './token-backfill.ts';
+import { analyzeParentTaskMessages, applyParentTaskEvidence } from './parent-task.ts';
 import type { StaleRunningProbePolicy } from '../options.ts';
 
 type RuntimeSessionScopeHelpers = ReturnType<typeof createRuntimeSessionScopeHelpers>;
@@ -326,6 +327,20 @@ export const createTuiRuntimeRefresh = (
         runningEvidenceSessionIDs,
         { terminalRecoverySessionIDs },
       );
+      let parentTaskHydrated = false;
+      try {
+        parentTaskHydrated = applyParentTaskEvidence(
+          nextState,
+          analyzeParentTaskMessages(await sessionClient.readMessages(sessionId), sessionId),
+        );
+      } catch (e) {
+        console.warn(
+          '[agent-monitor] Failed to read parent task messages — sessionId=',
+          sessionId,
+          ':',
+          e instanceof Error ? e : String(e),
+        );
+      }
       const staleRunningSettled = settleStaleRunningProbeTargets(
         nextState,
         input.staleRunningProbeStateBySessionId,
@@ -352,6 +367,7 @@ export const createTuiRuntimeRefresh = (
           changed ||
           tuiStatusHydrated ||
           clientStatusHydrated ||
+          parentTaskHydrated ||
           staleRunningSettled ||
           pruned
         ) {
@@ -371,6 +387,7 @@ export const createTuiRuntimeRefresh = (
             changed ||
             tuiStatusHydrated ||
             clientStatusHydrated ||
+            parentTaskHydrated ||
             staleRunningSettled ||
             pruned
           )
@@ -384,6 +401,7 @@ export const createTuiRuntimeRefresh = (
         !changed &&
         !tuiStatusHydrated &&
         !clientStatusHydrated &&
+        !parentTaskHydrated &&
         !staleRunningSettled &&
         !pruned
       ) {

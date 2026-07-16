@@ -159,7 +159,7 @@ describe('stale running probe helpers', () => {
     ).toBe(true);
     expect(probeState.has('ses_child')).toBe(false);
     expect(state.children.ses_child).toMatchObject({
-      status: 'error',
+      status: 'stale',
       endedAt: '2026-06-04T12:00:03.000Z',
       updatedAt: '2026-06-04T12:00:03.000Z',
     });
@@ -312,7 +312,7 @@ describe('stale running probe helpers', () => {
     expect(changed).toBe(true);
     expect(probeState.has('ses_child')).toBe(false);
     expect(state.children.ses_child).toMatchObject({
-      status: 'error',
+      status: 'stale',
       endedAt: '2026-06-04T12:00:00.000Z',
       updatedAt: '2026-06-04T12:00:00.000Z',
     });
@@ -352,7 +352,7 @@ describe('stale running probe helpers', () => {
     expect(changed).toBe(true);
     expect(probeState.has('ses_child')).toBe(false);
     expect(state.children.ses_child).toMatchObject({
-      status: 'error',
+      status: 'stale',
       endedAt: '2026-06-04T12:00:00.000Z',
       updatedAt: '2026-06-04T12:00:00.000Z',
     });
@@ -458,7 +458,7 @@ describe('stale running probe helpers', () => {
         nowMs,
       }),
     ).toBe(true);
-    expect(state.children.ses_child).toMatchObject({ status: 'error' });
+    expect(state.children.ses_child).toMatchObject({ status: 'stale' });
   });
 
   it('normalizes old-shaped probe state without producing NaN', () => {
@@ -544,7 +544,7 @@ describe('stale running probe helpers', () => {
         nowMs: nowMs + 1_000,
       }),
     ).toBe(true);
-    expect(state.children.ses_child).toMatchObject({ status: 'error' });
+    expect(state.children.ses_child).toMatchObject({ status: 'stale' });
   });
 
   it('keeps maxAttempts 0 sessions running when direct running evidence exists without authoritative presence', () => {
@@ -613,7 +613,7 @@ describe('stale running probe helpers', () => {
     expect(changed).toBe(true);
     expect(probeState.has('ses_child')).toBe(false);
     expect(state.children.ses_child).toMatchObject({
-      status: 'error',
+      status: 'stale',
       endedAt: futureUpdatedAt,
       updatedAt: futureUpdatedAt,
     });
@@ -705,7 +705,7 @@ describe('inactivity threshold fallback', () => {
     expect(changed).toBe(true);
     expect(probeState.has('ses_child')).toBe(false);
     expect(state.children.ses_child).toMatchObject({
-      status: 'error',
+      status: 'stale',
       endedAt: baseNowMs >= Date.parse(oldUpdatedAt) ? '2026-06-04T12:00:00.000Z' : undefined,
     });
   });
@@ -789,7 +789,7 @@ describe('inactivity threshold fallback', () => {
     });
 
     expect(changed).toBe(true);
-    expect(state.children.ses_child).toMatchObject({ status: 'error' });
+    expect(state.children.ses_child).toMatchObject({ status: 'stale' });
   });
 
   it('does not trigger when inactiveThresholdMs is 0 (disabled)', () => {
@@ -852,7 +852,7 @@ describe('inactivity threshold fallback', () => {
     });
 
     expect(changed).toBe(true);
-    expect(state.children.ses_child).toMatchObject({ status: 'error' });
+    expect(state.children.ses_child).toMatchObject({ status: 'stale' });
   });
 
   it('does not infer done from elapsed time alone', () => {
@@ -881,7 +881,7 @@ describe('inactivity threshold fallback', () => {
     });
 
     expect(changed).toBe(true);
-    expect(state.children.ses_child).toMatchObject({ status: 'error' });
+    expect(state.children.ses_child).toMatchObject({ status: 'stale' });
     expect(state.children.ses_child).not.toMatchObject({ status: 'done' });
   });
 
@@ -914,7 +914,7 @@ describe('inactivity threshold fallback', () => {
     });
 
     expect(changed).toBe(true);
-    expect(state.children.ses_child).toMatchObject({ status: 'error' });
+    expect(state.children.ses_child).toMatchObject({ status: 'stale' });
 
     // Verify default threshold would not trigger at +5min
     const defaultPolicy = resolveSubagentStatusPluginOptions(undefined).staleRunningProbePolicy;

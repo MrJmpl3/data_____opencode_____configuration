@@ -11,7 +11,12 @@ import {
 import { extractPartTargetSessionCandidates, parseTaskSessionIdFromOutput } from './resolve.ts';
 import { deriveTerminalSessionStatus } from '../../domain/session-status.ts';
 
-export type TaskToolEvidence = { status: 'running' | 'done' | 'error'; targetSessionID?: string; endedAt?: string };
+export type TaskToolEvidence = {
+  status: 'running' | 'done' | 'error';
+  targetSessionID?: string;
+  endedAt?: string;
+  background: boolean;
+};
 
 export const extractChildCore = (event: EventLike) => {
   const info = event.properties?.info;
@@ -80,10 +85,12 @@ export const extractTaskToolEvidence = (event: EventLike): TaskToolEvidence | nu
   const status: TaskToolEvidence['status'] =
     terminalStatus === 'error' ? 'error' : terminalStatus === 'done' ? 'done' : 'running';
   const metadata = isRecord(state.metadata) ? state.metadata : undefined;
+  const input = isRecord(state.input) ? state.input : undefined;
   const parentID = asString(part.sessionID) ?? asString(part.session_id) ?? extractSessionId(event);
   const targets = extractPartTargetSessionCandidates(event);
   return {
     status,
+    background: input?.background === true || metadata?.background === true,
     targetSessionID:
       asString(metadata?.sessionId) ??
       asString(metadata?.sessionID) ??

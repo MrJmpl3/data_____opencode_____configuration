@@ -246,7 +246,7 @@ describe('refresh runtime', () => {
     await runtime.bootstrap();
 
     expect(setStateCalls[0]?.children.ses_stale).toMatchObject({
-      status: 'error',
+      status: 'stale',
       updatedAt: '2026-06-04T05:25:00.000Z',
       endedAt: '2026-06-04T05:25:00.000Z',
     });
@@ -791,7 +791,7 @@ describe('refresh runtime', () => {
 
     expect(tuiStatusSpy).not.toHaveBeenCalled();
     expect(clientStatusSpy).not.toHaveBeenCalled();
-    expect(clientMessagesSpy).not.toHaveBeenCalled();
+    expect(clientMessagesSpy).toHaveBeenCalled();
     expect(state.children.ses_child).toMatchObject({
       status: 'done',
       endedAt: '2026-06-04T05:20:00.000Z',
@@ -1123,7 +1123,7 @@ describe('refresh runtime', () => {
     expect(state.children['tool:delegate_1']).toBeUndefined();
     expect(state.children['subtask:part_1']).toMatchObject({ status: 'running' });
     expect(statusSpy).not.toHaveBeenCalled();
-    expect(messagesSpy).not.toHaveBeenCalled();
+    expect(messagesSpy).toHaveBeenCalled();
 
     runtime.dispose();
   });
@@ -1296,7 +1296,7 @@ describe('refresh runtime', () => {
     await waitForCondition(() => state.children.ses_child !== undefined);
 
     expect(statusSpy).toHaveBeenCalledTimes(1);
-    expect(messagesSpy).toHaveBeenCalledTimes(1);
+    expect(messagesSpy).toHaveBeenCalledTimes(2);
     expect(state.children.ses_child).toMatchObject({ status: 'running', endedAt: undefined });
 
     await vi.advanceTimersByTimeAsync(probePolicy.baseBackoffMs);
@@ -1304,12 +1304,12 @@ describe('refresh runtime', () => {
 
     await vi.advanceTimersByTimeAsync(probePolicy.baseBackoffMs);
     expect(statusSpy).toHaveBeenCalledTimes(3);
-    expect(messagesSpy).toHaveBeenCalledTimes(3);
+    expect(messagesSpy).toHaveBeenCalledTimes(6);
 
     await vi.advanceTimersByTimeAsync(probePolicy.baseBackoffMs);
     await waitForCondition(() => statusSpy.mock.calls.length === 4);
 
-    expect(messagesSpy).toHaveBeenCalledTimes(4);
+    expect(messagesSpy).toHaveBeenCalledTimes(8);
     expect(state.children.ses_child).toMatchObject({ status: 'running', endedAt: undefined });
 
     runtime.dispose();
@@ -1408,11 +1408,11 @@ describe('refresh runtime', () => {
     await waitForCondition(() => statusSpy.mock.calls.length === 2);
 
     await vi.advanceTimersByTimeAsync(probePolicy.baseBackoffMs * 2);
-    await waitForCondition(() => state.children.ses_child?.status === 'error');
+    await waitForCondition(() => state.children.ses_child?.status === 'stale');
 
     expect(state.children.ses_child).toMatchObject({
-      status: 'error',
-      color: 'red',
+      status: 'stale',
+      color: 'gray',
     });
     expect(state.children.ses_child?.endedAt).toBeDefined();
 

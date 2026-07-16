@@ -128,7 +128,7 @@ describe('final domain recovery boundaries', () => {
   });
 
   it('normalizes malformed responses and chooses the newest terminal evidence deterministically', () => {
-    expect(normalizeChildrenResponse({ data: [null, {}, { id: 'ok', parentID: 'p' }] })).toHaveLength(1);
+    expect(normalizeChildrenResponse({ data: [null, {}, { id: 'ok', parentID: 'p' }] })).toHaveLength(0);
     const older = child({
       id: 'tool:a',
       targetSessionID: 'ses_x',

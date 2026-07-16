@@ -29,7 +29,8 @@ const normalizeResponseChild = (input: unknown): SubagentChild | undefined => {
   const title = asString(input.title) ?? asString(input.name) ?? 'Subagent';
   const startedAt = asString(input.startedAt) ?? sessionTime(input, 'created') ?? new Date().toISOString();
   const updatedAt = asString(input.updatedAt) ?? sessionTime(input, 'updated') ?? startedAt;
-  const status = deriveOpenCodeSessionStatus(input.status ?? input.state) ?? 'running';
+  const status = deriveOpenCodeSessionStatus(input.status ?? input.state);
+  if (!status) return undefined;
   return {
     id,
     title,

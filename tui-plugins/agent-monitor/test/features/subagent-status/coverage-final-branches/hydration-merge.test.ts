@@ -168,7 +168,7 @@ describe('final hydration and merge branches', () => {
     expect(sync).toHaveBeenCalled();
     const live = state;
     await merge({ type: 'session.idle', properties: { info: { id: 'ses_child', status: 'idle' } } });
-    expect(state).toBe(live);
+    expect(state.children.ses_child).toMatchObject({ status: 'done' });
   });
 
   it('resolves fresh, stale, heuristic, and authoritative terminal refreshes', () => {

@@ -226,7 +226,7 @@ export const pruneTerminalChildren = (state: SubagentState, now = Date.now()): b
   return changed;
 };
 
-/** Marks running children whose evidence is older than hardStaleAfterMs as error.
+/** Marks running children whose evidence is older than hardStaleAfterMs as stale.
  *  Extracted from tui-runtime.ts to keep domain logic with the domain. */
 export const markHardStaleRunningChildren = (state: SubagentState, hardStaleAfterMs: number): void => {
   if (hardStaleAfterMs <= 0) return;
@@ -238,9 +238,9 @@ export const markHardStaleRunningChildren = (state: SubagentState, hardStaleAfte
     const childEvidenceMs = childEvidenceTimestampMs(child);
     if (nowMs - childEvidenceMs < hardStaleAfterMs) continue;
 
-    console.warn('[agent-monitor] hard-stale: marking', child.id, 'as error');
-    const errorAt = new Date(Math.max(nowMs, childEvidenceMs)).toISOString();
-    markChildStatus(state, child.id, 'error', errorAt);
+    console.warn('[agent-monitor] hard-stale: marking', child.id, 'as stale');
+    const staleAt = new Date(Math.max(nowMs, childEvidenceMs)).toISOString();
+    markChildStatus(state, child.id, 'stale', staleAt);
   }
 };
 
