@@ -9,9 +9,7 @@ export type PendingSidebarRefocus = {
 };
 
 export type PromptRefProp =
-  | ((ref: TuiPromptRef | undefined) => void)
-  | { current?: TuiPromptRef | undefined }
-  | undefined;
+  ((ref: TuiPromptRef | undefined) => void) | { current?: TuiPromptRef | undefined } | undefined;
 
 const scheduleDeferred = (callback: () => void): void => {
   setTimeout(callback, 0);
